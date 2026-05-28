@@ -995,7 +995,7 @@ ${context?"ADDITIONAL CONTEXT:\n"+context:""}
 Generate a professional, submission-ready ${rptLabels[rptType]} with executive summary, finding details with clause references, CA status, evidence of implementation, next steps, and signature block. Use formal regulatory language appropriate for SQF certification body.`;
 
   try{
-    const response=await fetch("/api/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+    const response=await fetch("/.netlify/functions/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
     const data=await response.json();
     if(!response.ok){throw new Error(data.error||"Server error "+response.status);}
     const text=data.text||"No content returned";
