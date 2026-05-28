@@ -1,4 +1,4 @@
-// v4 - native fetch
+// v5 - native fetch with timeout
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -23,8 +23,12 @@ exports.handler = async function(event, context) {
   }
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
@@ -37,6 +41,8 @@ exports.handler = async function(event, context) {
       })
     });
 
+    clearTimeout(timeout);
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -47,6 +53,7 @@ exports.handler = async function(event, context) {
     return { statusCode: 200, headers, body: JSON.stringify({ text }) };
 
   } catch (e) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
+    const msg = e.name === 'AbortError' ? 'Request timed out after 25 seconds' : e.message;
+    return { statusCode: 500, headers, body: JSON.stringify({ error: msg }) };
   }
 };
