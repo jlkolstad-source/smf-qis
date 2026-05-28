@@ -1,20 +1,13 @@
+// v3 - native fetch
 exports.handler = async function(event, context) {
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      },
-      body: ''
-    };
-  }
-
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
   };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -23,10 +16,9 @@ exports.handler = async function(event, context) {
 
   let body;
   try { body = JSON.parse(event.body); }
-  catch (e) { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid request body' }) }; }
+  catch (e) { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
-  const { prompt } = body;
-  if (!prompt) {
+  if (!body.prompt) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'No prompt provided' }) };
   }
 
@@ -41,14 +33,14 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }]
+        messages: [{ role: 'user', content: body.prompt }]
       })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: data.error?.message || 'Anthropic API error' }) };
+      return { statusCode: 500, headers, body: JSON.stringify({ error: data.error?.message || 'API error' }) };
     }
 
     const text = data.content?.filter(b => b.type === 'text').map(b => b.text).join('\n') || '';
