@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QIS · Quality Intelligence System · Somafina UST</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f0f2f5;--surface:#ffffff;--surface2:#f4f6f8;--surface3:#e8ecf0;--border:#d0d6de;--border2:#c0c8d2;--accent:#1F4E79;--accent2:#2E75B6;--accent3:#1F3864;--warn:#7F6000;--danger:#C00000;--purple:#375623;--text:#1a1a2e;--muted:#4a5568;--muted2:#2d3748;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:#1a1a2e;font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(31,78,121,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(31,78,121,0.06) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+.app{position:relative;z-index:1;}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid var(--border);background:rgba(31,56,100,0.97);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;gap:12px;flex-wrap:wrap;}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;color:#BDD7EE;}
+.logo span{color:#8fb8d8;font-size:12px;font-family:'DM Mono',monospace;display:block;letter-spacing:2px;margin-top:-3px;}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.site-badge{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#e8eaf0;}
+.site-badge strong{color:#BDD7EE;}
+.netlify-badge{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#BDD7EE;}
+.deadline-badge{background:rgba(255,244,180,0.2);border:1px solid #FFF2CC;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#FFF2CC;}
+nav{display:flex;gap:0;padding:0 32px;border-bottom:1px solid var(--border);background:rgba(31,56,100,0.92);overflow-x:auto;}
+.tab{padding:12px 18px;font-size:12px;font-weight:500;letter-spacing:0.5px;color:#a0bcd4;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;text-transform:uppercase;white-space:nowrap;}
+.tab:hover{color:#ffffff;}
+.tab.active{color:#BDD7EE;border-bottom-color:#BDD7EE;}
+main{padding:24px 32px 80px;}
+.section{display:none;}
+.section.active{display:block;}
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;}
+.kpi-card{background:#ffffff;border:1px solid #d0d6de;border-radius:4px;padding:18px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(31,56,100,0.08);}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.kpi-card.green::before{background:var(--accent);}
+.kpi-card.orange::before{background:var(--accent2);}
+.kpi-card.blue::before{background:var(--accent3);}
+.kpi-card.yellow::before{background:var(--warn);}
+.kpi-card.red::before{background:var(--danger);}
+.kpi-label{font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:#4a5568;font-weight:600;margin-bottom:8px;}
+.kpi-value{font-family:'Bebas Neue',sans-serif;font-size:44px;line-height:1;margin-bottom:5px;}
+.kpi-card.green .kpi-value{color:#1F4E79;}
+.kpi-card.orange .kpi-value{color:#C65911;}
+.kpi-card.blue .kpi-value{color:#1F3864;}
+.kpi-card.yellow .kpi-value{color:#7F6000;}
+.kpi-card.red .kpi-value{color:#C00000;}
+.kpi-sub{font-size:11px;color:#4a5568;}
+.charts-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;}
+.chart-card{background:#ffffff;border:1px solid #d0d6de;border-top:3px solid #1F4E79;border-radius:4px;padding:18px;}
+.chart-title{font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:#1F3864;font-weight:700;margin-bottom:14px;}
+.bar-chart{display:flex;flex-direction:column;gap:8px;}
+.bar-row{display:flex;align-items:center;gap:8px;}
+.bar-label{font-size:10px;color:#2d3748;width:80px;flex-shrink:0;font-family:'DM Mono',monospace;font-weight:600;}
+.bar-track{flex:1;height:7px;background:#f4f6f8;border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;}
+.bar-val{font-size:10px;color:#2d3748;width:22px;text-align:right;font-family:'DM Mono',monospace;font-weight:600;}
+.donut-wrap{display:flex;align-items:center;gap:20px;}
+.donut-legend{display:flex;flex-direction:column;gap:7px;}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:11px;color:#2d3748;}
+.legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.score-display{text-align:center;}
+.score-big{font-family:'Bebas Neue',sans-serif;font-size:72px;color:#1F3864;line-height:1;}
+.score-label{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:2px;margin-top:4px;}
+.score-bar-track{width:100%;height:5px;background:#f4f6f8;border-radius:3px;margin:12px 0 5px;overflow:hidden;}
+.score-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#2E75B6,#1F3864);}
+.score-range{display:flex;justify-content:space-between;font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;}
+.table-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap;}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#1F3864;}
+.btn{background:var(--accent);color:var(--bg);border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:0.5px;transition:opacity 0.2s;}
+.btn:hover{opacity:0.85;}
+.btn-ghost{background:transparent;color:#1F4E79;border:1px solid #1F4E79;border-radius:4px;padding:8px 16px;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;}
+.btn-ghost:hover{border-color:#1F3864;color:#1F3864;background:#DEEAF1;}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger);border-radius:6px;padding:5px 10px;font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all 0.2s;}
+.btn-danger:hover{background:var(--danger);color:#fff;}
+.filter-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.filter-chip{padding:5px 12px;border-radius:20px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;border:1px solid var(--border2);color:#4a5568;transition:all 0.2s;text-transform:uppercase;letter-spacing:0.5px;}
+.filter-chip.active,.filter-chip:hover{border-color:#1F4E79;color:#1F4E79;background:#DEEAF1;}
+.filter-chip.capa.active{border-color:#2E75B6;color:#1F3864;}
+.filter-chip.ncr.active{border-color:#C65911;color:#C65911;}
+.filter-chip.audit.active{border-color:#7F6000;color:#7F6000;}
+.data-table{width:100%;border-collapse:collapse;}
+.data-table th{text-align:left;padding:9px 12px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:#ffffff;border-bottom:1px solid #1F3864;background:#1F4E79;}
+.data-table td{padding:11px 12px;font-size:12px;border-bottom:1px solid #e8ecf0;vertical-align:top;color:#1a1a2e;}
+.data-table tr:hover td{background:#DEEAF1;}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;}
+.badge-capa{background:#DEEAF1;color:#1F3864;border:1px solid #2E75B6;}
+.badge-ncr{background:#FCE4D6;color:#C65911;border:1px solid #C65911;}
+.badge-audit{background:#FFF2CC;color:#7F6000;border:1px solid #7F6000;}
+.badge-major,.badge-critical{background:#FFE0E0;color:#C00000;border:1px solid #C00000;}
+.badge-minor{background:#F2F2F2;color:#4a5568;border:1px solid #d0d6de;}
+.badge-open{background:#FFF2CC;color:#7F6000;border:1px solid #7F6000;}
+.badge-closed{background:#E2EFDA;color:#375623;border:1px solid #375623;}
+.badge-overdue{background:#FFE0E0;color:#C00000;border:1px solid #C00000;}
+.badge-inprogress{background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6;}
+.aging-bar{width:52px;height:3px;background:#f4f6f8;border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:5px;}
+.aging-fill{height:100%;border-radius:2px;}
+.empty-state{text-align:center;padding:60px 20px;color:#4a5568;font-size:13px;}
+.empty-icon{font-size:36px;margin-bottom:10px;opacity:0.4;}
+.scroll-wrap{overflow-x:auto;}
+.csuite-banner{background:linear-gradient(135deg,#1F3864,#1F4E79);border:1px solid #2E75B6;border-radius:10px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.csuite-stat{text-align:center;flex:1;min-width:70px;}
+.csuite-stat-val{font-family:'Bebas Neue',sans-serif;font-size:28px;line-height:1;}
+.csuite-stat-label{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+.csuite-divider{width:1px;height:32px;background:var(--border);}
+.modal-overlay{position:fixed;inset:0;background:rgba(10,20,50,0.75);backdrop-filter:blur(6px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{background:#ffffff;border:2px solid #1F4E79;border-radius:6px;padding:26px;width:680px;max-width:96vw;max-height:92vh;overflow-y:auto;transform:translateY(10px);transition:transform 0.2s;}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:18px;color:#1F3864;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+.form-full{grid-column:1/-1;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-label{font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#1F4E79;font-weight:700;}
+.form-input,.form-select,.form-textarea{background:#f8fafc;border:1px solid #c0c8d2;border-radius:4px;padding:9px 12px;color:#1a1a2e;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color 0.2s;width:100%;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:#1F4E79;box-shadow:0 0 0 2px rgba(31,78,121,0.15);}
+.form-textarea{resize:vertical;min-height:68px;}
+.form-select option{background:#ffffff;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
+.photo-zone{border:2px dashed #c0c8d2;border-radius:6px;padding:14px;cursor:pointer;transition:all 0.2s;text-align:center;background:#f4f6f8;}
+.photo-zone:hover,.photo-zone.drag-over{border-color:#1F4E79;background:#DEEAF1;}
+.photo-zone-text{font-size:11px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1px;text-transform:uppercase;}
+.photo-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.photo-thumb{position:relative;width:76px;height:57px;border-radius:4px;overflow:hidden;border:1px solid #c0c8d2;}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;}
+.photo-del{position:absolute;top:2px;right:2px;background:rgba(255,59,92,0.85);color:#fff;border:none;border-radius:3px;width:16px;height:16px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.photo-count{display:inline-flex;align-items:center;gap:4px;background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6;padding:1px 6px;border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;}
+.audit-card{background:#ffffff;border:1px solid #d0d6de;border-left:4px solid #2E75B6;border-radius:4px;padding:16px;cursor:pointer;transition:all 0.2s;margin-bottom:0;}
+.audit-card:hover{border-left-color:#1F3864;background:#DEEAF1;}
+.audit-card.active-audit{border-left-color:#7F6000;background:#FFF9E6;}
+.audit-card-id{font-family:'DM Mono',monospace;font-size:11px;color:#1F4E79;letter-spacing:1px;margin-bottom:5px;font-weight:700;}
+.exec-summary{background:#1F3864;border:1px solid #1F4E79;border-radius:6px;padding:12px 18px;display:flex;gap:20px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+.exec-stat{text-align:center;}
+.exec-stat-val{font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;color:#ffffff;}
+.exec-stat-lbl{font-size:10px;font-family:'DM Mono',monospace;color:#BDD7EE;letter-spacing:0.8px;text-transform:uppercase;}
+.clause-exec-table{width:100%;border-collapse:collapse;}
+.clause-exec-table th{padding:8px 10px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#ffffff;border-bottom:1px solid #1F3864;background:#1F4E79;text-align:left;} .clause-exec-table tr td{color:#1a1a2e !important;}
+.clause-exec-table td{padding:9px 10px;border-bottom:1px solid #e8ecf0;vertical-align:top;font-size:12px;}
+.clause-row-c td{background:#E2EFDA;color:#1a1a2e !important;}
+.clause-row-nc td{background:#FFE0E0;color:#1a1a2e !important;}
+.clause-row-ofi td{background:#FFF2CC;color:#1a1a2e !important;}
+.clause-id{font-family:'DM Mono',monospace;font-size:12px;color:#1F4E79;white-space:nowrap;font-weight:700;}
+.mand-tag{background:#FFF2CC;color:#7F6000;border:1px solid #7F6000;padding:1px 5px;border-radius:3px;font-size:9px;font-family:'DM Mono',monospace;display:inline-block;margin-top:3px;}
+.exec-status-sel{background:#ffffff;border:1px solid #2E75B6;border-radius:4px;padding:4px 7px;color:#1F3864;font-weight:600;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;width:100%;outline:none;}
+.exec-notes{background:#ffffff;border:1px solid #2E75B6;border-radius:4px;padding:6px 8px;color:#1F3864;font-family:'DM Sans',sans-serif;font-size:11px;width:100%;resize:vertical;min-height:42px;outline:none;}
+.exec-notes:focus{border-color:#1F4E79;}
+.exec-sop-input{background:#ffffff;border:1px solid #2E75B6;border-radius:4px;padding:4px 7px;color:#1F3864;font-family:'DM Mono',monospace;font-size:10px;width:100%;outline:none;}
+.ncr-btn{background:#FFE0E0;color:#C00000;border:1px solid #C00000;border-radius:4px;padding:3px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;white-space:nowrap;transition:all 0.15s;}
+.ncr-btn:hover{background:#C00000;color:#fff;}
+.ncr-issued{background:#FFE0E0;border:1px solid #C00000;border-radius:4px;padding:3px 7px;font-size:10px;font-family:'DM Mono',monospace;color:#C00000;text-align:center;}
+.section-band{padding:7px 12px;font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;}
+.ai-output{background:#f4f6f8;border:1px solid #c0c8d2;border-radius:6px;padding:16px;font-size:12px;line-height:1.8;white-space:pre-wrap;min-height:180px;max-height:480px;overflow-y:auto;color:#1a1a2e;}
+.ai-thinking{display:flex;align-items:center;gap:8px;color:#1F4E79;font-size:11px;font-family:'DM Mono',monospace;padding:20px;}
+.dot-pulse{display:flex;gap:4px;}
+.dot-pulse span{width:6px;height:6px;border-radius:50%;background:#1F4E79;animation:pulse 1.2s infinite;}
+.dot-pulse span:nth-child(2){animation-delay:0.2s;}
+.dot-pulse span:nth-child(3){animation-delay:0.4s;}
+@keyframes pulse{0%,80%,100%{opacity:0.2;transform:scale(0.8);}40%{opacity:1;transform:scale(1);}}
+.lightbox{position:fixed;inset:0;background:rgba(10,20,40,0.92);z-index:300;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+.lightbox.open{opacity:1;pointer-events:all;}
+.lightbox img{max-width:90vw;max-height:85vh;object-fit:contain;}
+.lightbox-close{position:absolute;top:16px;right:20px;color:#fff;font-size:28px;cursor:pointer;background:none;border:none;}
+.lightbox-caption{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);color:#e8eaf0;font-size:11px;font-family:'DM Mono',monospace;background:rgba(0,0,0,0.7);padding:5px 14px;border-radius:4px;}
+.toast-wrap{position:fixed;bottom:48px;right:20px;z-index:400;display:flex;flex-direction:column;gap:8px;}
+.toast{padding:10px 16px;border-radius:6px;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;box-shadow:0 4px 20px rgba(0,0,0,0.4);animation:toastIn 0.2s ease,toastOut 0.3s ease 2.8s forwards;border-left:3px solid;}
+.toast.green{background:#E2EFDA;color:#375623;border-color:#375623;}
+.toast.red{background:#FFE0E0;color:#C00000;border-color:#C00000;}
+.toast.yellow{background:#FFF2CC;color:#7F6000;border-color:#7F6000;}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px);}to{opacity:1;transform:none;}}
+@keyframes toastOut{from{opacity:1;}to{opacity:0;pointer-events:none;}}
+.save-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(31,56,100,0.97);border-top:1px solid #1F3864;padding:5px 20px;display:flex;align-items:center;justify-content:space-between;font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;z-index:50;}
+.save-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:6px;}
+@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(3,1fr);}.charts-row{grid-template-columns:1fr;}}
+@media(max-width:600px){.kpi-grid{grid-template-columns:1fr 1fr;}main{padding:14px 16px 80px;}header{padding:12px 16px;}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div><div class="logo">QIS<span>QUALITY INTELLIGENCE SYSTEM · SOMAFINA UST</span></div></div>
+  <div class="header-right">
+    <div class="site-badge">Site: <strong>Lindon</strong> | SQF Ed. 9</div>
+    <div class="netlify-badge">&#127760; gentle-basbousa-df00e7.netlify.app</div>
+    <div class="deadline-badge" id="deadline-hdr">&#9201; §2.5.4 CA Due: Jun 18, 2026</div>
+    <button class="btn" onclick="openModal()">+ New Record</button>
+  </div>
+</header>
+<nav>
+  <div class="tab active" onclick="switchTab('dashboard',this)">Dashboard</div>
+  <div class="tab" onclick="switchTab('tracker',this)">CAPA / NCR / Audit</div>
+  <div class="tab" onclick="switchTab('audit-program',this)">&#9998; Audit Program</div>
+  <div class="tab" onclick="switchTab('csuite',this)">C-Suite View</div>
+  <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
+</nav>
+<main>
+
+<!-- DASHBOARD -->
+<div class="section active" id="dashboard">
+  <div class="kpi-grid">
+    <div class="kpi-card orange"><div class="kpi-label">Open Items</div><div class="kpi-value" id="kpi-open">0</div><div class="kpi-sub">CAPAs / NCRs / Findings</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Overdue</div><div class="kpi-value" id="kpi-overdue">0</div><div class="kpi-sub">Past due date</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Closure Rate</div><div class="kpi-value" id="kpi-closure">--</div><div class="kpi-sub">All-time</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">SQF Score</div><div class="kpi-value">83</div><div class="kpi-sub">May 2026 · Target 90+</div></div>
+    <div class="kpi-card yellow"><div class="kpi-label">Days to Deadline</div><div class="kpi-value" id="kpi-days">--</div><div class="kpi-sub">Jun 18, 2026 §2.5.4 CA</div></div>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card"><div class="chart-title">Open Findings by Clause Area</div><div class="bar-chart" id="clause-chart"></div></div>
+    <div class="chart-card">
+      <div class="chart-title">Status Distribution</div>
+      <div class="donut-wrap">
+        <svg width="90" height="90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="38" fill="none" stroke="var(--surface2)" stroke-width="14"/>
+          <circle cx="50" cy="50" r="38" fill="none" stroke="var(--warn)" stroke-width="14" stroke-dasharray="239" stroke-dashoffset="0" transform="rotate(-90 50 50)" id="donut-open"/>
+          <circle cx="50" cy="50" r="38" fill="none" stroke="var(--accent)" stroke-width="14" stroke-dasharray="239" stroke-dashoffset="239" transform="rotate(-90 50 50)" id="donut-closed"/>
+        </svg>
+        <div class="donut-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div>Open <span id="legend-open" style="margin-left:4px;color:#1a1a2e">--</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Closed <span id="legend-closed" style="margin-left:4px;color:#1a1a2e">--</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div>Overdue <span id="legend-overdue" style="margin-left:4px;color:#1a1a2e">--</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>In Progress <span id="legend-inprogress" style="margin-left:4px;color:#1a1a2e">--</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">SQF Audit Score · Lindon</div>
+      <div class="score-display">
+        <div class="score-big">83</div>
+        <div class="score-label">May 2026 · Lindon</div>
+        <div class="score-bar-track"><div class="score-bar-fill" style="width:83%"></div></div>
+        <div class="score-range"><span>0</span><span>Certified ≥70</span><span>100</span></div>
+        <div style="margin-top:10px;font-size:10px;color:#2d3748;font-family:'DM Mono',monospace">1 Major · 13 Minor · Target: 90+</div>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="chart-card"><div class="chart-title">2026 Audit Schedule — Appendix B</div><div id="dash-schedule"></div></div>
+    <div class="chart-card"><div class="chart-title">§2.5.4 Evidence Package Progress</div><div id="dash-254"></div></div>
+  </div>
+</div>
+
+<!-- TRACKER -->
+<div class="section" id="tracker">
+  <div class="table-header">
+    <div class="section-title">All Records</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-ghost" onclick="exportCSV()">CSV</button>
+      <button class="btn-ghost" onclick="exportJSON()">&#11015; Export JSON</button>
+      <label class="btn-ghost" style="cursor:pointer">&#11014; Import<input type="file" accept=".json" style="display:none" onchange="importJSON(event)"></label>
+      <button class="btn" onclick="openModal()">+ New Record</button>
+    </div>
+  </div>
+  <div class="filter-row">
+    <div class="filter-chip active" onclick="filterRecords('all',this)">All</div>
+    <div class="filter-chip capa" onclick="filterRecords('CAPA',this)">CAPA</div>
+    <div class="filter-chip ncr" onclick="filterRecords('NCR',this)">NCR</div>
+    <div class="filter-chip audit" onclick="filterRecords('AUDIT',this)">Audit Finding</div>
+    <div class="filter-chip" onclick="filterRecords('open',this)" style="margin-left:auto">Open</div>
+    <div class="filter-chip" onclick="filterRecords('overdue',this)">Overdue</div>
+    <div class="filter-chip" onclick="filterRecords('closed',this)">Closed</div>
+  </div>
+  <div class="scroll-wrap">
+    <table class="data-table">
+      <thead><tr><th>ID</th><th>Type</th><th>Sev</th><th>Description</th><th>Clause</th><th>Owner</th><th>Due</th><th>Photos</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="records-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- AUDIT PROGRAM -->
+<div class="section" id="audit-program">
+  <div class="table-header">
+    <div class="section-title">Audit Program · SOP #22 Rev 05</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-ghost" onclick="showAuditList()">&#8592; All Audits</button>
+      <button class="btn" onclick="openNewAuditModal()" style="background:#1F4E79">+ New Audit</button>
+      <button class="btn-ghost" onclick="saveAuditExec()">&#128190; Save</button>
+      <button class="btn-ghost" onclick="exportAuditExec()">&#11015; Export for Report</button>
+    </div>
+  </div>
+  <div id="audit-program-content"></div>
+</div>
+
+<!-- C-SUITE -->
+<div class="section" id="csuite">
+  <div class="table-header">
+    <div class="section-title">Executive Quality Summary</div>
+    <button class="btn-ghost" onclick="window.print()">Print</button>
+  </div>
+  <div class="csuite-banner">
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-risk" style="color:var(--accent)">--</div><div class="csuite-stat-label">Quality Risk</div></div>
+    <div class="csuite-divider"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-cost" style="color:var(--accent3)">$0</div><div class="csuite-stat-label">Cost Avoidance</div></div>
+    <div class="csuite-divider"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-closure-rate" style="color:var(--warn)">--%</div><div class="csuite-stat-label">On-Time Closure</div></div>
+    <div class="csuite-divider"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" style="color:var(--accent)">83</div><div class="csuite-stat-label">SQF Score</div></div>
+    <div class="csuite-divider"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-open" style="color:var(--accent2)">0</div><div class="csuite-stat-label">Open Items</div></div>
+    <div class="csuite-divider"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-days2" style="color:var(--warn)">--</div><div class="csuite-stat-label">Days to CA Deadline</div></div>
+  </div>
+  <div class="charts-row" style="grid-template-columns:1fr 1fr">
+    <div class="chart-card">
+      <div class="chart-title">Risk Exposure by Category</div>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">GMP/People</div><div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--danger)"></div></div><div class="bar-val">1</div></div>
+        <div class="bar-row"><div class="bar-label">Sanitation</div><div class="bar-track"><div class="bar-fill" style="width:66%;background:var(--accent2)"></div></div><div class="bar-val">2</div></div>
+        <div class="bar-row"><div class="bar-label">Equipment</div><div class="bar-track"><div class="bar-fill" style="width:66%;background:var(--accent3)"></div></div><div class="bar-val">2</div></div>
+        <div class="bar-row"><div class="bar-label">Documentation</div><div class="bar-track"><div class="bar-fill" style="width:33%;background:var(--warn)"></div></div><div class="bar-val">1</div></div>
+        <div class="bar-row"><div class="bar-label">System/Audit</div><div class="bar-track"><div class="bar-fill" style="width:33%;background:var(--accent)"></div></div><div class="bar-val">1</div></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Business Context</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+        <div style="padding:10px 14px;background:#f4f6f8;border-radius:7px;border-left:3px solid var(--accent)"><div style="font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1px;margin-bottom:3px">SQF CERTIFICATION</div><div style="font-size:12px">Certified · Score 83/100 · §2.5.4 CA in progress</div></div>
+        <div style="padding:10px 14px;background:#f4f6f8;border-radius:7px;border-left:3px solid var(--accent3)"><div style="font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1px;margin-bottom:3px">CA DEADLINE</div><div style="font-size:12px">June 18, 2026 · <span id="cs-deadline-txt" style="color:var(--warn)">Calculating...</span></div></div>
+        <div style="padding:10px 14px;background:#f4f6f8;border-radius:7px;border-left:3px solid var(--warn)"><div style="font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1px;margin-bottom:3px">OPEN MAJORS</div><div style="font-size:12px" id="cs-majors">-- Major · Requires RCA with evidence</div></div>
+        <div style="padding:10px 14px;background:#f4f6f8;border-radius:7px;border-left:3px solid var(--purple)"><div style="font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1px;margin-bottom:3px">AUDIT PROGRAM</div><div style="font-size:12px">SOP #22 Rev 05 active · Session 1 executing May 29</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI REPORT -->
+<div class="section" id="ai-report">
+  <div class="table-header"><div class="section-title">AI Report Generator</div></div>
+  <div style="display:grid;grid-template-columns:280px 1fr;gap:14px">
+    <div>
+      <div class="chart-card" style="margin-bottom:12px">
+        <div class="chart-title" style="margin-bottom:10px">Report Type</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="sqfi-submission" checked style="accent-color:var(--accent)"> SQFI CA Submission</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="executive" style="accent-color:var(--accent)"> Executive Summary</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="audit-report" style="accent-color:var(--accent)"> Full Audit Report (§2.1/§2.2)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="capa-summary" style="accent-color:var(--accent)"> CAPA Status Summary</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="finding-detail" style="accent-color:var(--accent)"> Per-Finding Detail</label>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-bottom:12px">
+        <div class="chart-title" style="margin-bottom:10px">Context</div>
+        <div class="form-group" style="margin-bottom:9px"><label class="form-label">Audit / Session</label><input class="form-input" id="ai-audit-date" value="May 29, 2026 — AUDIT-LDN-2026-001-S1"></div>
+        <div class="form-group" style="margin-bottom:9px"><label class="form-label">Lead Auditor</label><input class="form-input" id="ai-auditor" value="Jesse Kolstad, Director of Quality"></div>
+        <div class="form-group"><label class="form-label">Additional Notes</label><textarea class="form-textarea" id="ai-context" placeholder="Any specific context for this report..."></textarea></div>
+      </div>
+      <button class="btn" style="width:100%;padding:11px;font-size:13px" onclick="generateAIReport()">&#129302; Generate with Claude</button>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title" style="margin-bottom:10px">Generated Report</div>
+      <div id="ai-output-wrap"><div class="ai-output" style="color:#4a5568;font-style:italic">Select a report type and click Generate. Claude will use all your current tracker data to build a formatted, submission-ready report.</div></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn-ghost" id="copy-rpt-btn" style="display:none" onclick="copyReport()">Copy</button>
+        <button class="btn-ghost" id="dl-rpt-btn" style="display:none" onclick="downloadReport()">&#11015; Download .txt</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- RECORD MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">New Record</div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="f-type"><option value="CAPA">CAPA</option><option value="NCR">NCR</option><option value="AUDIT">Audit Finding</option></select></div>
+      <div class="form-group"><label class="form-label">Severity</label><select class="form-select" id="f-severity"><option value="Minor">Minor</option><option value="Major">Major</option><option value="Critical">Critical</option><option value="Observation">Observation</option></select></div>
+      <div class="form-group form-full"><label class="form-label">Description</label><textarea class="form-textarea" id="f-desc" placeholder="Describe the finding or non-conformance..."></textarea></div>
+      <div class="form-group"><label class="form-label">SQF Clause</label><input class="form-input" id="f-clause" placeholder="e.g. 17.4.1.1" type="text"></div>
+      <div class="form-group"><label class="form-label">Owner</label><input class="form-input" id="f-owner" placeholder="Name or role" type="text"></div>
+      <div class="form-group form-full"><label class="form-label">Root Cause</label><textarea class="form-textarea" id="f-rca" placeholder="Root cause analysis..." style="min-height:56px"></textarea></div>
+      <div class="form-group form-full"><label class="form-label">Corrective Action</label><textarea class="form-textarea" id="f-ca" placeholder="Corrective action taken or planned..." style="min-height:56px"></textarea></div>
+      <div class="form-group"><label class="form-label">Due Date</label><input class="form-input" id="f-due" type="date"></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-select" id="f-status"><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="Closed">Closed</option><option value="Overdue">Overdue</option></select></div>
+      <div class="form-group form-full">
+        <label class="form-label">Photo / File Evidence</label>
+        <div class="photo-zone" id="photo-drop-zone" onclick="document.getElementById('photo-file-input').click()" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handlePhotoDrop(event)">
+          <div class="photo-zone-text">&#128247; Tap or drag photos / files here</div>
+          <div style="font-size:10px;color:#4a5568;margin-top:3px">JPG · PNG · PDF — embedded with this record</div>
+        </div>
+        <input type="file" id="photo-file-input" accept="image/*,.pdf" multiple style="display:none" onchange="handlePhotoSelect(event)">
+        <div class="photo-grid" id="photo-preview-grid"></div>
+        <input type="hidden" id="f-photos" value="[]">
+      </div>
+      <div class="form-group form-full"><label class="form-label">Objective Evidence Notes</label><textarea class="form-textarea" id="f-evidence" placeholder="Record documents reviewed, what was observed, dates..."></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="saveRecord()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- NCR QUICK MODAL -->
+<div class="modal-overlay" id="ncr-modal">
+  <div class="modal" style="border-top:2px solid var(--danger)">
+    <div class="modal-title" style="color:var(--danger)">Issue NCR · <span id="ncr-clause-lbl"></span></div>
+    <div style="background:#FFF2CC;border:1px solid #7F6000;border-radius:4px;padding:9px 13px;margin-bottom:14px;font-size:11px;font-family:'DM Mono',monospace;color:#7F6000">SELF-ASSIGNED NCR · SOP #22 §11.8 · Linked to active audit session</div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">NCR Number</label><input class="form-input" id="qncr-num" type="text"></div>
+      <div class="form-group"><label class="form-label">Classification</label><select class="form-select" id="qncr-class"><option>Minor</option><option>Major</option><option>Observation</option><option>Critical</option></select></div>
+      <div class="form-group form-full"><label class="form-label">Finding Description</label><textarea class="form-textarea" id="qncr-desc" placeholder="Exactly what was missing or non-compliant..."></textarea></div>
+      <div class="form-group form-full"><label class="form-label">Root Cause</label><textarea class="form-textarea" id="qncr-root" style="min-height:52px" placeholder="Why did this gap occur?"></textarea></div>
+      <div class="form-group form-full"><label class="form-label">Corrective Action Required</label><textarea class="form-textarea" id="qncr-ca" style="min-height:52px" placeholder="What needs to be done to close?"></textarea></div>
+      <div class="form-group"><label class="form-label">CA Owner</label><input class="form-input" id="qncr-owner" type="text" placeholder="Name or role"></div>
+      <div class="form-group"><label class="form-label">Target Close Date</label><input class="form-input" id="qncr-due" type="date"></div>
+      <div class="form-group form-full">
+        <label class="form-label">Photo Evidence</label>
+        <div class="photo-zone" onclick="document.getElementById('qncr-photo-input').click()" style="padding:10px"><div class="photo-zone-text">&#128247; Add Photos</div></div>
+        <input type="file" id="qncr-photo-input" accept="image/*" multiple style="display:none" onchange="handleQNCRPhoto(event)">
+        <div class="photo-grid" id="qncr-photo-grid"></div>
+        <input type="hidden" id="qncr-photos" value="[]">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeNCRModal()">Cancel</button>
+      <button class="btn" style="background:var(--danger);color:#fff" onclick="saveQuickNCR()">Issue NCR</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- NEW AUDIT MODAL -->
+<div class="modal-overlay" id="new-audit-modal">
+  <div class="modal" style="border-top:3px solid #1F4E79;max-width:600px">
+    <div class="modal-title" style="color:#1F3864">Schedule New Audit</div>
+    <div style="background:#DEEAF1;border:1px solid #2E75B6;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;font-family:'DM Mono',monospace;color:#1F3864">
+      AD-HOC OR SCHEDULED AUDIT · Will appear in Audit Program and Appendix B view
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Audit Number</label>
+        <input class="form-input" id="na-id" placeholder="e.g. AUDIT-LDN-2026-003-S1" type="text">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Facility</label>
+        <select class="form-select" id="na-facility">
+          <option value="Lindon">Lindon</option>
+          <option value="Layton">Layton</option>
+          <option value="Both">Both</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Audit Date</label>
+        <input class="form-input" id="na-date" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Report Due Date</label>
+        <input class="form-input" id="na-report-due" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lead Auditor</label>
+        <input class="form-input" id="na-lead" value="Jesse Kolstad" type="text">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Co-Auditor</label>
+        <input class="form-input" id="na-co" value="Jennifer Hall" type="text">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Appendix B Reference</label>
+        <input class="form-input" id="na-appb" placeholder="e.g. Ad-hoc · Q2 2026 or Semi-Annual #1 · Session 3" type="text">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">SQF Module — Select Clauses to Audit</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px" id="na-clause-options">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
+            <input type="checkbox" value="2.1-2.2" name="na-clauses" style="accent-color:#1F4E79"> §2.1 + §2.2 — Management Commitment · Document Control
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
+            <input type="checkbox" value="2.3-2.4" name="na-clauses" style="accent-color:#1F4E79"> §2.3 + §2.4 — Specifications · Food Safety / HACCP
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
+            <input type="checkbox" value="2.5-2.6" name="na-clauses" style="accent-color:#1F4E79"> §2.5 + §2.6 — Verification · Traceability / Recall
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
+            <input type="checkbox" value="2.7-2.9" name="na-clauses" style="accent-color:#1F4E79"> §2.7 + §2.8 + §2.9 — Food Defense · Allergen · Training
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
+            <input type="checkbox" value="mod17-gmp" name="na-clauses" style="accent-color:#1F4E79"> Module 17 — GMP (§17.1–17.7)
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#FFF2CC;border:1px solid #7F6000;border-radius:4px;font-size:12px">
+            <input type="checkbox" value="full" name="na-clauses" style="accent-color:#1F4E79"> Full Module 2 + Module 17 (all clauses)
+          </label>
+        </div>
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Notes / Scope Context</label>
+        <textarea class="form-textarea" id="na-notes" placeholder="Scope notes, reason for ad-hoc audit, specific areas of focus..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeNewAuditModal()">Cancel</button>
+      <button class="btn" style="background:#1F4E79" onclick="saveNewAudit()">Schedule Audit</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close">&#215;</button>
+  <img id="lightbox-img" src="" alt="">
+  <div class="lightbox-caption" id="lightbox-cap"></div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<div class="save-bar">
+  <span><span class="save-dot"></span><span id="save-status">Auto-saved to browser</span></span>
+  <span style="display:flex;gap:12px;align-items:center">
+    <span style="color:#4a5568">gentle-basbousa-df00e7.netlify.app · Drag new HTML onto Netlify Drop to update live</span>
+    <button onclick="exportJSON()" style="background:none;border:1px solid var(--border2);color:#4a5568;padding:2px 9px;font-size:10px;cursor:pointer;border-radius:3px;font-family:'DM Mono',monospace">&#11015; Export</button>
+    <button onclick="if(confirm('Reset to factory data?'))resetData()" style="background:none;border:1px solid rgba(255,59,92,0.2);color:rgba(255,59,92,0.4);padding:2px 9px;font-size:10px;cursor:pointer;border-radius:3px;font-family:'DM Mono',monospace">Reset</button>
+  </span>
+</div>
+<script>
+const SEED_FINDINGS=[
+  {type:"AUDIT",severity:"Minor",clause:"2.4.3.2",desc:"Supplier approval records not maintained for three packaging suppliers (third party certification and food grade materials usage information).",owner:"Purchasing",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"2.4.8.1",desc:"Environmental monitoring plan is not risk based. Zones established but no testing in zone 2 and 4. Schedule not well descriptive.",owner:"Quality",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"2.5.4.1",desc:"Internal audit not completed against all SQF requirements. Some GMP module elements covered in GMP or other inspections but incomplete.",owner:"Quality",status:"In Progress",due:"2026-06-18",rca:"Internal audit program lacked formal clause-level checklist.",ca:"SOP #22 Rev 05 §11 implemented. Appendix A and Appendix B issued. First audit executing May 29, 2026.",photos:[],evidence:"SOP #22 Rev 05 issued May 2026. AUDIT-LDN-2026-001-S1 executing May 29.",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"2.6.3.2",desc:"Recall system tested, reviewed and verified before audit — documentation to be formalized.",owner:"Quality",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"2.6.4.2",desc:"Crisis plan not tested before the audit.",owner:"Quality",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"17.1.5.1",desc:"Two doors (warehouse dock door 9 and overhead door) not maintained. Daylight and gaps observed at time of audit.",owner:"Facilities",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"17.2.1.3",desc:"Breakdown and repair records not always maintained. Repairs done but records not consistently kept.",owner:"Maintenance",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"17.2.1.6",desc:"Three incidents of temporary repairs observed: bottle line cardboard, gummy line plastic wrap, glove and cleaning cloth used to cover drip.",owner:"Maintenance",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"17.2.5.1",desc:"No master cleaning and sanitation schedule. Periodic cleaning not recorded. Machine records bundled without specific task detail. Pre-ops lack line/area specifics. All-clear tasks bundled.",owner:"Sanitation",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"17.3.2.3",desc:"Water at appropriate temperature not available at gummy line hand washing station.",owner:"Facilities",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Major",clause:"17.4.1.1",desc:"Multiple GMP violations: kettle cover on non-food surface; food contact liner touching floor (5 incidents); food contact pouches stored uncovered; employees with cell phones in production (5 incidents); water bottles in gummy area; employee at stick packaging not following GMP — cross-contaminated hands, touched shoes, skipped handwashing, touched product packaging. Escort did not intervene.",owner:"Operations",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"17.6.4.2",desc:"Unattended non-food chemical (lubricant) observed stored with food grade chemicals in ropack area.",owner:"Sanitation",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"17.6.5.1",desc:"Inbound material and truck inspection records not maintained. Inspections performed but not recorded.",owner:"Receiving",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+  {type:"AUDIT",severity:"Minor",clause:"17.7.3.8",desc:"Unattended snap-off blade observed in warehouse during audit.",owner:"Warehouse",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
+];
+
+const AUDITS=[
+  {id:"AUDIT-LDN-2026-001-S1",facility:"Lindon",clauses:"§2.1 + §2.2",desc:"Management Commitment · Document Control",appb:"Semi-Annual #1 · Q2 · Session 1",date:"2026-05-29",lead:"Jesse Kolstad",co:"Jennifer Hall",status:"Active",reportDue:"2026-06-12",execState:{}},
+  {id:"AUDIT-LAY-2026-001-S1",facility:"Layton",clauses:"§2.1 + §2.2",desc:"Management Commitment · Document Control",appb:"Semi-Annual #1 · Q2 · Session 1",date:"2026-06-05",lead:"Jesse Kolstad",co:"Jennifer Hall",status:"Scheduled",reportDue:"2026-06-19",execState:{}},
+  {id:"AUDIT-LDN-2026-001-S2",facility:"Lindon",clauses:"§2.3 + §2.4",desc:"Specifications · Food Safety System / HACCP",appb:"Semi-Annual #1 · Q2 · Session 2",date:"2026-06-12",lead:"Jesse Kolstad",co:"Jennifer Hall",status:"Scheduled",reportDue:"2026-06-26",execState:{}},
+  {id:"AUDIT-LDN-2026-002-S1",facility:"Lindon",clauses:"§2.5-2.9 + Mod.17",desc:"Verification · GMP · Full Facility",appb:"Semi-Annual #2 · Q4",date:"2026-10-15",lead:"Jesse Kolstad",co:"Jennifer Hall",status:"Scheduled",reportDue:"2026-10-29",execState:{}},
+];
+
+const CLAUSES=[
+  {section:"§2.1  MANAGEMENT COMMITMENT"},
+  {section:"§2.1.1  Management Responsibility  (ALL MANDATORY)"},
+  {id:"§2.1.1.1(i-iv)",req:"Food safety and quality policy documented — all 4 commitments covered",evidence:"QM-001 §4.1-4.2",mandatory:true},
+  {id:"§2.1.1.1(v-vi)",req:"Policy signed by senior manager; posted prominently; communicated to all staff",evidence:"Physical posting at Lindon; SOP #7 training records",mandatory:true},
+  {id:"§2.1.1.2",req:"Senior management leads food safety culture — objectives documented, resources allocated, staff empowered",evidence:"QM-001 §4-6; SOP #30 §6",mandatory:true},
+  {id:"§2.1.1.3",req:"Reporting structure documented; QC designee for regulations; job descriptions include backup coverage",evidence:"QM-001 §5 org chart; job descriptions",mandatory:true},
+  {id:"§2.1.1.4",req:"SQF Practitioner designated with documented authority",evidence:"QM-001 §5.4",mandatory:true},
+  {id:"§2.1.1.5",req:"SQF Practitioner: employed on site; min 2-day assessed HACCP training; qualified",evidence:"SOP #7; HACCP certification certificate",mandatory:true},
+  {id:"§2.1.1.6",req:"Training needs identified, resourced, and implemented",evidence:"SOP #7 training matrix; training calendar",mandatory:true},
+  {id:"§2.1.1.7",req:"Food safety system integrity maintained during organizational change",evidence:"SOP #6 (MOC); SOP #MR-001",mandatory:true},
+  {id:"§2.1.1.8",req:"Blackout periods designated and submitted to CB",evidence:"Blackout period list; CB submission",mandatory:true},
+  {section:"§2.1.2  Management Review  (MANDATORY)"},
+  {id:"§2.1.2.1",req:"Annual SQF System review — all 6 inputs covered; within last 12 months; action items assigned",evidence:"SOP #MR-001 MR minutes (most recent)",mandatory:true},
+  {id:"§2.1.2.2",req:"SQF Practitioner monthly updates to management documented",evidence:"Monthly update records",mandatory:true},
+  {section:"§2.1.3  Complaint Management  (MANDATORY)"},
+  {id:"§2.1.3.1",req:"Complaint procedure documented; qualified responsible person identified",evidence:"SOP #16 (Customer Complaints)",mandatory:true},
+  {id:"§2.1.3.2",req:"Adverse complaint trends investigated and root cause established",evidence:"SOP #16 trend analysis; complaint log",mandatory:true},
+  {id:"§2.1.3.3",req:"CAPA implemented per seriousness; records of complaints, investigations, resolutions maintained",evidence:"SOP #14 (CAPA); last 5 complaint records",mandatory:true},
+  {section:"§2.2  DOCUMENT CONTROL AND RECORDS"},
+  {section:"§2.2.1  FSMS Documentation  (MANDATORY)"},
+  {id:"§2.2.1.1",req:"QMS documentation complete and available — all 8 categories present",evidence:"QM-001; SOP #2 library; HACCP-001/002; PRP-001-004",mandatory:true},
+  {id:"§2.2.1.2",req:"Food safety plans updated when changes impact product safety; changes validated before implementation",evidence:"SOP #6 (MOC); HACCP-001 §9 annual reassessment",mandatory:true},
+  {section:"§2.2.2  Document Control  (MANDATORY)"},
+  {id:"§2.2.2.1",req:"Document control procedure implemented; current versions at point of use; staff have access",evidence:"SOP #2 §9-11; spot-check 3-5 SOPs vs ULIMS master",mandatory:true},
+  {section:"§2.2.3  Records  (MANDATORY)"},
+  {id:"§2.2.3.1",req:"Records retention methods, frequency, and responsibility documented",evidence:"SOP #2 §14 GMP Records Retention Schedule",mandatory:true},
+  {id:"§2.2.3.2",req:"Records legible and confirmed/initialed by monitor",evidence:"SOP #4 (GDP); spot-check 3 record types",mandatory:true},
+  {id:"§2.2.3.3",req:"Records accessible, retrievable, secure; electronic records backed up off-site",evidence:"SOP #2 §15; verify backup active; last backup date",mandatory:true},
+];
+
+let records=[], editingId=null, currentFilter="all", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
+
+function loadData(){
+  try{const s=localStorage.getItem("qis-v2");if(s){const p=JSON.parse(s);records=p.records||[];return;}}catch(e){}
+  records=SEED_FINDINGS.map((f,i)=>({id:"QIS-"+String(i+1).padStart(4,"0"),...f}));
+  saveData();
+}
+
+function saveData(){
+  try{
+    localStorage.setItem("qis-v2",JSON.stringify({records,ts:Date.now()}));
+    const n=new Date();
+    document.getElementById("save-status").textContent="Saved "+n.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})+" · Export JSON to back up";
+  }catch(e){}
+}
+
+function genId(){const max=records.reduce((m,r)=>Math.max(m,parseInt(r.id.split("-")[1]||0)),0);return "QIS-"+String(max+1).padStart(4,"0");}
+
+function render(){updateKPIs();renderTable();renderDashCharts();updateCSuite();updateDeadline();}
+
+function updateKPIs(){
+  const open=records.filter(r=>r.status==="Open"||r.status==="In Progress").length;
+  const closed=records.filter(r=>r.status==="Closed").length;
+  const total=records.length;
+  const overdue=records.filter(r=>r.status!=="Closed"&&r.due&&new Date(r.due)<new Date()).length;
+  const diff=Math.ceil((new Date("2026-06-18")-new Date())/(1000*60*60*24));
+  document.getElementById("kpi-open").textContent=open;
+  document.getElementById("kpi-overdue").textContent=overdue;
+  document.getElementById("kpi-closure").textContent=total>0?Math.round(closed/total*100)+"%":"--";
+  const kd=document.getElementById("kpi-days");
+  kd.textContent=diff>0?diff:"PAST";
+  const circ=239;
+  document.getElementById("donut-open").setAttribute("stroke-dashoffset",circ*(1-(total>0?open/total:0)));
+  document.getElementById("donut-closed").setAttribute("stroke-dashoffset",circ*(1-(total>0?closed/total:0)));
+  document.getElementById("legend-open").textContent=open;
+  document.getElementById("legend-closed").textContent=closed;
+  document.getElementById("legend-overdue").textContent=overdue;
+  document.getElementById("legend-inprogress").textContent=records.filter(r=>r.status==="In Progress").length;
+}
+
+function updateDeadline(){
+  const diff=Math.ceil((new Date("2026-06-18")-new Date())/(1000*60*60*24));
+  const color=diff<=7?"var(--danger)":diff<=14?"var(--warn)":"var(--accent)";
+  const txt=diff>0?diff+" days remaining":"PAST DUE";
+  ["cs-deadline-txt","cs-days2"].forEach(id=>{const el=document.getElementById(id);if(el){el.textContent=txt;el.style.color=color;}});
+}
+
+function renderDashCharts(){
+  const clauses={};
+  records.filter(r=>r.status!=="Closed").forEach(r=>{
+    const a=r.clause?r.clause.split(".").slice(0,2).join("."):"Other";
+    clauses[a]=(clauses[a]||0)+1;
+  });
+  const sorted=Object.entries(clauses).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxV=sorted.reduce((m,[,v])=>Math.max(m,v),1);
+  const colors=["var(--danger)","var(--accent2)","var(--warn)","var(--accent3)","var(--accent)","var(--muted)"];
+  document.getElementById("clause-chart").innerHTML=sorted.map(([k,v],i)=>
+    `<div class="bar-row"><div class="bar-label">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxV*100)}%;background:${colors[i]||colors[5]}"></div></div><div class="bar-val">${v}</div></div>`
+  ).join("")||`<div style="color:#4a5568;font-size:11px;padding:16px 0;text-align:center">No open findings</div>`;
+
+  document.getElementById("dash-schedule").innerHTML=AUDITS.map(a=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f4f6f8;border-radius:6px;border-left:3px solid ${a.status==="Active"?"#7F6000":a.status==="Complete"?"#375623":"#d0d6de"};margin-bottom:6px">
+      <div>
+        <div style="font-size:10px;font-family:'DM Mono',monospace;color:#1F4E79">${a.id}</div>
+        <div style="font-size:12px;font-weight:500">${a.clauses}</div>
+        <div style="font-size:10px;color:#4a5568">${a.date} · ${a.facility}</div>
+      </div>
+      <span class="badge ${a.status==="Active"?"badge-open":a.status==="Complete"?"badge-closed":"badge-minor"}">${a.status}</span>
+    </div>`).join("");
+
+  const items=[
+    {label:"SOP #22 Rev 05",status:"Complete",pct:100},
+    {label:"Appendix B Plan",status:"Complete",pct:100},
+    {label:"Appendix A §2.1/§2.2",status:"In Progress",pct:40},
+    {label:"Audit Report LDN-001-S1",status:"Pending",pct:0},
+    {label:"SQFI CA Submission",status:"Pending",pct:0},
+  ];
+  document.getElementById("dash-254").innerHTML=items.map(e=>`
+    <div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-size:11px">${e.label}</span>
+        <span class="badge ${e.status==="Complete"?"badge-closed":e.status==="In Progress"?"badge-inprogress":"badge-minor"}">${e.status}</span>
+      </div>
+      <div style="height:3px;background:#f4f6f8;border-radius:2px;overflow:hidden">
+        <div style="height:100%;width:${e.pct}%;background:${e.pct===100?"var(--accent)":e.pct>0?"var(--accent3)":"var(--surface2)"};border-radius:2px"></div>
+      </div>
+    </div>`).join("");
+}
+
+function updateCSuite(){
+  const open=records.filter(r=>r.status!=="Closed").length;
+  const closed=records.filter(r=>r.status==="Closed").length;
+  const total=records.length;
+  const majors=records.filter(r=>r.severity==="Major"&&r.status!=="Closed").length;
+  document.getElementById("cs-risk").textContent=majors>0?"HIGH":open>5?"MED":"LOW";
+  document.getElementById("cs-risk").style.color=majors>0?"var(--danger)":open>5?"var(--warn)":"var(--accent)";
+  document.getElementById("cs-cost").textContent="$"+(closed*2400).toLocaleString();
+  document.getElementById("cs-closure-rate").textContent=total>0?Math.round(closed/total*100)+"%":"--%";
+  document.getElementById("cs-open").textContent=open;
+  document.getElementById("cs-majors").textContent=majors+" Major open · Requires RCA with evidence";
+  updateDeadline();
+}
+
+function renderTable(f){
+  if(f!==undefined)currentFilter=f;
+  let list=[...records];
+  if(currentFilter==="CAPA")list=list.filter(r=>r.type==="CAPA");
+  else if(currentFilter==="NCR")list=list.filter(r=>r.type==="NCR");
+  else if(currentFilter==="AUDIT")list=list.filter(r=>r.type==="AUDIT");
+  else if(currentFilter==="open")list=list.filter(r=>r.status==="Open"||r.status==="In Progress");
+  else if(currentFilter==="overdue")list=list.filter(r=>r.status!=="Closed"&&r.due&&new Date(r.due)<new Date());
+  else if(currentFilter==="closed")list=list.filter(r=>r.status==="Closed");
+  const tbody=document.getElementById("records-tbody");
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📋</div>No records match.</div></td></tr>`;return;}
+  tbody.innerHTML=list.map(r=>{
+    const over=r.status!=="Closed"&&r.due&&new Date(r.due)<new Date();
+    const dl=r.due?Math.ceil((new Date(r.due)-new Date())/(1000*60*60*24)):null;
+    const ac=dl===null?"var(--muted)":dl<0?"var(--danger)":dl<7?"var(--warn)":"var(--accent)";
+    const ap=dl===null?0:Math.max(0,Math.min(100,(1-dl/21)*100));
+    const photos=r.photos||[];
+    const pc=photos.length>0?`<span class="photo-count" onclick="viewPhotos('${r.id}')">📷 ${photos.length}</span>`:`<span style="color:#4a5568;font-size:10px">—</span>`;
+    const sb=over?`badge-overdue">Overdue`:r.status==="Closed"?`badge-closed">Closed`:r.status==="In Progress"?`badge-inprogress">In Progress`:`badge-open">Open`;
+    return `<tr>
+      <td><span style="font-family:'DM Mono',monospace;font-size:10px;color:#4a5568">${r.id}</span></td>
+      <td><span class="badge badge-${(r.type||"").toLowerCase()}">${r.type}</span></td>
+      <td><span class="badge ${r.severity==="Major"||r.severity==="Critical"?"badge-major":"badge-minor"}">${r.severity}</span></td>
+      <td style="max-width:190px;font-size:12px;line-height:1.4">${(r.desc||"").substring(0,85)}${(r.desc||"").length>85?"…":""}</td>
+      <td><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent3)">${r.clause||"—"}</span></td>
+      <td style="font-size:12px">${r.owner||"—"}</td>
+      <td><span style="font-size:11px;font-family:'DM Mono',monospace;color:${ac}">${r.due||"—"}</span>${r.due?`<div><div class="aging-bar"><div class="aging-fill" style="width:${ap}%;background:${ac}"></div></div></div>`:""}</td>
+      <td>${pc}</td>
+      <td><span class="badge ${sb}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn-ghost" style="padding:4px 9px;font-size:11px;margin-right:4px" onclick="editRecord('${r.id}')">Edit</button>
+        <button class="btn-danger" onclick="deleteRecord('${r.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function openModal(){
+  editingId=null;currentPhotos=[];
+  document.getElementById("modal-title").textContent="New Record";
+  ["f-desc","f-clause","f-owner","f-rca","f-ca","f-due","f-evidence"].forEach(i=>{const el=document.getElementById(i);if(el)el.value="";});
+  document.getElementById("f-type").value="CAPA";
+  document.getElementById("f-severity").value="Minor";
+  document.getElementById("f-status").value="Open";
+  document.getElementById("f-photos").value="[]";
+  document.getElementById("photo-preview-grid").innerHTML="";
+  document.getElementById("modal").classList.add("open");
+}
+
+function editRecord(id){
+  const r=records.find(x=>x.id===id);if(!r)return;
+  editingId=id;currentPhotos=r.photos?[...r.photos]:[];
+  document.getElementById("modal-title").textContent="Edit · "+id;
+  document.getElementById("f-type").value=r.type;
+  document.getElementById("f-severity").value=r.severity;
+  document.getElementById("f-desc").value=r.desc||"";
+  document.getElementById("f-clause").value=r.clause||"";
+  document.getElementById("f-owner").value=r.owner||"";
+  document.getElementById("f-rca").value=r.rca||"";
+  document.getElementById("f-ca").value=r.ca||"";
+  document.getElementById("f-due").value=r.due||"";
+  document.getElementById("f-status").value=r.status||"Open";
+  document.getElementById("f-evidence").value=r.evidence||"";
+  document.getElementById("f-photos").value=JSON.stringify(currentPhotos);
+  renderPhotoPreview("photo-preview-grid",currentPhotos);
+  document.getElementById("modal").classList.add("open");
+}
+
+function closeModal(){document.getElementById("modal").classList.remove("open");editingId=null;currentPhotos=[];}
+
+function saveRecord(){
+  const desc=document.getElementById("f-desc").value.trim();
+  if(!desc){toast("Description is required.","red");return;}
+  let photos=[];try{photos=JSON.parse(document.getElementById("f-photos").value||"[]");}catch(e){}
+  const data={type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:document.getElementById("f-status").value,evidence:document.getElementById("f-evidence").value.trim(),photos};
+  if(editingId){const i=records.findIndex(r=>r.id===editingId);if(i>=0)records[i]={...records[i],...data};}
+  else records.push({id:genId(),...data,created:new Date().toISOString().split("T")[0]});
+  saveData();closeModal();render();
+  toast(editingId?"Record updated.":"Record saved.","green");
+}
+
+function deleteRecord(id){if(!confirm("Delete?"))return;records=records.filter(r=>r.id!==id);saveData();render();}
+
+function handlePhotoSelect(e){processFiles(Array.from(e.target.files),"photo-preview-grid","f-photos",currentPhotos);e.target.value="";}
+function handlePhotoDrop(e){e.preventDefault();document.getElementById("photo-drop-zone").classList.remove("drag-over");processFiles(Array.from(e.dataTransfer.files),"photo-preview-grid","f-photos",currentPhotos);}
+function handleQNCRPhoto(e){processFiles(Array.from(e.target.files),"qncr-photo-grid","qncr-photos",qncrPhotos);e.target.value="";}
+
+function processFiles(files,gridId,hiddenId,arr){
+  let done=0;
+  files.forEach(f=>{
+    if(f.size>8*1024*1024)toast(f.name+" is large — compressing recommended.","yellow");
+    const r=new FileReader();
+    r.onload=ev=>{arr.push({name:f.name,data:ev.target.result,type:f.type});done++;if(done===files.length){document.getElementById(hiddenId).value=JSON.stringify(arr);renderPhotoPreview(gridId,arr);toast(files.length+" file(s) added.","green");}};
+    r.readAsDataURL(f);
+  });
+}
+
+function renderPhotoPreview(gridId,arr){
+  const g=document.getElementById(gridId);if(!g)return;
+  g.innerHTML=arr.map((p,i)=>{
+    const isImg=p.type&&p.type.startsWith("image/");
+    return `<div class="photo-thumb">${isImg?`<img src="${p.data}" alt="${p.name}" onclick="openLightbox('${p.data}','${p.name}')">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:18px;background:#f4f6f8">📄</div>`}<button class="photo-del" onclick="removePhoto(${i},'${gridId}','${hiddenId=gridId==="photo-preview-grid"?"f-photos":"qncr-photos"}',${gridId==="photo-preview-grid"?0:1})">×</button></div>`;
+  }).join("");
+}
+
+function removePhoto(i,gridId,hiddenId,isQncr){
+  const arr=isQncr?qncrPhotos:currentPhotos;
+  arr.splice(i,1);
+  document.getElementById(hiddenId).value=JSON.stringify(arr);
+  renderPhotoPreview(gridId,arr);
+}
+
+function viewPhotos(id){const r=records.find(x=>x.id===id);if(!r||!r.photos||!r.photos.length)return;openLightbox(r.photos[0].data,r.photos[0].name+(r.photos.length>1?" (1 of "+r.photos.length+")":""));}
+function openLightbox(src,cap){document.getElementById("lightbox-img").src=src;document.getElementById("lightbox-cap").textContent=cap||"";document.getElementById("lightbox").classList.add("open");}
+function closeLightbox(){document.getElementById("lightbox").classList.remove("open");}
+
+function showAuditList(){
+  activeAuditId=null;
+  document.getElementById("audit-program-content").innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      ${AUDITS.map(a=>`
+        <div class="audit-card ${a.status==="Active"?"active-audit":""}" onclick="loadAuditExec('${a.id}')">
+          <div class="audit-card-id">${a.id}</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:3px">${a.clauses} — ${a.facility}</div>
+          <div style="font-size:11px;color:#4a5568">${a.desc}</div>
+          <div style="font-size:11px;color:#4a5568;margin-top:3px">${a.appb} · ${a.date}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+            <span class="badge ${a.status==="Active"?"badge-open":a.status==="Complete"?"badge-closed":"badge-minor"}">${a.status}</span>
+            <span style="font-size:10px;color:#4a5568">Report due: ${a.reportDue}</span>
+          </div>
+        </div>`).join("")}
+    </div>
+    <div style="padding:16px;background:#ffffff;border-radius:8px;border:1px solid var(--border2);font-size:11px;color:#2d3748;font-family:'DM Mono',monospace;text-align:center">Click an audit to begin clause-by-clause execution · §2.1 + §2.2 available for AUDIT-LDN-2026-001-S1</div>`;
+}
+
+function loadAuditExec(auditId){
+  activeAuditId=auditId;
+  const audit=AUDITS.find(a=>a.id===auditId);if(!audit)return;
+  const state=audit.execState||{};
+  const clauseIds=CLAUSES.filter(c=>c.id).map(c=>c.id);
+  const done=clauseIds.filter(id=>state[id]&&state[id].status).length;
+  const cC=clauseIds.filter(id=>state[id]&&state[id].status==="C").length;
+  const ncC=clauseIds.filter(id=>state[id]&&state[id].status==="NC").length;
+  const oC=clauseIds.filter(id=>state[id]&&state[id].status==="OFI").length;
+
+  let html=`
+    <div class="exec-summary">
+      <div class="exec-stat"><div class="exec-stat-val" style="color:var(--accent3)">${clauseIds.length}</div><div class="exec-stat-lbl">Clauses</div></div>
+      <div class="exec-stat"><div class="exec-stat-val" style="color:#4a5568">${done}</div><div class="exec-stat-lbl">Reviewed</div></div>
+      <div class="exec-stat"><div class="exec-stat-val" style="color:var(--accent)">${cC}</div><div class="exec-stat-lbl">Compliant</div></div>
+      <div class="exec-stat"><div class="exec-stat-val" style="color:var(--danger)">${ncC}</div><div class="exec-stat-lbl">NCRs</div></div>
+      <div class="exec-stat"><div class="exec-stat-val" style="color:var(--warn)">${oC}</div><div class="exec-stat-lbl">OFIs</div></div>
+      <div style="flex:1;padding:0 16px">
+        <div style="font-size:10px;color:#2d3748;font-family:'DM Mono',monospace;margin-bottom:4px">PROGRESS</div>
+        <div style="height:6px;background:#f4f6f8;border-radius:3px;overflow:hidden"><div style="height:100%;width:${clauseIds.length>0?Math.round(done/clauseIds.length*100):0}%;background:#BDD7EE;border-radius:3px"></div></div>
+        <div style="font-size:10px;color:#4a5568;margin-top:2px">${clauseIds.length>0?Math.round(done/clauseIds.length*100):0}% reviewed</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+      <div><label class="form-label">Lead Auditor</label><input style="background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif" value="${audit.lead}" oninput="updateExecMeta('_lead',this.value)"></div>
+      <div><label class="form-label">Co-Auditor</label><input style="background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif" value="${audit.co||""}" oninput="updateExecMeta('_co',this.value)"></div>
+      <div><label class="form-label">Audit Date</label><input type="date" style="background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif" value="${audit.date}" oninput="updateExecMeta('_date',this.value)"></div>
+      <div><label class="form-label">Opening Meeting Time</label><input type="time" style="background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif" value="${state._openTime||""}" oninput="updateExecMeta('_openTime',this.value)"></div>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="clause-exec-table">
+      <thead><tr>
+        <th style="width:105px">Clause</th><th>Requirement</th><th style="width:150px">SMF Evidence</th>
+        <th style="width:110px">SOP Rev</th><th style="width:100px">Status</th><th>Notes / Evidence</th><th style="width:72px">NCR</th>
+      </tr></thead><tbody>`;
+
+  CLAUSES.forEach(c=>{
+    if(c.section){
+      const major=c.section.startsWith("§2.");
+      html+=`<tr><td colspan="7" class="section-band" style="background:${major?"#1F4E79":"#D6DCE4"};border-left-color:${major?"#ffffff":"#1F3864"};color:${major?"#ffffff":"#1F3864"}">${c.section}</td></tr>`;
+      return;
+    }
+    const s=state[c.id]||{};
+    const sv=s.status||"";
+    const rc=sv==="C"?"clause-row-c":sv==="NC"?"clause-row-nc":sv==="OFI"?"clause-row-ofi":"";
+    const existNCR=records.find(r=>r.type==="NCR"&&r.clause===c.id);
+    const sid=c.id.replace(/[^a-z0-9]/gi,"_");
+    html+=`<tr class="${rc}" id="execrow_${sid}">
+      <td><div class="clause-id">${c.id}</div>${c.mandatory?`<span class="mand-tag">MANDATORY</span>`:""}</td>
+      <td style="font-size:12px;line-height:1.6;color:#1F3864;font-weight:500">${c.req}</td>
+      <td style="font-size:11px;color:#2E75B6;font-family:'DM Mono',monospace;line-height:1.4;font-weight:600">${c.evidence}</td>
+      <td><input class="exec-sop-input" placeholder="Rev __ / Mon YYYY" value="${s.sopRev||""}" onchange="updateExecState('${c.id}','sopRev',this.value)"></td>
+      <td>
+        <select class="exec-status-sel" id="execsel_${sid}" onchange="updateExecStatus('${c.id}',this)">
+          <option value="" ${!sv?"selected":""}>—</option>
+          <option value="C" ${sv==="C"?"selected":""}>C — Compliant</option>
+          <option value="NC" ${sv==="NC"?"selected":""}>NC — Non-Conformance</option>
+          <option value="OFI" ${sv==="OFI"?"selected":""}>OFI — Opportunity</option>
+          <option value="NA" ${sv==="NA"?"selected":""}>N/A</option>
+        </select>
+      </td>
+      <td>
+        <textarea class="exec-notes" placeholder="Record objective evidence..." onchange="updateExecState('${c.id}','notes',this.value)">${s.notes||""}</textarea>
+        <div style="margin-top:3px">
+          <button type="button" style="background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6;border-radius:4px;padding:2px 7px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer" onclick="document.getElementById('execphoto_${sid}').click()">
+            📷 ${(s.photos||[]).length>0?(s.photos.length)+" photo(s)":"Add Photo"}
+          </button>
+          <input type="file" id="execphoto_${sid}" accept="image/*" multiple style="display:none" onchange="addExecPhoto('${c.id}',event)">
+        </div>
+      </td>
+      <td style="text-align:center">
+        ${existNCR?`<div class="ncr-issued">NCR<br>${existNCR.id}</div>`:`<button class="ncr-btn" onclick="openNCRModal('${c.id}')">+ NCR</button>`}
+      </td>
+    </tr>`;
+  });
+
+  html+=`</tbody></table></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:12px">
+      <div><label class="form-label">Closing Meeting Time</label><input type="time" style="background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif" value="${state._closeTime||""}" oninput="updateExecMeta('_closeTime',this.value)"></div>
+      <div><label class="form-label">Auditee / Job Title</label><input placeholder="Name — Job Title" style="background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif" value="${state._auditee||""}" oninput="updateExecMeta('_auditee',this.value)"></div>
+      <div><label class="form-label">Overall Notes</label><input placeholder="General observations..." style="background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif" value="${state._overall||""}" oninput="updateExecMeta('_overall',this.value)"></div>
+    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:#DEEAF1;border:1px solid #2E75B6;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;color:#1F3864">
+      💾 SAVE → saves to browser &nbsp;·&nbsp; ⬇ EXPORT FOR REPORT → downloads JSON · Upload in Claude to generate polished Word submission report
+    </div>`;
+
+  document.getElementById("audit-program-content").innerHTML=html;
+}
+
+function updateExecState(clauseId,field,value){const a=AUDITS.find(a=>a.id===activeAuditId);if(!a)return;if(!a.execState[clauseId])a.execState[clauseId]={};a.execState[clauseId][field]=value;}
+function updateExecMeta(field,value){const a=AUDITS.find(a=>a.id===activeAuditId);if(!a)return;a.execState[field]=value;}
+
+function updateExecStatus(clauseId,sel){
+  const v=sel.value;
+  updateExecState(clauseId,"status",v);
+  sel.style.color=v==="C"?"var(--accent)":v==="NC"?"var(--danger)":v==="OFI"?"var(--warn)":"var(--muted2)";
+  const sid=clauseId.replace(/[^a-z0-9]/gi,"_");
+  const row=document.getElementById("execrow_"+sid);
+  if(row)row.className=v==="C"?"clause-row-c":v==="NC"?"clause-row-nc":v==="OFI"?"clause-row-ofi":"";
+}
+
+function addExecPhoto(clauseId,event){
+  const files=Array.from(event.target.files);if(!files.length)return;
+  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
+  if(!audit.execState[clauseId])audit.execState[clauseId]={};
+  if(!audit.execState[clauseId].photos)audit.execState[clauseId].photos=[];
+  let done=0;
+  files.forEach(f=>{
+    const r=new FileReader();
+    r.onload=ev=>{audit.execState[clauseId].photos.push({name:f.name,data:ev.target.result});done++;if(done===files.length){toast(files.length+" photo(s) added to "+clauseId,"green");loadAuditExec(activeAuditId);}};
+    r.readAsDataURL(f);
+  });
+  event.target.value="";
+}
+
+function saveAuditExec(){
+  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
+  saveData();loadAuditExec(activeAuditId);toast("Audit progress saved.","green");
+}
+
+function exportAuditExec(){
+  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
+  const obj={exportType:"SMF_AUDIT_EXEC",exportDate:new Date().toISOString(),audit:{...audit},findings:records.filter(r=>r.type==="NCR"),allRecords:records,clauseData:CLAUSES};
+  const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download=activeAuditId+"_AuditExec_"+new Date().toISOString().slice(0,10)+".json";a.click();
+  toast("Exported! Upload in Claude to generate submission report.","green");
+}
+
+function openNCRModal(clauseId){
+  qncrClause=clauseId;qncrPhotos=[];
+  document.getElementById("ncr-clause-lbl").textContent=clauseId;
+  const count=records.filter(r=>r.type==="NCR").length;
+  const base=activeAuditId?activeAuditId.replace("AUDIT-","").replace(/-S\d+$/,""):"LDN-2026";
+  document.getElementById("qncr-num").value="NCR-"+base+"-"+String(count+1).padStart(3,"0");
+  const due=new Date();due.setDate(due.getDate()+30);
+  document.getElementById("qncr-due").value=due.toISOString().split("T")[0];
+  ["qncr-desc","qncr-root","qncr-ca"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("qncr-owner").value="";
+  document.getElementById("qncr-class").value="Minor";
+  document.getElementById("qncr-photos").value="[]";
+  document.getElementById("qncr-photo-grid").innerHTML="";
+  document.getElementById("ncr-modal").classList.add("open");
+}
+function closeNCRModal(){document.getElementById("ncr-modal").classList.remove("open");qncrClause=null;}
+
+function saveQuickNCR(){
+  const num=document.getElementById("qncr-num").value.trim();
+  if(!num){toast("NCR number required.","red");return;}
+  let photos=[];try{photos=JSON.parse(document.getElementById("qncr-photos").value||"[]");}catch(e){}
+  records.push({id:num,type:"NCR",severity:document.getElementById("qncr-class").value,clause:qncrClause,desc:document.getElementById("qncr-desc").value,rca:document.getElementById("qncr-root").value,ca:document.getElementById("qncr-ca").value,owner:document.getElementById("qncr-owner").value,due:document.getElementById("qncr-due").value,status:"Open",photos,evidence:"",created:new Date().toISOString().split("T")[0],selfAssigned:true});
+  const audit=AUDITS.find(a=>a.id===activeAuditId);
+  if(audit){if(!audit.execState[qncrClause])audit.execState[qncrClause]={};audit.execState[qncrClause].status="NC";}
+  saveData();closeNCRModal();if(activeAuditId)loadAuditExec(activeAuditId);render();
+  toast("NCR "+num+" issued and linked to "+qncrClause+".","green");
+}
+
+async function generateAIReport(){
+  const rptType=document.querySelector("input[name='rpt-type']:checked").value;
+  const auditDate=document.getElementById("ai-audit-date").value;
+  const auditor=document.getElementById("ai-auditor").value;
+  const context=document.getElementById("ai-context").value;
+  const wrap=document.getElementById("ai-output-wrap");
+  wrap.innerHTML='<div class="ai-thinking"><div class="dot-pulse"><span></span><span></span><span></span></div>&nbsp; Claude is generating your report...</div>';
+  document.getElementById("copy-rpt-btn").style.display="none";
+  document.getElementById("dl-rpt-btn").style.display="none";
+  const open=records.filter(r=>r.status!=="Closed");
+  const closed=records.filter(r=>r.status==="Closed");
+  const majors=records.filter(r=>r.severity==="Major"&&r.status!=="Closed");
+  const diff=Math.ceil((new Date("2026-06-18")-new Date())/(1000*60*60*24));
+  const rptLabels={"sqfi-submission":"SQFI Corrective Action Submission (SQF §2.5.4 Finding Response)","executive":"Executive Quality Summary (C-Suite)","audit-report":"SQF Internal Audit Report — §2.1 and §2.2","capa-summary":"CAPA Status Summary Report","finding-detail":"Per-Finding Detail Report"};
+  const recSummary=records.slice(0,20).map(r=>`${r.id}|${r.type}|${r.severity}|Clause ${r.clause||"N/A"}|${r.status}|Due:${r.due||"N/A"}|Owner:${r.owner||"N/A"}|CA:${r.ca||"(pending)"}|RCA:${r.rca||"(pending)"}`).join("\n");
+  const prompt=`You are a food safety and SQF audit compliance expert generating a formal quality management report for Somafina UST (dietary supplement manufacturer, Lindon UT, SQF Edition 9 certified, 21 CFR Part 111).
+
+REPORT TYPE: ${rptLabels[rptType]||rptType}
+
+COMPANY: Somafina UST · Lindon UT 84042 · SQF Score 83/100 (May 2026) · Director of Quality: Jesse Kolstad · VP Quality: Chad Hinson · §2.5.4 CA Deadline: June 18, 2026 (${diff} days remaining)
+
+DATA SNAPSHOT: Total records: ${records.length} · Open: ${open.length} · Closed: ${closed.length} · Open Majors: ${majors.length} · Closure rate: ${records.length>0?Math.round(closed.length/records.length*100):0}%
+
+AUDIT: ${auditDate} · Lead: ${auditor} · Governing SOP: SOP #22 Rev 05 §11
+
+FINDING RECORDS:
+${recSummary}
+
+§2.5.4 EVIDENCE: SOP #22 Rev 05 issued (full clause-level audit program) · Appendix A + B issued · First audit session ${auditDate}
+
+${context?"ADDITIONAL CONTEXT:\n"+context:""}
+
+Generate a professional, submission-ready ${rptLabels[rptType]} with executive summary, finding details with clause references, CA status, evidence of implementation, next steps, and signature block. Use formal regulatory language appropriate for SQF certification body.`;
+
+  try{
+    const response=await fetch("/api/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+    const data=await response.json();
+    if(!response.ok){throw new Error(data.error||"Server error "+response.status);}
+    const text=data.text||"No content returned";
+    wrap.innerHTML=`<div class="ai-output">${text.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}</div>`;
+    document.getElementById("copy-rpt-btn").style.display="";
+    document.getElementById("dl-rpt-btn").style.display="";
+    window._lastReport=text;
+    toast("Report generated.","green");
+  }catch(err){
+    wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Generation failed: ${err.message}\n\nNote: The AI Report feature requires this file to be served from a domain with the Anthropic API configured (e.g. your Netlify site with the API integration). Export your data and upload in Claude.ai to generate the report there.</div>`;
+    toast("Generation failed — see output.","red");
+  }
+}
+
+function copyReport(){if(window._lastReport){navigator.clipboard.writeText(window._lastReport);toast("Copied to clipboard.","green");}}
+function downloadReport(){if(!window._lastReport)return;const blob=new Blob([window._lastReport],{type:"text/plain"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="QIS_Report_"+new Date().toISOString().slice(0,10)+".txt";a.click();}
+
+function exportCSV(){
+  const h=["ID","Type","Severity","Clause","Description","Owner","Due","Status","RCA","CA","Evidence","Created"];
+  const rows=records.map(r=>[r.id,r.type,r.severity,r.clause,`"${(r.desc||"").replace(/"/g,"")}"`,r.owner,r.due,r.status,`"${(r.rca||"").replace(/"/g,"")}"`,`"${(r.ca||"").replace(/"/g,"")}"`,`"${(r.evidence||"").replace(/"/g,"")}"`,r.created].join(","));
+  const blob=new Blob([[h.join(","),...rows].join("\n")],{type:"text/csv"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="QIS-"+new Date().toISOString().slice(0,10)+".csv";a.click();
+  toast("CSV exported.","green");
+}
+
+function exportJSON(){
+  const blob=new Blob([JSON.stringify({records,audits:AUDITS,exportDate:new Date().toISOString()},null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="QIS-"+new Date().toISOString().slice(0,10)+".json";a.click();
+  toast("JSON exported.","green");
+}
+
+function importJSON(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{const p=JSON.parse(e.target.result);if(!p.records){toast("Invalid file.","red");return;}if(!confirm("Import "+p.records.length+" records? This replaces current data."))return;records=p.records;saveData();render();toast("Imported "+records.length+" records.","green");}
+    catch(err){toast("Parse error: "+err.message,"red");}
+    event.target.value="";
+  };
+  reader.readAsText(file);
+}
+
+function resetData(){localStorage.removeItem("qis-v2");records=SEED_FINDINGS.map((f,i)=>({id:"QIS-"+String(i+1).padStart(4,"0"),...f}));saveData();render();toast("Reset to factory data.","yellow");}
+
+function switchTab(id,el){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  el.classList.add("active");
+  if(id==="audit-program")showAuditList();
+}
+
+function filterRecords(f,el){
+  currentFilter=f;
+  document.querySelectorAll(".filter-chip").forEach(c=>c.classList.remove("active"));
+  el.classList.add("active");
+  renderTable();
+}
+
+function toast(msg,type="green"){
+  const w=document.getElementById("toast-wrap");
+  const t=document.createElement("div");t.className="toast "+type;t.textContent=msg;
+  w.appendChild(t);setTimeout(()=>t.remove(),3200);
+}
+
+
+// ── AD-HOC AUDIT CREATION ─────────────────────────────────────────────────
+const CLAUSE_LABELS = {
+  '2.1-2.2': '§2.1 + §2.2 — Management Commitment · Document Control & Records',
+  '2.3-2.4': '§2.3 + §2.4 — Specifications · Food Safety System / HACCP',
+  '2.5-2.6': '§2.5 + §2.6 — Verification · Traceability and Recall',
+  '2.7-2.9': '§2.7 + §2.8 + §2.9 — Food Defense · Allergen Management · Training',
+  'mod17-gmp': 'Module 17 — GMP §17.1–17.7',
+  'full': 'Full Module 2 (§2.1–2.9) + Module 17 (§17.1–17.7)',
+};
+
+function openNewAuditModal() {
+  // Auto-fill date fields
+  const today = new Date().toISOString().split('T')[0];
+  const twoWeeks = new Date(); twoWeeks.setDate(twoWeeks.getDate()+14);
+  document.getElementById('na-date').value = today;
+  document.getElementById('na-report-due').value = twoWeeks.toISOString().split('T')[0];
+  // Auto-generate audit number
+  const count = AUDITS.length + 1;
+  document.getElementById('na-id').value = 'AUDIT-LDN-2026-' + String(count).padStart(3,'0') + '-S1';
+  document.getElementById('na-appb').value = '';
+  document.getElementById('na-notes').value = '';
+  document.querySelectorAll('input[name="na-clauses"]').forEach(cb => cb.checked = false);
+  document.getElementById('new-audit-modal').classList.add('open');
+}
+
+function closeNewAuditModal() {
+  document.getElementById('new-audit-modal').classList.remove('open');
+}
+
+function saveNewAudit() {
+  const id = document.getElementById('na-id').value.trim();
+  if (!id) { toast('Audit number is required.', 'red'); return; }
+  const selected = Array.from(document.querySelectorAll('input[name="na-clauses"]:checked')).map(cb => cb.value);
+  if (!selected.length) { toast('Select at least one SQF module to audit.', 'red'); return; }
+  const clauseStr = selected.map(v => CLAUSE_LABELS[v] || v).join(' · ');
+  const newAudit = {
+    id,
+    facility: document.getElementById('na-facility').value,
+    clauses: clauseStr,
+    desc: selected.map(v => CLAUSE_LABELS[v]||v).join(' | '),
+    appb: document.getElementById('na-appb').value || 'Ad-hoc',
+    date: document.getElementById('na-date').value,
+    lead: document.getElementById('na-lead').value,
+    co: document.getElementById('na-co').value,
+    status: 'Scheduled',
+    reportDue: document.getElementById('na-report-due').value,
+    execState: {},
+    selectedModules: selected,
+    notes: document.getElementById('na-notes').value,
+  };
+  AUDITS.push(newAudit);
+  closeNewAuditModal();
+  showAuditList();
+  toast('Audit ' + id + ' scheduled.', 'green');
+}
+
+document.getElementById('new-audit-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('new-audit-modal')) closeNewAuditModal();
+});
+
+document.getElementById("modal").addEventListener("click",e=>{if(e.target===document.getElementById("modal"))closeModal();});
+document.getElementById("ncr-modal").addEventListener("click",e=>{if(e.target===document.getElementById("ncr-modal"))closeNCRModal();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLightbox();closeModal();closeNCRModal();}});
+
+loadData();
+render();
+</script>
+</body>
+</html>
