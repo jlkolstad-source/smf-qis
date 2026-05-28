@@ -2,6 +2,12 @@
   publish = "public"
   functions = "netlify/functions"
 
+[functions]
+  node_bundler = "esbuild"
+
+[functions."generate-report"]
+  timeout = 30
+
 [[headers]]
   for = "/*"
   [headers.values]
