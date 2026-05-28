@@ -1,4 +1,4 @@
-// v3 - native fetch
+// v4 - native fetch
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
