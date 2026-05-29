@@ -1,4 +1,4 @@
-// v7a
+// v7b
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
