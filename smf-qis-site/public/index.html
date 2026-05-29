@@ -975,8 +975,10 @@ async function generateAIReport(){
   const majors=records.filter(r=>r.severity==="Major"&&r.status!=="Closed");
   const diff=Math.ceil((new Date("2026-06-18")-new Date())/(1000*60*60*24));
   const rptLabels={"sqfi-submission":"SQFI Corrective Action Submission (SQF §2.5.4 Finding Response)","executive":"Executive Quality Summary (C-Suite)","audit-report":"SQF Internal Audit Report — §2.1 and §2.2","capa-summary":"CAPA Status Summary Report","finding-detail":"Per-Finding Detail Report"};
-  const recSummary=records.slice(0,20).map(r=>`${r.id}|${r.type}|${r.severity}|Clause ${r.clause||"N/A"}|${r.status}|Due:${r.due||"N/A"}|Owner:${r.owner||"N/A"}|CA:${r.ca||"(pending)"}|RCA:${r.rca||"(pending)"}`).join("\n");
-  const prompt=`You are a food safety and SQF audit compliance expert generating a formal quality management report for Somafina UST (dietary supplement manufacturer, Lindon UT, SQF Edition 9 certified, 21 CFR Part 111).
+  const fmtRec=r=>`${r.id}|${r.type}|${r.severity}|Clause ${r.clause||"N/A"}|${r.status}|Due:${r.due||"N/A"}|Owner:${r.owner||"N/A"}|CA:${r.ca||"(pending)"}|RCA:${r.rca||"(pending)"}`;
+  const buildPrompt=recs=>{
+    const recSummary=recs.map(fmtRec).join("\n");
+    return `You are a food safety and SQF audit compliance expert generating a formal quality management report for Somafina UST (dietary supplement manufacturer, Lindon UT, SQF Edition 9 certified, 21 CFR Part 111).
 
 REPORT TYPE: ${rptLabels[rptType]||rptType}
 
@@ -993,20 +995,20 @@ ${recSummary}
 
 ${context?"ADDITIONAL CONTEXT:\n"+context:""}
 
-Generate a professional, submission-ready ${rptLabels[rptType]} with executive summary, finding details with clause references, CA status, evidence of implementation, next steps, and signature block. Use formal regulatory language appropriate for SQF certification body.`;
+Generate a professional, submission-ready ${rptLabels[rptType]} with executive summary, finding details with clause references, CA status, evidence of implementation, next steps, and signature block. Use formal regulatory language appropriate for SQF certification body.
 
-  try{
-    const response=await fetch("/.netlify/functions/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+BE CONCISE. Do NOT write full narrative paragraphs for each finding. Use abbreviated finding blocks — short labeled lines or compact bullet points covering clause reference, CA status, evidence, and next step. Keep each finding block to no more than 150 words.`;
+  };
+
+  const esc=s=>s.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+  // Stream one (part) request into outEl, prefixed with any text already rendered.
+  const streamPart=async(prompt,part,totalParts,outEl,priorText)=>{
+    const response=await fetch("/.netlify/functions/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,part,totalParts})});
     if(!response.ok){
       let msg="Server error "+response.status;
       try{const data=await response.json();msg=data.error||msg;}catch(_){}
       throw new Error(msg);
     }
-    // The function streams the report as plain text; render it as it arrives so
-    // the request never waits on a full buffered generation (the old timeout cause).
-    const esc=s=>s.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
-    wrap.innerHTML='<div class="ai-output" id="ai-stream-out"></div>';
-    const outEl=document.getElementById("ai-stream-out");
     const reader=response.body.getReader();
     const decoder=new TextDecoder();
     let text="";
@@ -1014,15 +1016,39 @@ Generate a professional, submission-ready ${rptLabels[rptType]} with executive s
       const{done,value}=await reader.read();
       if(done)break;
       text+=decoder.decode(value,{stream:true});
-      outEl.innerHTML=esc(text);
+      outEl.innerHTML=esc(priorText+text);
     }
     text+=decoder.decode();
-    if(!text.trim()){throw new Error("No content returned");}
-    outEl.innerHTML=esc(text);
+    return text;
+  };
+
+  try{
+    // EVERY report type is generated in sequential chunks of findings so no
+    // single model call is ever truncated at the per-call token ceiling. The
+    // findings are split into batches of CHUNK records; Part 1 carries the
+    // title/header, executive summary, and its findings, middle parts continue
+    // the findings, and the final part adds next-steps and the signature block.
+    // Each streamed part is concatenated into one complete report regardless of
+    // report type, so a full report can always be produced for all types.
+    wrap.innerHTML='<div class="ai-output" id="ai-stream-out"></div>';
+    const outEl=document.getElementById("ai-stream-out");
+    const CHUNK=4;
+    const chunks=[];
+    for(let i=0;i<records.length;i+=CHUNK){chunks.push(records.slice(i,i+CHUNK));}
+    if(chunks.length===0)chunks.push([]);
+    const totalParts=chunks.length;
+    let full="";
+    for(let p=1;p<=totalParts;p++){
+      const prior=full?full+"\n\n":"";
+      const t=await streamPart(buildPrompt(chunks[p-1]),p,totalParts,outEl,prior);
+      full=full?full+"\n\n"+t:t;
+    }
+    if(!full.trim()){throw new Error("No content returned");}
+    outEl.innerHTML=esc(full);
     document.getElementById("copy-rpt-btn").style.display="";
     document.getElementById("dl-rpt-btn").style.display="";
     document.getElementById("dl-pdf-btn").style.display="";
-    window._lastReport=text;
+    window._lastReport=full;
     toast("Report generated.","green");
   }catch(err){
     wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Generation failed: ${err.message}</div>`;
