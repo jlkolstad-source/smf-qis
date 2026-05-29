@@ -996,10 +996,19 @@ ${context?"ADDITIONAL CONTEXT:\n"+context:""}
 Generate a professional, submission-ready ${rptLabels[rptType]} with executive summary, finding details with clause references, CA status, evidence of implementation, next steps, and signature block. Use formal regulatory language appropriate for SQF certification body.`;
 
   try{
-    const response=await fetch("/.netlify/functions/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+    const response=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "x-api-key":"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",
+        "anthropic-version":"2023-06-01",
+        "anthropic-dangerous-direct-browser-access":"true"
+      },
+      body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:6000,messages:[{role:"user",content:prompt}]})
+    });
     const data=await response.json();
-    if(!response.ok){throw new Error(data.error||"Server error "+response.status);}
-    const text=data.text||"No content returned";
+    if(!response.ok){throw new Error(data.error?.message||"API error "+response.status);}
+    const text=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n")||"No content returned";
     wrap.innerHTML=`<div class="ai-output">${text.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}</div>`;
     document.getElementById("copy-rpt-btn").style.display="";
     document.getElementById("dl-rpt-btn").style.display="";
@@ -1007,7 +1016,7 @@ Generate a professional, submission-ready ${rptLabels[rptType]} with executive s
     window._lastReport=text;
     toast("Report generated.","green");
   }catch(err){
-    wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Generation failed: ${err.message}\n\nNote: The AI Report feature requires this file to be served from a domain with the Anthropic API configured (e.g. your Netlify site with the API integration). Export your data and upload in Claude.ai to generate the report there.</div>`;
+    wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Generation failed: ${err.message}</div>`;
     toast("Generation failed — see output.","red");
   }
 }
