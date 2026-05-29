@@ -1,4 +1,4 @@
-// v7b
+// v7b - node20 native fetch
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
