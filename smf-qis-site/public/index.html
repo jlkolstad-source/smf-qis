@@ -15,9 +15,17 @@ header{display:flex;align-items:center;justify-content:space-between;padding:16p
 .logo{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;color:#BDD7EE;}
 .logo span{color:#8fb8d8;font-size:12px;font-family:'DM Mono',monospace;display:block;letter-spacing:2px;margin-top:-3px;}
 .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.site-badge{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#e8eaf0;}
+.site-switcher{position:relative;}
+.site-badge{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#e8eaf0;cursor:pointer;}
+.site-badge:hover{background:rgba(255,255,255,0.2);}
 .site-badge strong{color:#BDD7EE;}
-.netlify-badge{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#BDD7EE;}
+.site-caret{font-size:9px;color:#8fb8d8;line-height:1;}
+.site-menu{position:absolute;top:calc(100% + 6px);left:0;min-width:170px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.2);padding:4px;display:none;z-index:200;}
+.site-menu.open{display:block;}
+.site-menu-item{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text);border-radius:5px;cursor:pointer;}
+.site-menu-item:hover{background:var(--surface2);}
+.site-menu-item.active{background:var(--surface3);color:var(--accent);font-weight:600;}
+.site-menu-check{color:var(--accent);font-size:11px;}
 .deadline-badge{background:rgba(255,244,180,0.2);border:1px solid #FFF2CC;border-radius:6px;padding:5px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#FFF2CC;}
 nav{display:flex;gap:0;padding:0 32px;border-bottom:1px solid var(--border);background:rgba(31,56,100,0.92);overflow-x:auto;}
 .tab{padding:12px 18px;font-size:12px;font-weight:500;letter-spacing:0.5px;color:#a0bcd4;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s;text-transform:uppercase;white-space:nowrap;}
@@ -175,9 +183,11 @@ main{padding:24px 32px 80px;}
 <header>
   <div><div class="logo">QIS<span>QUALITY INTELLIGENCE SYSTEM · SOMAFINA UST</span></div></div>
   <div class="header-right">
-    <div class="site-badge">Site: <strong>Lindon</strong> | SQF Ed. 9</div>
-    <div class="netlify-badge">&#127760; gentle-basbousa-df00e7.netlify.app</div>
-    <div class="deadline-badge" id="deadline-hdr">&#9201; §2.5.4 CA Due: Jun 18, 2026</div>
+    <div class="site-switcher" id="site-switcher">
+      <button class="site-badge" id="site-badge-btn" onclick="toggleSiteMenu(event)" aria-haspopup="true" aria-expanded="false">Site: <strong id="site-badge-name">Lindon</strong> | SQF Ed. 9 <span class="site-caret">&#9662;</span></button>
+      <div class="site-menu" id="site-menu"></div>
+    </div>
+    <div class="deadline-badge" id="deadline-hdr" style="display:none"></div>
     <button class="btn" onclick="openModal()">+ New Record</button>
   </div>
 </header>
@@ -218,10 +228,10 @@ main{padding:24px 32px 80px;}
       </div>
     </div>
     <div class="chart-card">
-      <div class="chart-title">SQF Audit Score · Lindon</div>
+      <div class="chart-title">SQF Audit Score · <span id="site-label-title">Lindon</span></div>
       <div class="score-display">
         <div class="score-big">83</div>
-        <div class="score-label">May 2026 · Lindon</div>
+        <div class="score-label">May 2026 · <span id="site-label-score">Lindon</span></div>
         <div class="score-bar-track"><div class="score-bar-fill" style="width:83%"></div></div>
         <div class="score-range"><span>0</span><span>Certified ≥70</span><span>100</span></div>
         <div style="margin-top:10px;font-size:10px;color:#2d3748;font-family:'DM Mono',monospace">1 Major · 13 Minor · Target: 90+</div>
@@ -573,7 +583,39 @@ const CLAUSES=[
   {id:"§2.2.3.3",req:"Records accessible, retrievable, secure; electronic records backed up off-site",evidence:"SOP #2 §15; verify backup active; last backup date",mandatory:true},
 ];
 
+// Available facility sites. Add more sites here to expand the switcher.
+const SITES=["Lindon","Layton"];
+let currentSite="Lindon";
+
 let records=[], editingId=null, currentFilter="all", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
+
+function loadSite(){
+  try{const s=localStorage.getItem("qis-site");if(s&&SITES.includes(s))currentSite=s;}catch(e){}
+}
+
+function toggleSiteMenu(e){
+  e.stopPropagation();
+  const menu=document.getElementById("site-menu");
+  const open=menu.classList.toggle("open");
+  document.getElementById("site-badge-btn").setAttribute("aria-expanded",open?"true":"false");
+}
+
+function selectSite(s){
+  if(!SITES.includes(s))return;
+  currentSite=s;
+  try{localStorage.setItem("qis-site",s);}catch(e){}
+  const menu=document.getElementById("site-menu");if(menu)menu.classList.remove("open");
+  document.getElementById("site-badge-btn").setAttribute("aria-expanded","false");
+  render();
+  toast("Switched to "+s,"green");
+}
+
+function renderSiteSwitcher(){
+  const nm=document.getElementById("site-badge-name");if(nm)nm.textContent=currentSite;
+  const menu=document.getElementById("site-menu");
+  if(menu)menu.innerHTML=SITES.map(s=>`<div class="site-menu-item ${s===currentSite?"active":""}" onclick="selectSite('${s}')">${s}${s===currentSite?'<span class="site-menu-check">&#10003;</span>':""}</div>`).join("");
+  ["site-label-title","site-label-score"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=currentSite;});
+}
 
 function loadData(){
   try{const s=localStorage.getItem("qis-v2");if(s){const p=JSON.parse(s);records=p.records||[];return;}}catch(e){}
@@ -591,7 +633,7 @@ function saveData(){
 
 function genId(){const max=records.reduce((m,r)=>Math.max(m,parseInt(r.id.split("-")[1]||0)),0);return "QIS-"+String(max+1).padStart(4,"0");}
 
-function render(){updateKPIs();renderTable();renderDashCharts();updateCSuite();updateDeadline();populateReportFilters();}
+function render(){renderSiteSwitcher();updateKPIs();renderTable();renderDashCharts();updateCSuite();updateDeadline();populateReportFilters();}
 
 // Populate the Owner/Department and Site report-filter dropdowns with the
 // unique values found in the current records, preserving any active selection.
@@ -631,6 +673,25 @@ function updateDeadline(){
   const color=diff<=7?"var(--danger)":diff<=14?"var(--warn)":"var(--accent)";
   const txt=diff>0?diff+" days remaining":"PAST DUE";
   ["cs-deadline-txt","cs-days2"].forEach(id=>{const el=document.getElementById(id);if(el){el.textContent=txt;el.style.color=color;}});
+
+  // Header badge: nearest due date among open records; hidden when none have a due date.
+  const hdr=document.getElementById("deadline-hdr");
+  if(!hdr)return;
+  const open=records.filter(r=>r.status!=="Closed"&&r.due).map(r=>({r,d:new Date(r.due)})).filter(o=>!isNaN(o.d.getTime()));
+  if(!open.length){hdr.style.display="none";return;}
+  open.sort((a,b)=>a.d-b.d);
+  const next=open[0];
+  const days=Math.ceil((next.d-new Date())/(1000*60*60*24));
+  const dateStr=next.d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  const clause=next.r.clause?"§"+next.r.clause+" ":"";
+  if(days<0){
+    hdr.textContent="⏱ "+clause+"OVERDUE: "+dateStr;
+    hdr.style.background="rgba(255,80,80,0.2)";hdr.style.borderColor="#FF8888";hdr.style.color="#FFD6D6";
+  }else{
+    hdr.textContent="⏱ "+clause+"CA Due: "+dateStr+" · "+days+"d";
+    hdr.style.background="rgba(255,244,180,0.2)";hdr.style.borderColor="#FFF2CC";hdr.style.color="#FFF2CC";
+  }
+  hdr.style.display="";
 }
 
 function renderDashCharts(){
@@ -1397,6 +1458,9 @@ document.getElementById("modal").addEventListener("click",e=>{if(e.target===docu
 document.getElementById("ncr-modal").addEventListener("click",e=>{if(e.target===document.getElementById("ncr-modal"))closeNCRModal();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLightbox();closeModal();closeNCRModal();}});
 
+document.addEventListener("click",()=>{const m=document.getElementById("site-menu");if(m)m.classList.remove("open");const b=document.getElementById("site-badge-btn");if(b)b.setAttribute("aria-expanded","false");});
+
+loadSite();
 loadData();
 render();
 </script>
