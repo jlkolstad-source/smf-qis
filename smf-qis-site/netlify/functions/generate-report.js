@@ -1,4 +1,4 @@
-// v6 
+// v7 - with diagnostics
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -10,6 +10,9 @@ exports.handler = async function(event, context) {
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  console.log('API key present:', !!apiKey);
+  console.log('API key prefix:', apiKey ? apiKey.substring(0, 15) : 'MISSING');
+
   if (!apiKey) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'API key not configured' }) };
   }
@@ -23,6 +26,7 @@ exports.handler = async function(event, context) {
   }
 
   try {
+    console.log('Starting Anthropic API call...');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
 
@@ -36,16 +40,18 @@ exports.handler = async function(event, context) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 1024,
         messages: [{ role: 'user', content: body.prompt }]
       })
     });
 
     clearTimeout(timeout);
+    console.log('Response status:', response.status);
 
     const data = await response.json();
 
     if (!response.ok) {
+      console.log('API error:', JSON.stringify(data.error));
       return { statusCode: 500, headers, body: JSON.stringify({ error: data.error?.message || 'API error' }) };
     }
 
@@ -54,6 +60,7 @@ exports.handler = async function(event, context) {
 
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Request timed out after 25 seconds' : e.message;
+    console.log('Caught error:', e.name, e.message);
     return { statusCode: 500, headers, body: JSON.stringify({ error: msg }) };
   }
 };
