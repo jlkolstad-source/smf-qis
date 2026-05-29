@@ -997,10 +997,28 @@ Generate a professional, submission-ready ${rptLabels[rptType]} with executive s
 
   try{
     const response=await fetch("/.netlify/functions/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
-    const data=await response.json();
-    if(!response.ok){throw new Error(data.error||"Server error "+response.status);}
-    const text=data.text||"No content returned";
-    wrap.innerHTML=`<div class="ai-output">${text.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}</div>`;
+    if(!response.ok){
+      let msg="Server error "+response.status;
+      try{const data=await response.json();msg=data.error||msg;}catch(_){}
+      throw new Error(msg);
+    }
+    // The function streams the report as plain text; render it as it arrives so
+    // the request never waits on a full buffered generation (the old timeout cause).
+    const esc=s=>s.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+    wrap.innerHTML='<div class="ai-output" id="ai-stream-out"></div>';
+    const outEl=document.getElementById("ai-stream-out");
+    const reader=response.body.getReader();
+    const decoder=new TextDecoder();
+    let text="";
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      text+=decoder.decode(value,{stream:true});
+      outEl.innerHTML=esc(text);
+    }
+    text+=decoder.decode();
+    if(!text.trim()){throw new Error("No content returned");}
+    outEl.innerHTML=esc(text);
     document.getElementById("copy-rpt-btn").style.display="";
     document.getElementById("dl-rpt-btn").style.display="";
     document.getElementById("dl-pdf-btn").style.display="";
