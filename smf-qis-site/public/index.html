@@ -347,6 +347,7 @@ main{padding:24px 32px 80px;}
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn-ghost" id="copy-rpt-btn" style="display:none" onclick="copyReport()">Copy</button>
         <button class="btn-ghost" id="dl-rpt-btn" style="display:none" onclick="downloadReport()">&#11015; Download .txt</button>
+        <button class="btn" id="dl-pdf-btn" style="display:none" onclick="downloadReportPDF()">&#11015; Download PDF</button>
       </div>
     </div>
   </div>
@@ -1002,6 +1003,7 @@ Generate a professional, submission-ready ${rptLabels[rptType]} with executive s
     wrap.innerHTML=`<div class="ai-output">${text.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}</div>`;
     document.getElementById("copy-rpt-btn").style.display="";
     document.getElementById("dl-rpt-btn").style.display="";
+    document.getElementById("dl-pdf-btn").style.display="";
     window._lastReport=text;
     toast("Report generated.","green");
   }catch(err){
@@ -1012,6 +1014,175 @@ Generate a professional, submission-ready ${rptLabels[rptType]} with executive s
 
 function copyReport(){if(window._lastReport){navigator.clipboard.writeText(window._lastReport);toast("Copied to clipboard.","green");}}
 function downloadReport(){if(!window._lastReport)return;const blob=new Blob([window._lastReport],{type:"text/plain"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="QIS_Report_"+new Date().toISOString().slice(0,10)+".txt";a.click();}
+
+async function downloadReportPDF(){
+  const text=window._lastReport||'';
+  if(!text){toast("No report to export.","red");return;}
+  toast("Building PDF...","green");
+  if(!window.jspdf){
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload=res;s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+  const navy=[31,56,100];
+  const midBlue=[31,78,121];
+  const white=[255,255,255];
+  const black=[26,26,46];
+  const lightBlue=[222,234,241];
+  const pageW=612,pageH=792,margin=54,contentW=612-54*2;
+  const rptType=document.querySelector("input[name='rpt-type']:checked")?.value||'';
+  const rptLabels={"sqfi-submission":"SQFI Corrective Action Submission","executive":"Executive Quality Summary","audit-report":"SQF Internal Audit Report §2.1/§2.2","capa-summary":"CAPA Status Summary","finding-detail":"Per-Finding Detail Report"};
+  const rptLabel=rptLabels[rptType]||'Audit Report';
+  const auditor=document.getElementById('ai-auditor')?.value||'Jesse Kolstad, Director of Quality';
+  const auditSession=document.getElementById('ai-audit-date')?.value||'';
+  const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  function drawHeaderFooter(pageNum,total){
+    // Navy header bar
+    doc.setFillColor(...navy);
+    doc.rect(0,0,pageW,38,'F');
+    doc.setFontSize(8.5);doc.setTextColor(...white);
+    doc.setFont('helvetica','bold');
+    doc.text('SOMAFINA UST',margin,14);
+    doc.setFont('helvetica','normal');
+    doc.text('Quality Intelligence System  ·  Internal Audit Documentation',margin,26);
+    doc.setFont('helvetica','bold');
+    doc.text('Rev: 26.1',pageW-margin,14,{align:'right'});
+    doc.setFont('helvetica','normal');
+    doc.text('Effective: '+today,pageW-margin,26,{align:'right'});
+    // Light gray footer
+    doc.setFillColor(240,242,245);
+    doc.rect(0,pageH-26,pageW,26,'F');
+    doc.setDrawColor(200,208,220);
+    doc.setLineWidth(0.5);
+    doc.line(0,pageH-26,pageW,pageH-26);
+    doc.setFontSize(8);doc.setTextColor(80,80,100);
+    doc.setFont('helvetica','normal');
+    doc.text(rptLabel+'  ·  SQF Edition 9 Compliant  |  CONFIDENTIAL',margin,pageH-9);
+    doc.text('Page '+pageNum+' of '+total,pageW-margin,pageH-9,{align:'right'});
+  }
+
+  // ── COVER PAGE ──────────────────────────────────────────────────────────
+  let y=60;
+  // Title block
+  doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');
+  y+=18;
+  doc.setFontSize(22);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+  doc.text('INTERNAL AUDIT REPORT',pageW/2,y,{align:'center'});
+  y+=28;
+  doc.setFontSize(13);doc.setTextColor(...midBlue);doc.setFont('helvetica','normal');
+  doc.text(rptLabel,pageW/2,y,{align:'center'});
+  y+=16;
+  doc.setFontSize(9);doc.setTextColor(100,100,120);doc.setFont('helvetica','italic');
+  doc.text('SQF Edition 9  –  NSF/ANSI 455-2  –  21 CFR Part 111  |  Dietary Supplement Manufacturing',pageW/2,y,{align:'center'});
+  y+=6;
+  doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');
+  y+=22;
+
+  // Document info table
+  doc.setFillColor(...navy);doc.rect(margin,y,contentW,22,'F');
+  doc.setFontSize(10);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+  doc.text('Document Information',margin+8,y+15);
+  y+=22;
+  const infoRows=[
+    ['Report Type',rptLabel],
+    ['Audit / Session',auditSession||'AUDIT-LDN-2026-001-S1'],
+    ['Lead Auditor',auditor],
+    ['Site','Lindon, Utah  ·  Somafina UST'],
+    ['Generated',today],
+    ['Governing Standard','SQF Edition 9 — Dietary Supplements Manufacturing (Module 2 + 17)'],
+    ['Governing SOP','SOP #22 Rev 05 — Audits and Inspections'],
+    ['CA Deadline','June 18, 2026  ·  §2.5.4 Corrective Action Submission'],
+  ];
+  infoRows.forEach(([label,value],i)=>{
+    doc.setFillColor(i%2===0?222:240,i%2===0?234:242,i%2===0?241:245);
+    doc.rect(margin,y,contentW,18,'F');
+    doc.setFontSize(9);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+    doc.text(label,margin+8,y+13);
+    doc.setFont('helvetica','normal');doc.setTextColor(...black);
+    const wrapped=doc.splitTextToSize(value,contentW-170);
+    doc.text(wrapped[0],margin+165,y+13);
+    y+=18;
+  });
+
+  // Printed copy notice
+  y+=16;
+  doc.setFillColor(255,242,204);doc.rect(margin,y,contentW,22,'F');
+  doc.setDrawColor(127,96,0);doc.setLineWidth(0.5);
+  doc.rect(margin,y,contentW,22,'S');
+  doc.setFontSize(8.5);doc.setTextColor(127,96,0);doc.setFont('helvetica','bold');
+  doc.text('⚠  Printed copies valid 7 calendar days from print date.  Verify current version in ULIMS before use.',pageW/2,y+14,{align:'center'});
+
+  // ── CONTENT PAGES ───────────────────────────────────────────────────────
+  doc.addPage();
+  y=50;
+  const lines=text.split('\n');
+
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim();
+    if(y>pageH-46){doc.addPage();y=50;}
+    if(!line){y+=7;continue;}
+
+    if(line.startsWith('## ')){
+      y+=6;
+      if(y>pageH-66){doc.addPage();y=50;}
+      doc.setFillColor(...navy);doc.rect(margin,y,contentW,20,'F');
+      doc.setFontSize(10.5);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+      const h=line.replace(/^##\s*/,'').toUpperCase();
+      doc.text(h,margin+8,y+14);
+      y+=26;
+    } else if(line.startsWith('### ')){
+      y+=5;
+      if(y>pageH-60){doc.addPage();y=50;}
+      doc.setFillColor(...lightBlue);doc.rect(margin,y,contentW,18,'F');
+      doc.setFontSize(10);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+      doc.text(line.replace(/^###\s*/,''),margin+8,y+13);
+      y+=22;
+    } else if(line.startsWith('#### ')){
+      y+=4;
+      doc.setFontSize(9.5);doc.setTextColor(...midBlue);doc.setFont('helvetica','bold');
+      doc.text(line.replace(/^####\s*/,''),margin,y);
+      y+=14;
+    } else if(line==='---'){
+      y+=4;
+      doc.setDrawColor(...navy);doc.setLineWidth(0.4);
+      doc.line(margin,y,margin+contentW,y);
+      y+=8;
+    } else if(line.startsWith('- ')||line.startsWith('> ')){
+      const bt=line.replace(/^[->\s]+/,'');
+      const wrapped=doc.splitTextToSize('•  '+bt,contentW-14);
+      doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      wrapped.forEach((wl,wi)=>{
+        if(y>pageH-46){doc.addPage();y=50;}
+        doc.text(wl,margin+(wi===0?6:14),y);
+        y+=13;
+      });
+    } else {
+      const clean=line.replace(/\*\*(.*?)\*\*/g,'$1');
+      const wrapped=doc.splitTextToSize(clean,contentW);
+      doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      wrapped.forEach(wl=>{
+        if(y>pageH-46){doc.addPage();y=50;}
+        doc.text(wl,margin,y);
+        y+=13;
+      });
+      y+=4;
+    }
+  }
+
+  // Apply header/footer to every page
+  const total=doc.getNumberOfPages();
+  for(let p=1;p<=total;p++){doc.setPage(p);drawHeaderFooter(p,total);}
+
+  const fname='SMF_'+rptType+'_'+new Date().toISOString().slice(0,10)+'.pdf';
+  doc.save(fname);
+  toast("PDF downloaded.","green");
+}
 
 function exportCSV(){
   const h=["ID","Type","Severity","Clause","Description","Owner","Due","Status","RCA","CA","Evidence","Created"];
