@@ -1,4 +1,4 @@
-// v7b - node20 native fetch
+// v8 - Netlify AI Gateway
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -7,14 +7,6 @@ exports.handler = async function(event, context) {
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
-  }
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  console.log('API key present:', !!apiKey);
-  console.log('API key prefix:', apiKey ? apiKey.substring(0, 15) : 'MISSING');
-
-  if (!apiKey) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'API key not configured' }) };
   }
 
   let body;
@@ -26,12 +18,13 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
+    // Netlify AI Gateway automatically provides ANTHROPIC_API_KEY and
+    // routes through their gateway infrastructure
+    const baseUrl = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+    const apiKey = process.env.ANTHROPIC_API_KEY;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(`${baseUrl}/v1/messages`, {
       method: 'POST',
-      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
@@ -39,18 +32,13 @@ exports.handler = async function(event, context) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
+        max_tokens: 6000,
         messages: [{ role: 'user', content: body.prompt }]
       })
     });
 
-    clearTimeout(timeout);
-    console.log('Response status:', response.status);
-
     const data = await response.json();
-
     if (!response.ok) {
-      console.log('API error:', JSON.stringify(data.error));
       return { statusCode: 500, headers, body: JSON.stringify({ error: data.error?.message || 'API error' }) };
     }
 
@@ -58,8 +46,6 @@ exports.handler = async function(event, context) {
     return { statusCode: 200, headers, body: JSON.stringify({ text }) };
 
   } catch (e) {
-    const msg = e.name === 'AbortError' ? 'Request timed out after 25 seconds' : e.message;
-    console.log('Caught error:', e.name, e.message);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: msg }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
   }
 };
