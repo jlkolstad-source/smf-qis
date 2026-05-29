@@ -35,6 +35,39 @@ export default async (req) => {
     return json(400, { error: 'No prompt provided' });
   }
 
+  // Every report type is produced in one or more sequential calls so no part is
+  // truncated at the ~4000-token ceiling. The client passes `part` /
+  // `totalParts`; we append continuation framing so each part stitches into one
+  // seamless document (the first part carries the header/summary, the final
+  // part carries next-steps and signature, and any middle parts only continue
+  // findings).
+  const part = Number(body.part) || 1;
+  const totalParts = Number(body.totalParts) || 1;
+  let prompt = body.prompt;
+  if (totalParts > 1) {
+    if (part === 1) {
+      prompt +=
+        `\n\nIMPORTANT — MULTI-PART OUTPUT: This is PART ${part} of ${totalParts}. ` +
+        'Write the report title/header, the executive summary, and the full ' +
+        'finding details for ONLY the findings listed above. Do NOT write the ' +
+        'next-steps section or the signature block — those belong to the final ' +
+        'part. Stop cleanly after the last finding detail.';
+    } else if (part === totalParts) {
+      prompt +=
+        `\n\nIMPORTANT — MULTI-PART OUTPUT: This is PART ${part} of ${totalParts}, ` +
+        'a direct continuation of the same report already in progress. Do NOT ' +
+        'repeat the report title, header, or executive summary. Continue ' +
+        'seamlessly with the full finding details for ONLY the findings listed ' +
+        'above, then provide the next-steps section and the signature block.';
+    } else {
+      prompt +=
+        `\n\nIMPORTANT — MULTI-PART OUTPUT: This is PART ${part} of ${totalParts}, ` +
+        'a continuation. Do NOT repeat the title, header, or executive summary, ' +
+        'and do NOT write the next-steps or signature block. Continue with the ' +
+        'full finding details for ONLY the findings listed above.';
+    }
+  }
+
   // Netlify AI Gateway injects ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL.
   const baseUrl = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -54,7 +87,7 @@ export default async (req) => {
         // within the function's 26s budget.
         max_tokens: 4096,
         stream: true,
-        messages: [{ role: 'user', content: body.prompt }],
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
   } catch (e) {
