@@ -1,4 +1,4 @@
-// v6 - native fetch with timeout
+// v6 
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
