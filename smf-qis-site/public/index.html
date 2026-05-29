@@ -187,6 +187,7 @@ main{padding:24px 32px 80px;}
       <button class="site-badge" id="site-badge-btn" onclick="toggleSiteMenu(event)" aria-haspopup="true" aria-expanded="false">Site: <strong id="site-badge-name">Lindon</strong> | SQF Ed. 9 <span class="site-caret">&#9662;</span></button>
       <div class="site-menu" id="site-menu"></div>
     </div>
+    <button class="site-badge" id="user-badge-btn" onclick="changeUser(event)" title="Click to set the name recorded in the audit trail">&#128100; <strong id="user-badge-name">Set name</strong></button>
     <div class="deadline-badge" id="deadline-hdr" style="display:none"></div>
     <button class="btn" onclick="openModal()">+ New Record</button>
   </div>
@@ -520,11 +521,11 @@ main{padding:24px 32px 80px;}
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <div class="save-bar">
-  <span><span class="save-dot"></span><span id="save-status">Auto-saved to browser</span></span>
+  <span><span class="save-dot"></span><span id="save-status">Connecting to shared database…</span></span>
   <span style="display:flex;gap:12px;align-items:center">
-    <span style="color:#4a5568">gentle-basbousa-df00e7.netlify.app · Drag new HTML onto Netlify Drop to update live</span>
+    <span style="color:#4a5568">Records persist to the shared Netlify database · visible to every team member, every device</span>
     <button onclick="exportJSON()" style="background:none;border:1px solid var(--border2);color:#4a5568;padding:2px 9px;font-size:10px;cursor:pointer;border-radius:3px;font-family:'DM Mono',monospace">&#11015; Export</button>
-    <button onclick="if(confirm('Reset to factory data?'))resetData()" style="background:none;border:1px solid rgba(255,59,92,0.2);color:rgba(255,59,92,0.4);padding:2px 9px;font-size:10px;cursor:pointer;border-radius:3px;font-family:'DM Mono',monospace">Reset</button>
+    <button onclick="if(confirm('Reload the latest records from the shared database?'))resetData()" style="background:none;border:1px solid var(--border2);color:#4a5568;padding:2px 9px;font-size:10px;cursor:pointer;border-radius:3px;font-family:'DM Mono',monospace">Refresh</button>
   </span>
 </div>
 <script>
@@ -587,7 +588,34 @@ const CLAUSES=[
 const SITES=["Lindon","Layton"];
 let currentSite="Lindon";
 
+// Shared-database REST endpoint (Netlify Function).
+const API="/api/records";
+
 let records=[], editingId=null, currentFilter="all", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
+
+// ── USER IDENTITY (for the audit trail) ────────────────────────────────────
+// There is no login; the user types their name once. It is stored locally and
+// sent with every create/update/delete so the database records who made the
+// change. Records are shared across all users — only the "who" is local.
+let currentUser="";
+function loadUser(){try{currentUser=localStorage.getItem("qis-user")||"";}catch(e){}}
+function renderUserBadge(){const el=document.getElementById("user-badge-name");if(el)el.textContent=currentUser||"Set name";}
+function changeUser(e){
+  if(e)e.stopPropagation();
+  const n=prompt("Your name (recorded in the audit trail for every change):",currentUser||"");
+  if(n===null)return;
+  currentUser=n.trim()||"Anonymous";
+  try{localStorage.setItem("qis-user",currentUser);}catch(_){}
+  renderUserBadge();
+}
+// Ensure a user name exists before a write; prompts on first use.
+function ensureUser(){
+  if(!currentUser)changeUser(null);
+  if(!currentUser)currentUser="Anonymous";
+  return currentUser;
+}
+
+function setSaveStatus(txt){const el=document.getElementById("save-status");if(el)el.textContent=txt;}
 
 function loadSite(){
   try{const s=localStorage.getItem("qis-site");if(s&&SITES.includes(s))currentSite=s;}catch(e){}
@@ -606,8 +634,7 @@ function selectSite(s){
   try{localStorage.setItem("qis-site",s);}catch(e){}
   const menu=document.getElementById("site-menu");if(menu)menu.classList.remove("open");
   document.getElementById("site-badge-btn").setAttribute("aria-expanded","false");
-  render();
-  toast("Switched to "+s,"green");
+  refresh().then(()=>toast("Switched to "+s,"green"));
 }
 
 function renderSiteSwitcher(){
@@ -617,21 +644,24 @@ function renderSiteSwitcher(){
   ["site-label-title","site-label-score"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=currentSite;});
 }
 
-function loadData(){
-  try{const s=localStorage.getItem("qis-v2");if(s){const p=JSON.parse(s);records=p.records||[];return;}}catch(e){}
-  records=SEED_FINDINGS.map((f,i)=>({id:"QIS-"+String(i+1).padStart(4,"0"),...f}));
-  saveData();
-}
-
-function saveData(){
+// Load the current site's records from the shared database.
+async function loadData(){
   try{
-    localStorage.setItem("qis-v2",JSON.stringify({records,ts:Date.now()}));
+    const res=await fetch(API+"?site="+encodeURIComponent(currentSite));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    records=await res.json();
     const n=new Date();
-    document.getElementById("save-status").textContent="Saved "+n.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})+" · Export JSON to back up";
-  }catch(e){}
+    setSaveStatus("Synced "+n.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})+" · "+records.length+" record(s) · "+currentSite);
+  }catch(e){
+    records=[];
+    setSaveStatus("Could not reach the shared database — "+e.message);
+    toast("Could not load records: "+e.message,"red");
+  }
 }
 
-function genId(){const max=records.reduce((m,r)=>Math.max(m,parseInt(r.id.split("-")[1]||0)),0);return "QIS-"+String(max+1).padStart(4,"0");}
+// Reload from the database and re-render. Called after every mutation and on
+// site switch so all users always see the same persisted data.
+async function refresh(){await loadData();render();}
 
 function render(){renderSiteSwitcher();updateKPIs();renderTable();renderDashCharts();updateCSuite();updateDeadline();populateReportFilters();}
 
@@ -820,18 +850,39 @@ function editRecord(id){
 
 function closeModal(){document.getElementById("modal").classList.remove("open");editingId=null;currentPhotos=[];}
 
-function saveRecord(){
+async function saveRecord(){
   const desc=document.getElementById("f-desc").value.trim();
   if(!desc){toast("Description is required.","red");return;}
+  const user=ensureUser();
   let photos=[];try{photos=JSON.parse(document.getElementById("f-photos").value||"[]");}catch(e){}
-  const data={type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:document.getElementById("f-status").value,evidence:document.getElementById("f-evidence").value.trim(),photos};
-  if(editingId){const i=records.findIndex(r=>r.id===editingId);if(i>=0)records[i]={...records[i],...data};}
-  else records.push({id:genId(),...data,created:new Date().toISOString().split("T")[0]});
-  saveData();closeModal();render();
-  toast(editingId?"Record updated.":"Record saved.","green");
+  const wasEditing=!!editingId;
+  const editId=editingId;
+  const existing=wasEditing?records.find(r=>r.id===editId):null;
+  const data={user,type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:document.getElementById("f-status").value,evidence:document.getElementById("f-evidence").value.trim(),photos,site:existing?existing.site:currentSite};
+  try{
+    let res;
+    if(wasEditing){
+      res=await fetch(API+"?id="+encodeURIComponent(editId),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    }else{
+      res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    }
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    closeModal();
+    await refresh();
+    toast(wasEditing?"Record updated.":"Record saved.","green");
+  }catch(e){toast("Save failed: "+e.message,"red");}
 }
 
-function deleteRecord(id){if(!confirm("Delete?"))return;records=records.filter(r=>r.id!==id);saveData();render();}
+async function deleteRecord(id){
+  if(!confirm("Delete?"))return;
+  const user=ensureUser();
+  try{
+    const res=await fetch(API+"?id="+encodeURIComponent(id)+"&user="+encodeURIComponent(user),{method:"DELETE"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    await refresh();
+    toast("Record deleted.","green");
+  }catch(e){toast("Delete failed: "+e.message,"red");}
+}
 
 function handlePhotoSelect(e){processFiles(Array.from(e.target.files),"photo-preview-grid","f-photos",currentPhotos);e.target.value="";}
 function handlePhotoDrop(e){e.preventDefault();document.getElementById("photo-drop-zone").classList.remove("drag-over");processFiles(Array.from(e.dataTransfer.files),"photo-preview-grid","f-photos",currentPhotos);}
@@ -1002,7 +1053,7 @@ function addExecPhoto(clauseId,event){
 
 function saveAuditExec(){
   const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
-  saveData();loadAuditExec(activeAuditId);toast("Audit progress saved.","green");
+  loadAuditExec(activeAuditId);toast("Audit progress saved.","green");
 }
 
 function exportAuditExec(){
@@ -1031,15 +1082,23 @@ function openNCRModal(clauseId){
 }
 function closeNCRModal(){document.getElementById("ncr-modal").classList.remove("open");qncrClause=null;}
 
-function saveQuickNCR(){
+async function saveQuickNCR(){
   const num=document.getElementById("qncr-num").value.trim();
   if(!num){toast("NCR number required.","red");return;}
+  const user=ensureUser();
   let photos=[];try{photos=JSON.parse(document.getElementById("qncr-photos").value||"[]");}catch(e){}
-  records.push({id:num,type:"NCR",severity:document.getElementById("qncr-class").value,clause:qncrClause,desc:document.getElementById("qncr-desc").value,rca:document.getElementById("qncr-root").value,ca:document.getElementById("qncr-ca").value,owner:document.getElementById("qncr-owner").value,due:document.getElementById("qncr-due").value,status:"Open",photos,evidence:"",created:new Date().toISOString().split("T")[0],selfAssigned:true});
-  const audit=AUDITS.find(a=>a.id===activeAuditId);
-  if(audit){if(!audit.execState[qncrClause])audit.execState[qncrClause]={};audit.execState[qncrClause].status="NC";}
-  saveData();closeNCRModal();if(activeAuditId)loadAuditExec(activeAuditId);render();
-  toast("NCR "+num+" issued and linked to "+qncrClause+".","green");
+  const data={user,id:num,type:"NCR",severity:document.getElementById("qncr-class").value,clause:qncrClause,desc:document.getElementById("qncr-desc").value,rca:document.getElementById("qncr-root").value,ca:document.getElementById("qncr-ca").value,owner:document.getElementById("qncr-owner").value,due:document.getElementById("qncr-due").value,status:"Open",photos,evidence:"",site:currentSite,selfAssigned:true};
+  try{
+    const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const audit=AUDITS.find(a=>a.id===activeAuditId);
+    if(audit){if(!audit.execState[qncrClause])audit.execState[qncrClause]={};audit.execState[qncrClause].status="NC";}
+    closeNCRModal();
+    await loadData();
+    if(activeAuditId)loadAuditExec(activeAuditId);
+    render();
+    toast("NCR "+num+" issued and linked to "+qncrClause+".","green");
+  }catch(e){toast("Could not issue NCR: "+e.message,"red");}
 }
 
 async function generateAIReport(){
@@ -1362,15 +1421,26 @@ function exportJSON(){
 function importJSON(event){
   const file=event.target.files[0];if(!file)return;
   const reader=new FileReader();
-  reader.onload=e=>{
-    try{const p=JSON.parse(e.target.result);if(!p.records){toast("Invalid file.","red");return;}if(!confirm("Import "+p.records.length+" records? This replaces current data."))return;records=p.records;saveData();render();toast("Imported "+records.length+" records.","green");}
-    catch(err){toast("Parse error: "+err.message,"red");}
+  reader.onload=async e=>{
+    try{
+      const p=JSON.parse(e.target.result);
+      if(!p.records){toast("Invalid file.","red");return;}
+      if(!confirm("Import "+p.records.length+" record(s) into the shared database?")){event.target.value="";return;}
+      const user=ensureUser();
+      const recs=p.records.map(r=>({...r,site:r.site||currentSite}));
+      const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({records:recs,user})});
+      if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+      const out=await res.json();
+      await refresh();
+      toast("Imported "+(out.imported||recs.length)+" record(s).","green");
+    }catch(err){toast("Import failed: "+err.message,"red");}
     event.target.value="";
   };
   reader.readAsText(file);
 }
 
-function resetData(){localStorage.removeItem("qis-v2");records=SEED_FINDINGS.map((f,i)=>({id:"QIS-"+String(i+1).padStart(4,"0"),...f}));saveData();render();toast("Reset to factory data.","yellow");}
+// "Refresh" simply re-pulls the latest shared data from the database.
+async function resetData(){await refresh();toast("Reloaded latest data from the database.","yellow");}
 
 function switchTab(id,el){
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
@@ -1461,8 +1531,9 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLightbox();clo
 document.addEventListener("click",()=>{const m=document.getElementById("site-menu");if(m)m.classList.remove("open");const b=document.getElementById("site-badge-btn");if(b)b.setAttribute("aria-expanded","false");});
 
 loadSite();
-loadData();
-render();
+loadUser();
+renderUserBadge();
+(async()=>{await loadData();render();})();
 </script>
 </body>
 </html>

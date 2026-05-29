@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Netlify local/build artifacts
+.netlify/
+
+# Logs / env
+*.log
+.env
+.env.*
