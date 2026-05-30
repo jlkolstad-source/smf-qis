@@ -41,17 +41,18 @@ function isAdmin(user: Identity): boolean {
   return Array.isArray(user.roles) && user.roles.includes("admin");
 }
 
-// Display name used in the live timeline / sign-off (name preferred, else email).
+// Display name used in the live timeline / sign-off (full name preferred, else
+// email). The separate attendee "Title" column carries the title here.
 function displayName(user: Identity): string {
   return user.name || user.email || "Unknown";
 }
 
-// Richer string for the audit trail — pairs name with email.
+// Richer string for the audit trail — full name and title, never the email.
 function actorString(user: Identity): string {
-  const name = user.name || "";
-  const email = user.email || "";
-  if (name && email) return `${name} (${email})`;
-  return name || email || "Unknown";
+  const name = (user.name || "").trim();
+  const title = ((user.userMetadata && (user.userMetadata as any).title) || "").toString().trim();
+  if (name && title) return `${name}, ${title}`;
+  return name || user.email || "Unknown";
 }
 
 async function logChange(exerciseId: string, action: string, detail: string, user: string) {

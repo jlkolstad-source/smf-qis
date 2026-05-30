@@ -274,7 +274,7 @@ main{padding:24px 32px 80px;}
       <div class="site-menu" id="site-menu"></div>
     </div>
     <div class="user-badge">
-      <span class="site-badge" id="user-badge-btn" style="cursor:default" title="Signed-in user — recorded in the audit trail">&#128100; <strong id="user-badge-name">—</strong><span class="admin-tag" id="user-admin-tag" style="display:none">ADMIN</span></span>
+      <span class="site-badge" id="user-badge-btn" style="cursor:pointer" title="Signed-in user — edit your profile (full name &amp; title)" onclick="openProfileModal()">&#128100; <strong id="user-badge-name">—</strong><span id="user-badge-title" style="font-size:10px;color:#BDD7EE;margin-left:4px"></span><span class="admin-tag" id="user-admin-tag" style="display:none">ADMIN</span></span>
       <button class="signout-btn" onclick="qisSignOut()">Sign out</button>
     </div>
     <div class="deadline-badge" id="deadline-hdr" style="display:none"></div>
@@ -287,6 +287,7 @@ main{padding:24px 32px 80px;}
   <div class="tab" onclick="switchTab('audit-program',this)">&#9998; Audit Program</div>
   <div class="tab" onclick="switchTab('csuite',this)">C-Suite View</div>
   <div class="tab" onclick="switchTab('crisis',this)">&#9888; Crisis Exercise</div>
+  <div class="tab" onclick="switchTab('oos',this)">&#129514; OOS</div>
   <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
 </nav>
 <main>
@@ -396,6 +397,17 @@ main{padding:24px 32px 80px;}
     <div class="csuite-divider"></div>
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-days2" style="color:var(--warn)">--</div><div class="csuite-stat-label">Days to CA Deadline</div></div>
   </div>
+  <div class="csuite-banner" style="background:linear-gradient(135deg,#7a0000,#C00000);border-color:#E8A87C">
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-oos-month" style="color:#fff">0</div><div class="csuite-stat-label" style="color:#FCE4D6">OOS This Month</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-oos-openclosed" style="color:#fff">0 / 0</div><div class="csuite-stat-label" style="color:#FCE4D6">Open / Closed</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-oos-split" style="color:#fff">0 / 0</div><div class="csuite-stat-label" style="color:#FCE4D6">Raw Mat / Fin Prod</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat" style="flex:1.6"><div class="csuite-stat-val" id="cs-oos-rootcause" style="color:#fff;font-size:15px;font-family:inherit;font-weight:700">—</div><div class="csuite-stat-label" style="color:#FCE4D6">Top Root Cause</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-oos-stale" style="color:#FFF2CC">0</div><div class="csuite-stat-label" style="color:#FCE4D6">Disp. Pending &gt;30d</div></div>
+  </div>
   <div class="charts-row" style="grid-template-columns:1fr 1fr">
     <div class="chart-card">
       <div class="chart-title">Risk Exposure by Category</div>
@@ -432,6 +444,18 @@ main{padding:24px 32px 80px;}
   <div id="crisis-content"></div>
 </div>
 
+<!-- OOS (OUT OF SPECIFICATION) -->
+<div class="section" id="oos">
+  <div class="table-header">
+    <div class="section-title">Out of Specification (OOS) Investigations · 21 CFR Part 111 · SQF Ed. 9</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-ghost" id="oos-back-btn" onclick="showOOSList()" style="display:none">&#8592; All OOS Records</button>
+      <button class="btn" onclick="createOOS()" style="background:#C00000">+ New OOS</button>
+    </div>
+  </div>
+  <div id="oos-content"></div>
+</div>
+
 <!-- AI REPORT -->
 <div class="section" id="ai-report">
   <div class="table-header"><div class="section-title">AI Report Generator</div></div>
@@ -446,11 +470,24 @@ main{padding:24px 32px 80px;}
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="capa-summary" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> CAPA Status Summary</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="finding-detail" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> Per-Finding Detail</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="crisis-exercise" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#9888; Crisis Exercise After-Action (SOP-20-EX-001)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="oos-individual" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#129514; OOS Individual Event Report</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="oos-summary" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#129514; OOS Summary Report</label>
         </div>
       </div>
       <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-crisis-picker">
         <div class="chart-title" style="margin-bottom:10px">Crisis Exercise</div>
         <div class="form-group"><label class="form-label">Select Exercise</label><select class="form-select" id="ai-crisis-id"><option value="">— choose an exercise —</option></select></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-oos-picker">
+        <div class="chart-title" style="margin-bottom:10px">OOS Investigation</div>
+        <div class="form-group"><label class="form-label">Select OOS ID</label><select class="form-select" id="ai-oos-id"><option value="">— choose an OOS record —</option></select></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-oos-filters">
+        <div class="chart-title" style="margin-bottom:10px">OOS Summary Filters</div>
+        <div class="form-group" style="margin-bottom:9px"><label class="form-label">Status</label><select class="form-select" id="ai-oos-fstatus"><option value="">All</option></select></div>
+        <div class="form-group" style="margin-bottom:9px"><label class="form-label">Material Type</label><select class="form-select" id="ai-oos-fmaterial"><option value="">All</option></select></div>
+        <div class="form-group" style="margin-bottom:9px"><label class="form-label">Date Initiated From</label><input type="date" class="form-input" id="ai-oos-from"></div>
+        <div class="form-group"><label class="form-label">Date Initiated To</label><input type="date" class="form-input" id="ai-oos-to"></div>
       </div>
       <div class="chart-card" style="margin-bottom:12px">
         <div class="chart-title" style="margin-bottom:10px">Context</div>
@@ -480,6 +517,23 @@ main{padding:24px 32px 80px;}
 </div>
 
 </main>
+</div>
+
+<!-- PROFILE MODAL -->
+<div class="modal-overlay" id="profile-modal">
+  <div class="modal" style="border-top:3px solid #1F4E79;max-width:480px">
+    <div class="modal-title" style="color:#1F3864">My Profile</div>
+    <div style="background:#DEEAF1;border:1px solid #2E75B6;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#1F3864">Your full name and title appear on every QIS report and in the audit trail in place of your email address.</div>
+    <div class="form-grid">
+      <div class="form-group form-full"><label class="form-label">Full Name</label><input class="form-input" id="pf-name" type="text" placeholder="e.g. Jesse Kolstad"></div>
+      <div class="form-group form-full"><label class="form-label">Title</label><input class="form-input" id="pf-title" type="text" placeholder="e.g. Director of Quality"></div>
+      <div class="form-group form-full"><label class="form-label">Email</label><input class="form-input" id="pf-email" type="text" disabled style="opacity:0.65"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeProfileModal()">Cancel</button>
+      <button class="btn" onclick="saveProfile()">Save Profile</button>
+    </div>
+  </div>
 </div>
 
 <!-- RECORD MODAL -->
@@ -762,20 +816,37 @@ let records=[], editingId=null, currentFilter="all", activeAuditId=null, qncrCla
 // The signed-in Netlify Identity user is the source of truth. The server stamps
 // created_by / modified_by from the JWT; these client values drive the header
 // display and gate the admin-only controls (delete records, close findings).
-let currentUser="";       // display name of the signed-in user
+let currentUser="";       // full name of the signed-in user (falls back to email)
+let currentUserTitle="";  // job title from the user profile (user_metadata.title)
 let currentUserEmail="";  // email of the signed-in user
+let currentUserHasName=false; // true once a full name is stored in the profile
 let isAdminUser=false;    // admin accounts may delete records and close findings
 const ADMIN_EMAILS=["jkolstad@somafina.com","chad.hinson@somafina.com"];
 function setCurrentUser(user){
-  currentUser=(user&&(user.name||user.email))||"";
+  const meta=(user&&(user.userMetadata||user.user_metadata))||{};
+  const fullName=(user&&user.name)||meta.full_name||"";
+  currentUserHasName=!!(fullName&&fullName.trim());
   currentUserEmail=(user&&user.email)||"";
+  currentUser=currentUserHasName?fullName.trim():(currentUserEmail||"");
+  currentUserTitle=(meta.title||"").toString().trim();
   const roles=(user&&user.roles)||[];
   isAdminUser=ADMIN_EMAILS.includes(currentUserEmail.toLowerCase())||(!!user&&user.role==="admin")||(Array.isArray(roles)&&roles.includes("admin"));
   document.body.classList.toggle("is-admin",isAdminUser);
   renderUserBadge();
+  // Prompt the user to complete their profile so reports show a name, not email.
+  if(!currentUserHasName){
+    setTimeout(()=>toast("Add your full name and title in your profile so reports show your name instead of your email. Click your name (top-right).","yellow"),900);
+  }
+}
+// The identity string used wherever a person is shown in the UI / reports:
+// full name plus title, falling back to the email when no profile name is set.
+function userIdentityLabel(){
+  if(currentUserHasName&&currentUserTitle)return currentUser+", "+currentUserTitle;
+  return currentUser||"Unknown";
 }
 function renderUserBadge(){
   const el=document.getElementById("user-badge-name");if(el)el.textContent=currentUser||"—";
+  const ti=document.getElementById("user-badge-title");if(ti)ti.textContent=currentUserTitle?("· "+currentUserTitle):(currentUserHasName?"":"· set profile");
   const tag=document.getElementById("user-admin-tag");if(tag)tag.style.display=isAdminUser?"inline-block":"none";
 }
 // Retained for compatibility with existing call sites; identity is enforced
@@ -783,6 +854,29 @@ function renderUserBadge(){
 function ensureUser(){return currentUser||"Unknown";}
 
 function setSaveStatus(txt){const el=document.getElementById("save-status");if(el)el.textContent=txt;}
+
+// ── USER PROFILE (full name + title, stored in Netlify Identity metadata) ────
+function openProfileModal(){
+  document.getElementById("pf-name").value=currentUserHasName?currentUser:"";
+  document.getElementById("pf-title").value=currentUserTitle||"";
+  document.getElementById("pf-email").value=currentUserEmail||"";
+  document.getElementById("profile-modal").classList.add("open");
+}
+function closeProfileModal(){document.getElementById("profile-modal").classList.remove("open");}
+async function saveProfile(){
+  const full_name=document.getElementById("pf-name").value.trim();
+  const title=document.getElementById("pf-title").value.trim();
+  if(!full_name){toast("Enter your full name.","red");return;}
+  if(typeof window.qisUpdateProfile!=="function"){toast("Profile service unavailable.","red");return;}
+  try{
+    const user=await window.qisUpdateProfile({full_name,title});
+    setCurrentUser(user);
+    closeProfileModal();
+    // Refresh the report "prepared by" default to the new identity.
+    const auditorEl=document.getElementById("ai-auditor");if(auditorEl)auditorEl.value=userIdentityLabel();
+    toast("Profile saved. Your name and title will now appear on reports.","green");
+  }catch(e){toast("Could not save profile: "+(e&&e.message||e),"red");}
+}
 
 function loadSite(){
   try{const s=localStorage.getItem("qis-site");if(s&&SITES.includes(s))currentSite=s;}catch(e){}
@@ -824,6 +918,7 @@ async function loadData(){
     setSaveStatus("Could not reach the shared database — "+e.message);
     toast("Could not load records: "+e.message,"red");
   }
+  await loadOOS();
 }
 
 // Reload from the database and re-render. Called after every mutation and on
@@ -944,7 +1039,37 @@ function updateCSuite(){
   document.getElementById("cs-closure-rate").textContent=total>0?Math.round(closed/total*100)+"%":"--%";
   document.getElementById("cs-open").textContent=open;
   document.getElementById("cs-majors").textContent=majors+" Major open · Requires RCA with evidence";
+  updateOOSCSuite();
   updateDeadline();
+}
+
+// OOS executive statistics for the C-Suite banner.
+function updateOOSCSuite(){
+  const closedSet=["Closed Invalidated","Closed Confirmed"];
+  const now=new Date();
+  const ym=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  const thisMonth=oosRecords.filter(o=>(o.dateInitiated||"").slice(0,7)===ym).length;
+  const oClosed=oosRecords.filter(o=>closedSet.includes(o.status)).length;
+  const oOpen=oosRecords.length-oClosed;
+  const raw=oosRecords.filter(o=>o.materialType==="Raw Material").length;
+  const fin=oosRecords.filter(o=>o.materialType==="Finished Product").length;
+  // Top root cause category among all records that have one.
+  const cats={};
+  oosRecords.forEach(o=>{const k=(o.rootCauseCategory||"").trim();if(k)cats[k]=(cats[k]||0)+1;});
+  const top=Object.entries(cats).sort((a,b)=>b[1]-a[1])[0];
+  // Records still awaiting disposition more than 30 days after initiation.
+  const stale=oosRecords.filter(o=>{
+    const pending=!closedSet.includes(o.status)&&(o.disposition==="Pending"||o.status==="Pending Disposition");
+    if(!pending||!o.dateInitiated)return false;
+    const days=Math.floor((now-new Date(o.dateInitiated))/(1000*60*60*24));
+    return days>30;
+  }).length;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set("cs-oos-month",thisMonth);
+  set("cs-oos-openclosed",oOpen+" / "+oClosed);
+  set("cs-oos-split",raw+" / "+fin);
+  set("cs-oos-rootcause",top?(top[0]+" ("+top[1]+")"):"—");
+  set("cs-oos-stale",stale);
 }
 
 function renderTable(f){
@@ -1282,13 +1407,31 @@ async function saveQuickNCR(){
   }catch(e){toast("Could not issue NCR: "+e.message,"red");}
 }
 
-// Show/hide the crisis exercise picker (and populate it) based on report type.
+// Show/hide the crisis exercise / OOS pickers and filters based on report type.
 function onReportTypeChange(){
   const t=document.querySelector("input[name='rpt-type']:checked")?.value;
-  const picker=document.getElementById("ai-crisis-picker");
-  if(!picker)return;
-  if(t==="crisis-exercise"){picker.style.display="";populateCrisisReportPicker();}
-  else{picker.style.display="none";}
+  const crisisPicker=document.getElementById("ai-crisis-picker");
+  const oosPicker=document.getElementById("ai-oos-picker");
+  const oosFilters=document.getElementById("ai-oos-filters");
+  if(crisisPicker)crisisPicker.style.display=(t==="crisis-exercise")?"":"none";
+  if(oosPicker)oosPicker.style.display=(t==="oos-individual")?"":"none";
+  if(oosFilters)oosFilters.style.display=(t==="oos-summary")?"":"none";
+  if(t==="crisis-exercise")populateCrisisReportPicker();
+  if(t==="oos-individual")populateOOSReportPicker();
+  if(t==="oos-summary")populateOOSReportFilters();
+}
+async function populateOOSReportPicker(){
+  const sel=document.getElementById("ai-oos-id");if(!sel)return;
+  const prev=sel.value;
+  await loadOOS();
+  sel.innerHTML='<option value="">— choose an OOS record —</option>'+oosRecords.map(o=>`<option value="${cesc(o.id)}">${cesc(o.id)} · ${cesc(o.materialType)} · ${cesc(o.testAnalyte||o.productName)}</option>`).join("");
+  if(prev)sel.value=prev;
+}
+function populateOOSReportFilters(){
+  const st=document.getElementById("ai-oos-fstatus");
+  if(st&&st.options.length<=1)st.innerHTML='<option value="">All</option>'+OOS_STATUSES.map(s=>`<option>${cesc(s)}</option>`).join("");
+  const mt=document.getElementById("ai-oos-fmaterial");
+  if(mt&&mt.options.length<=1)mt.innerHTML='<option value="">All</option>'+OOS_MATERIAL_TYPES.map(s=>`<option>${cesc(s)}</option>`).join("");
 }
 async function populateCrisisReportPicker(){
   const sel=document.getElementById("ai-crisis-id");if(!sel)return;
@@ -1413,6 +1556,176 @@ Use formal SQF-compliant regulatory language throughout, matching the measured, 
   }
 }
 
+// Stream a single-call AI report (used by the OOS report generators below).
+async function streamSingleReport(prompt,wrap,meta){
+  try{
+    wrap.innerHTML='<div class="ai-output" id="ai-stream-out"></div>';
+    const outEl=document.getElementById("ai-stream-out");
+    const esc=s=>s.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+    const response=await fetch("/.netlify/functions/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,part:1,totalParts:1})});
+    if(!response.ok){let m="Server error "+response.status;try{m=(await response.json()).error||m;}catch(_){}throw new Error(m);}
+    const reader=response.body.getReader();const decoder=new TextDecoder();let full="";
+    while(true){const{done,value}=await reader.read();if(done)break;full+=decoder.decode(value,{stream:true});outEl.innerHTML=esc(full);}
+    full+=decoder.decode();
+    if(!full.trim())throw new Error("No content returned");
+    outEl.innerHTML=esc(full);
+    document.getElementById("copy-rpt-btn").style.display="";
+    document.getElementById("dl-rpt-btn").style.display="";
+    document.getElementById("dl-pdf-btn").style.display="";
+    window._lastReport=full;
+    window._lastReportMeta=meta||null;
+    toast("Report generated.","green");
+    return full;
+  }catch(err){
+    wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Generation failed: ${err.message}</div>`;
+    toast("Generation failed — see output.","red");
+    return null;
+  }
+}
+
+// Fetch one attachment as a data URL so the PDF exporter can embed images and
+// stitch PDFs into the Individual OOS Event Report.
+async function oosFetchAttachmentData(oosId,a){
+  try{
+    const res=await fetch(OOS_API+"?id="+encodeURIComponent(oosId)+"&file="+encodeURIComponent(a.key));
+    if(!res.ok)return null;
+    const blob=await res.blob();
+    return await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=()=>r(null);fr.readAsDataURL(blob);});
+  }catch(e){return null;}
+}
+
+// REPORT TYPE 1 — complete single-event OOS investigation package.
+async function generateOOSIndividualReport(oosId,context,wrap){
+  if(!oosId){wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Select an OOS record to generate its event report.</div>';toast("Select an OOS record first.","red");return;}
+  let o;
+  try{const res=await fetch(OOS_API+"?id="+encodeURIComponent(oosId));if(!res.ok)throw new Error("HTTP "+res.status);o=await res.json();}
+  catch(e){wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Could not load OOS record: ${e.message}</div>`;return;}
+  const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not yet completed)":s;};
+  const attachments=o.attachments||[];
+  const apxList=attachments.length?attachments.map((a,i)=>`Appendix ${i+1} — ${fld(a.description)}: ${fld(a.filename)}`).join("\n"):"(no attachments on file)";
+  const prompt=`You are a quality and regulatory affairs expert producing a formal INDIVIDUAL OUT OF SPECIFICATION (OOS) EVENT REPORT for Somafina UST (SOMAFINA UST — dietary supplement manufacturer; 21 CFR Part 111; SQF Edition 9). Mark the document CONFIDENTIAL.
+
+DATA INTEGRITY: Use ONLY the exact data provided. Never invent results, dates, names, lot numbers, methods, or citations. If a field is pending or blank, state it as pending — do not fabricate.
+
+OUTPUT FORMAT: Markdown. Use "# " for the report title, "## " for the major section headings (ALL CAPS), "### " for sub-headings, "| ... |" GitHub tables where appropriate, and "- " for lists.
+
+Produce the report in this exact section order:
+
+# SOMAFINA UST | OUT OF SPECIFICATION (OOS) INVESTIGATION REPORT
+
+## DOCUMENT CONTROL & OOS IDENTIFICATION
+Render as a two-column field table: OOS ID (${fld(o.id)}), Date Initiated (${fld(o.dateInitiated)}), Initiated By (${fld(o.initiatedBy)}), Site (${fld(o.site)}), Material Type (${fld(o.materialType)}), Product/Material Name (${fld(o.productName)}), Supplier/Manufacturer (${fld(o.supplier)}), Internal Lot Number (${fld(o.internalLot)}), Supplier Lot Number (${fld(o.supplierLot)}), Batch Record Number (${fld(o.batchRecordNumber)}), Manufacturing Date (${fld(o.manufacturingDate)}), Expiration/Retest Date (${fld(o.expirationDate)}), Current Status (${fld(o.status)}), OOS Classification (${fld(o.classification)}), Governing Standard (21 CFR Part 111.320 · SQF Edition 9). Note "Living document — no revision number applies."
+
+## EXECUTIVE SUMMARY
+A concise summary of the OOS event: what material/lot was affected, which test failed, the magnitude of the deviation, the investigation outcome, and the final disposition.
+
+## TEST DATA
+Render as a table with rows for: Test/Analyte (${fld(o.testAnalyte)}), Test Method (${fld(o.testMethod)}), Specification (${fld(o.specification)}), Result Obtained (${fld(o.resultObtained)} ${fld(o.units)}), Pass/Fail Determination (${fld(o.passFail)}).
+
+## PHASE 1 — LABORATORY INVESTIGATION
+A complete narrative based strictly on these notes: ${fld(o.phase1Notes)}. Discuss assignable lab cause assessment per 21 CFR Part 111.
+
+## PHASE 2 — MANUFACTURING INVESTIGATION
+${o.phase2Notes&&o.phase2Notes.trim()?"A complete narrative based strictly on these notes: "+o.phase2Notes:"State whether a Phase 2 manufacturing investigation was triggered; if no Phase 2 notes are recorded, state that Phase 2 was not required or is pending based on the classification."}
+
+## ROOT CAUSE ANALYSIS
+Root Cause: ${fld(o.rootCause)}. Root Cause Category: ${fld(o.rootCauseCategory)}.
+
+## CORRECTIVE ACTION AND PREVENTIVE ACTION
+Corrective Action: ${fld(o.correctiveAction)}. Linked CAPA Record: ${o.capaId&&o.capaId.trim()?o.capaId:"(none linked)"}. Discuss preventive measures.
+
+## DISPOSITION DECISION
+Disposition: ${fld(o.disposition)}. State the authorization basis for this disposition and reference the closure record (Closed By: ${fld(o.closedBy)}; Closed Date: ${fld(o.closedDate)}).
+
+## SIGNATURE BLOCK
+Provide signature lines (Name, Title, Signature, Date) for the Director of Quality and the VP of Quality.
+
+## APPENDICES
+List each attached file as a numbered appendix exactly as below. State that PDF appendices are appended as pages following this report and image appendices are embedded inline:
+${apxList}
+
+${context?"ADDITIONAL CONTEXT:\n"+context+"\n":""}
+Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | OOS Investigation per 21 CFR Part 111 & SQF Edition 9 | Living document — retain per SOP #02".`;
+  // Pre-fetch attachment bytes (as data URLs) so the PDF exporter can embed
+  // images inline and stitch PDF appendices after the signature block.
+  const withData=[];
+  for(const a of attachments){withData.push({...a,dataUrl:await oosFetchAttachmentData(o.id,a)});}
+  await streamSingleReport(prompt,wrap,{type:"oos-individual",oosId:o.id,site:o.site,record:o,attachments:withData});
+}
+
+// REPORT TYPE 2 — OOS Summary Report across the current filter selection.
+async function generateOOSSummaryReport(context,wrap){
+  await loadOOS();
+  const fStatus=document.getElementById("ai-oos-fstatus").value;
+  const fMaterial=document.getElementById("ai-oos-fmaterial").value;
+  const fFrom=document.getElementById("ai-oos-from").value;
+  const fTo=document.getElementById("ai-oos-to").value;
+  const filtered=oosRecords.filter(o=>
+    (!fStatus||(o.status||"")===fStatus)&&
+    (!fMaterial||(o.materialType||"")===fMaterial)&&
+    (!fFrom||(o.dateInitiated||"")>=fFrom)&&
+    (!fTo||(o.dateInitiated||"")<=fTo)
+  );
+  if(!filtered.length){wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">No OOS records match the selected filters.</div>';toast("No OOS records match the filters.","red");return;}
+  const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending)":s;};
+  const total=filtered.length;
+  const closed=filtered.filter(o=>OOS_CLOSED.includes(o.status)).length;
+  const open=total-closed;
+  const raw=filtered.filter(o=>o.materialType==="Raw Material").length;
+  const fin=filtered.filter(o=>o.materialType==="Finished Product").length;
+  const register=filtered.map(o=>`| ${fld(o.id)} | ${fld(o.materialType)} | ${fld(o.productName)} | ${fld(o.internalLot)} | ${fld(o.testAnalyte)} | ${fld(o.resultObtained)} ${o.units||""} | ${fld(o.passFail)} | ${fld(o.classification)} | ${fld(o.disposition)} | ${fld(o.status)} |`).join("\n");
+  const details=filtered.map(o=>`### ${fld(o.id)} — ${fld(o.materialType)} / ${fld(o.productName)}
+- Lot: ${fld(o.internalLot)} (supplier lot ${fld(o.supplierLot)}) · Batch Record ${fld(o.batchRecordNumber)}
+- Test/Analyte: ${fld(o.testAnalyte)} · Method: ${fld(o.testMethod)} · Spec: ${fld(o.specification)} · Result: ${fld(o.resultObtained)} ${o.units||""} (${fld(o.passFail)})
+- Phase 1: ${fld(o.phase1Notes)}
+- Phase 2: ${fld(o.phase2Notes)}
+- Root Cause: ${fld(o.rootCause)} · Category: ${fld(o.rootCauseCategory)}
+- Corrective Action: ${fld(o.correctiveAction)} · CAPA: ${fld(o.capaId)}
+- Disposition: ${fld(o.disposition)} · Status: ${fld(o.status)} · Initiated ${fld(o.dateInitiated)} by ${fld(o.initiatedBy)}`).join("\n\n");
+  const catCounts={};
+  filtered.forEach(o=>{const k=o.rootCauseCategory||"(uncategorized)";catCounts[k]=(catCounts[k]||0)+1;});
+  const catSummary=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`- ${k}: ${v}`).join("\n");
+  const prompt=`You are a quality and regulatory affairs expert producing a formal OOS SUMMARY REPORT for Somafina UST (dietary supplement manufacturer; 21 CFR Part 111; SQF Edition 9). Mark the document CONFIDENTIAL.
+
+DATA INTEGRITY: Use ONLY the exact data provided. Do not invent records, results, or citations. Report pending/blank fields as pending.
+
+OUTPUT FORMAT: Markdown. Use "# " for the title, "## " for major section headings (ALL CAPS), "### " for sub-headings, "| ... |" GitHub tables, and "- " for lists.
+
+FILTER SELECTION: Status=${fStatus||"All"} · Material Type=${fMaterial||"All"} · Date Initiated ${fFrom||"(any)"} to ${fTo||"(any)"} · Site=${currentSite}.
+STATISTICS: Total OOS=${total} · Open=${open} · Closed=${closed} · Raw Material=${raw} · Finished Product=${fin}.
+
+Produce the report in this exact section order:
+
+# SOMAFINA UST | OUT OF SPECIFICATION (OOS) SUMMARY REPORT
+
+## EXECUTIVE SUMMARY & STATISTICS
+Summarise the OOS landscape for this filter selection using the statistics above (total, open vs closed, raw material vs finished product split). State "Living document — no revision number applies."
+
+## OOS REGISTER
+Render this table exactly (header row then the data rows):
+| OOS ID | Material | Product/Material | Lot | Analyte | Result | P/F | Classification | Disposition | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+${register}
+
+## INDIVIDUAL RECORD DETAIL
+Reproduce the per-record detail below as "### " sub-sections, one per record:
+${details}
+
+## DISPOSITION SUMMARY
+Render a table summarising the count of records by Disposition value across the filtered set.
+
+## TREND ANALYSIS BY ROOT CAUSE CATEGORY
+Analyse the distribution of root cause categories below and note any concentration that warrants systemic CAPA:
+${catSummary}
+
+## SIGNATURE BLOCK
+Provide signature lines (Name, Title, Signature, Date) for the Director of Quality and the VP of Quality.
+
+${context?"ADDITIONAL CONTEXT:\n"+context+"\n":""}
+Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | OOS Summary per 21 CFR Part 111 & SQF Edition 9 | Living document — retain per SOP #02".`;
+  await streamSingleReport(prompt,wrap,{type:"oos-summary",site:currentSite});
+}
+
 async function generateAIReport(){
   const rptType=document.querySelector("input[name='rpt-type']:checked").value;
   const auditDate=document.getElementById("ai-audit-date").value;
@@ -1429,6 +1742,8 @@ async function generateAIReport(){
   // Crisis Exercise after-action reports run on a single selected exercise, not
   // on the CAPA/NCR records, so they take their own generation path.
   if(rptType==="crisis-exercise"){return generateCrisisReport(document.getElementById("ai-crisis-id").value,context,wrap);}
+  if(rptType==="oos-individual"){return generateOOSIndividualReport(document.getElementById("ai-oos-id").value,context,wrap);}
+  if(rptType==="oos-summary"){return generateOOSSummaryReport(context,wrap);}
   // Apply the report filters — only this subset of records is passed to the AI.
   const filtered=records.filter(r=>
     (!fStatus||(r.status||"")===fStatus)&&
@@ -1572,9 +1887,12 @@ async function downloadReportPDF(){
   const lightBlue=[222,234,241];
   const pageW=612,pageH=792,margin=54,contentW=612-54*2;
   const rptType=document.querySelector("input[name='rpt-type']:checked")?.value||'';
-  const rptLabels={"sqfi-submission":"SQFI Corrective Action Submission","executive":"Executive Quality Summary","audit-report":"SQF Internal Audit Report §2.1/§2.2","capa-summary":"CAPA Status Summary","finding-detail":"Per-Finding Detail Report","crisis-exercise":"Crisis Exercise After-Action Report"};
+  const rptLabels={"sqfi-submission":"SQFI Corrective Action Submission","executive":"Executive Quality Summary","audit-report":"SQF Internal Audit Report §2.1/§2.2","capa-summary":"CAPA Status Summary","finding-detail":"Per-Finding Detail Report","crisis-exercise":"Crisis Exercise After-Action Report","oos-individual":"OOS Individual Event Report","oos-summary":"OOS Summary Report"};
   const rptLabel=rptLabels[rptType]||'Audit Report';
   const isCrisis=rptType==="crisis-exercise";
+  const oosMeta=window._lastReportMeta&&(window._lastReportMeta.type==="oos-individual"||window._lastReportMeta.type==="oos-summary")?window._lastReportMeta:null;
+  const isOOS=!!oosMeta;
+  const isOOSIndividual=window._lastReportMeta&&window._lastReportMeta.type==="oos-individual";
   const auditor=document.getElementById('ai-auditor')?.value||'Jesse Kolstad, Director of Quality';
   const auditSession=document.getElementById('ai-audit-date')?.value||'';
   const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
@@ -1587,11 +1905,10 @@ async function downloadReportPDF(){
     doc.setFont('helvetica','bold');
     doc.text('SOMAFINA UST',margin,14);
     doc.setFont('helvetica','normal');
-    doc.text('Quality Intelligence System  ·  Internal Audit Documentation',margin,26);
-    doc.setFont('helvetica','bold');
-    doc.text('Rev: 26.1',pageW-margin,14,{align:'right'});
+    // Generated reports are living documents — no revision number is shown.
+    doc.text('Quality Intelligence System  ·  '+rptLabel,margin,26);
     doc.setFont('helvetica','normal');
-    doc.text('Effective: '+today,pageW-margin,26,{align:'right'});
+    doc.text('Effective: '+today,pageW-margin,22,{align:'right'});
     // Light gray footer
     doc.setFillColor(240,242,245);
     doc.rect(0,pageH-26,pageW,26,'F');
@@ -1610,7 +1927,7 @@ async function downloadReportPDF(){
   doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');
   y+=18;
   doc.setFontSize(22);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
-  doc.text(isCrisis?'CRISIS MANAGEMENT EXERCISE':'INTERNAL AUDIT REPORT',pageW/2,y,{align:'center'});
+  doc.text(isCrisis?'CRISIS MANAGEMENT EXERCISE':(isOOS?'OUT OF SPECIFICATION (OOS)':'INTERNAL AUDIT REPORT'),pageW/2,y,{align:'center'});
   y+=28;
   doc.setFontSize(13);doc.setTextColor(...midBlue);doc.setFont('helvetica','normal');
   doc.text(rptLabel,pageW/2,y,{align:'center'});
@@ -1627,7 +1944,26 @@ async function downloadReportPDF(){
   doc.text('Document Information',margin+8,y+15);
   y+=22;
   const crisisMeta=window._lastReportMeta&&window._lastReportMeta.type==="crisis-exercise"?window._lastReportMeta:null;
-  const infoRows=isCrisis?[
+  const oosRec=oosMeta&&oosMeta.record?oosMeta.record:null;
+  const infoRows=isOOS?(isOOSIndividual&&oosRec?[
+    ['Report Type',rptLabel],
+    ['OOS ID',oosRec.id||'OOS'],
+    ['Material Type',oosRec.materialType||'—'],
+    ['Product / Material',oosRec.productName||'—'],
+    ['Internal Lot',oosRec.internalLot||'—'],
+    ['Test / Analyte',oosRec.testAnalyte||'—'],
+    ['Prepared By',auditor],
+    ['Site',(oosRec.site||currentSite)+', Utah  ·  Somafina UST'],
+    ['Generated',today],
+    ['Governing Standard','21 CFR Part 111  ·  SQF Edition 9'],
+  ]:[
+    ['Report Type',rptLabel],
+    ['Prepared By',auditor],
+    ['Site',(oosMeta.site||currentSite)+', Utah  ·  Somafina UST'],
+    ['Generated',today],
+    ['Governing Standard','21 CFR Part 111  ·  SQF Edition 9'],
+    ['Scope','All OOS records matching the selected filter'],
+  ]):isCrisis?[
     ['Report Type',rptLabel],
     ['Exercise ID',crisisMeta&&crisisMeta.exerciseId?crisisMeta.exerciseId:'CMT-EX'],
     ['Facilitator',auditor],
@@ -1758,11 +2094,84 @@ async function downloadReportPDF(){
     }
   }
 
+  // ── OOS INDIVIDUAL EVENT REPORT — APPENDICES ──────────────────────────────
+  // Image attachments are embedded inline on their own appendix pages; PDF
+  // attachments are stitched in as appended pages after the signature block;
+  // Excel/Word/other files are listed as reference documents.
+  const pdfAppendices=[];
+  if(isOOSIndividual&&oosMeta&&Array.isArray(oosMeta.attachments)&&oosMeta.attachments.length){
+    let apxNum=0;
+    for(const a of oosMeta.attachments){
+      apxNum++;
+      const isImg=(a.contentType||"").startsWith("image/")&&a.dataUrl;
+      const isPdf=(a.contentType||"").includes("pdf");
+      doc.addPage();y=50;
+      doc.setFillColor(...navy);doc.rect(margin,y,contentW,20,'F');
+      doc.setFontSize(10.5);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+      doc.text(('APPENDIX '+apxNum+'  —  '+(a.description||'Attachment')).toUpperCase(),margin+8,y+14);
+      y+=28;
+      doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      doc.text('File: '+(a.filename||'(unnamed)'),margin,y);y+=16;
+      if(isImg){
+        try{
+          const img=new Image();
+          await new Promise(r=>{img.onload=r;img.onerror=r;img.src=a.dataUrl;});
+          let w=contentW,h=img.naturalWidth?img.naturalHeight*(contentW/img.naturalWidth):300;
+          const maxH=pageH-y-50;
+          if(h>maxH){h=maxH;w=img.naturalHeight?img.naturalWidth*(maxH/img.naturalHeight):contentW;}
+          const fmt=(a.contentType||"").includes("png")?"PNG":((a.contentType||"").includes("jpeg")||(a.contentType||"").includes("jpg")?"JPEG":"PNG");
+          doc.addImage(a.dataUrl,fmt,margin,y,w,h);
+        }catch(e){
+          doc.setTextColor(120,120,140);doc.text('[image could not be embedded — see source file '+(a.filename||'')+']',margin,y);
+        }
+      }else if(isPdf&&a.dataUrl){
+        doc.setTextColor(80,80,100);
+        doc.text('PDF document appended as full pages following this report.',margin,y);
+        pdfAppendices.push(a);
+      }else{
+        doc.setTextColor(80,80,100);
+        doc.text('Reference document (Excel / Word / other) — retained as a source attachment to OOS '+(oosMeta.oosId||'')+'.',margin,y);
+      }
+    }
+  }
+
   // Apply header/footer to every page
   const total=doc.getNumberOfPages();
   for(let p=1;p<=total;p++){doc.setPage(p);drawHeaderFooter(p,total);}
 
   const fname='SMF_'+rptType+'_'+new Date().toISOString().slice(0,10)+'.pdf';
+
+  // Stitch any PDF appendices directly onto the end of the document with PDF-lib.
+  if(pdfAppendices.length){
+    try{
+      if(!window.PDFLib){
+        await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+      }
+      const {PDFDocument}=window.PDFLib;
+      const baseBytes=doc.output('arraybuffer');
+      const merged=await PDFDocument.load(baseBytes);
+      for(const a of pdfAppendices){
+        try{
+          const b64=(a.dataUrl||'').split(',')[1]||'';
+          const bin=atob(b64);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+          const src=await PDFDocument.load(bytes,{ignoreEncryption:true});
+          const pages=await merged.copyPages(src,src.getPageIndices());
+          pages.forEach(p=>merged.addPage(p));
+        }catch(e){/* skip a PDF that cannot be parsed */}
+      }
+      const out=await merged.save();
+      const blob=new Blob([out],{type:'application/pdf'});
+      const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=fname;link.click();
+      toast("PDF downloaded (with appended attachments).","green");
+      return;
+    }catch(e){
+      // Fall back to the un-stitched document if PDF-lib fails to load.
+      doc.save(fname);
+      toast("PDF downloaded (attachments could not be stitched — listed in appendix).","yellow");
+      return;
+    }
+  }
+
   doc.save(fname);
   toast("PDF downloaded.","green");
 }
@@ -1811,6 +2220,7 @@ function switchTab(id,el){
   document.getElementById(id).classList.add("active");
   el.classList.add("active");
   if(id==="audit-program")showAuditList();
+  if(id==="oos")showOOSList();
   if(id==="crisis"){stopCrisisPoll();showCrisisList();}else{stopCrisisPoll();}
 }
 
@@ -1890,6 +2300,7 @@ document.getElementById('new-audit-modal').addEventListener('click', e => {
 
 document.getElementById("modal").addEventListener("click",e=>{if(e.target===document.getElementById("modal"))closeModal();});
 document.getElementById("ncr-modal").addEventListener("click",e=>{if(e.target===document.getElementById("ncr-modal"))closeNCRModal();});
+document.getElementById("profile-modal").addEventListener("click",e=>{if(e.target===document.getElementById("profile-modal"))closeProfileModal();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLightbox();closeModal();closeNCRModal();}});
 
 document.addEventListener("click",()=>{const m=document.getElementById("site-menu");if(m)m.classList.remove("open");const b=document.getElementById("site-badge-btn");if(b)b.setAttribute("aria-expanded","false");});
@@ -1955,7 +2366,7 @@ async function deleteCrisisExercise(id){
 }
 
 function openNewCrisisModal(){
-  document.getElementById("nc-facilitator").value=currentUser||"—";
+  document.getElementById("nc-facilitator").value=userIdentityLabel()||"—";
   document.getElementById("nc-id").value="Auto-generated (CMT-EX-YYYY-NNN)";
   document.getElementById("nc-date").value=new Date().toISOString().slice(0,10);
   document.getElementById("nc-scenario").value="";
@@ -1977,7 +2388,7 @@ async function createCrisisExercise(){
     exerciseFormat:document.getElementById("nc-format").value,
     governingSop:document.getElementById("nc-sop").value.trim()||"SOP #20 | SQF Clause 2.6.4",
     site:document.getElementById("nc-site").value,
-    facilitator:currentUser||"",
+    facilitator:userIdentityLabel()||"",
   };
   if(!body.scenarioName){toast("Scenario name is required.","red");return;}
   try{
@@ -2312,6 +2723,246 @@ async function saveCrisis(quiet){
 
 document.getElementById("new-crisis-modal").addEventListener("click",e=>{if(e.target===document.getElementById("new-crisis-modal"))closeNewCrisisModal();});
 
+// ── OUT OF SPECIFICATION (OOS) INVESTIGATIONS ───────────────────────────────
+// 21 CFR Part 111 + SQF Edition 9. Records and file attachments persist via the
+// /api/oos function (Netlify Database + Netlify Blobs) with a full audit trail.
+const OOS_API="/api/oos";
+let oosRecords=[], activeOOS=null;
+const OOS_MATERIAL_TYPES=["Raw Material","In-Process Material","Finished Product","Packaging Component","Reference Standard"];
+const OOS_UNITS=["","%","mg","mg/g","CFU/g","ppm","ppb","NMT","NLT","Pass/Fail","Other"];
+const OOS_CLASSIFICATIONS=["","Phase 1 Laboratory Investigation","Phase 2A Manufacturing Investigation","Phase 2B Full OOS Investigation","Invalidated OOS","Confirmed OOS"];
+const OOS_ROOT_CAUSE_CATS=["","Analyst Error","Instrument Failure","Calculation Error","Sample Preparation Error","Environmental Condition","Raw Material Non-Conformance","Manufacturing Process Deviation","Unknown Under Investigation"];
+const OOS_DISPOSITIONS=["Pending","Retest Authorized","Rework","Reject/Destroy","Release with Deviation","Quarantine"];
+const OOS_STATUSES=["Open","Under Investigation","Pending Disposition","Closed Invalidated","Closed Confirmed"];
+const OOS_PASSFAIL=["","Pass","Fail"];
+const OOS_ATTACH_LABELS=["Original CoA","Retest Result","Third Party Lab Report","Chromatogram","Batch Record Extract","Other Supporting Document"];
+const OOS_CLOSED=["Closed Invalidated","Closed Confirmed"];
+
+function oosMaterialBadge(mt){
+  let bg="#e8ecf0",fg="#1a1a2e",bd="#c9d2dc";
+  if(mt==="Raw Material"){bg="#FCE4D6";fg="#7a3b00";bd="#E8A87C";}
+  else if(mt==="Finished Product"){bg="#DEEAF1";fg="#1F3864";bd="#2E75B6";}
+  else if(mt==="In-Process Material"){bg="#FFF2CC";fg="#7F6000";bd="#D8B43A";}
+  else if(mt==="Packaging Component"){bg="#E2EFDA";fg="#375623";bd="#A9D08E";}
+  else if(mt==="Reference Standard"){bg="#EDE7F6";fg="#4527A0";bd="#B39DDB";}
+  return `<span class="badge" style="background:${bg};color:${fg};border:1px solid ${bd}">${cesc(mt||"—")}</span>`;
+}
+function oosStatusBadge(s){
+  const closed=OOS_CLOSED.includes(s);
+  const cls=closed?"badge-closed":(s==="Open"?"badge-open":"badge-inprogress");
+  return `<span class="badge ${cls}">${cesc(s||"Open")}</span>`;
+}
+function oosFmtBytes(n){if(!n&&n!==0)return "";if(n<1024)return n+" B";if(n<1048576)return (n/1024).toFixed(1)+" KB";return (n/1048576).toFixed(1)+" MB";}
+
+async function loadOOS(){
+  try{
+    const res=await fetch(OOS_API+"?site="+encodeURIComponent(currentSite));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    oosRecords=await res.json();
+  }catch(e){oosRecords=[];}
+}
+
+async function showOOSList(){
+  activeOOS=null;
+  const back=document.getElementById("oos-back-btn");if(back)back.style.display="none";
+  await loadOOS();
+  const c=document.getElementById("oos-content");if(!c)return;
+  const rows=oosRecords.map(o=>`<tr style="cursor:pointer" onclick="openOOS('${cesc(o.id)}')">
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:#1F4E79;white-space:nowrap">${cesc(o.id)}</td>
+    <td>${oosMaterialBadge(o.materialType)}</td>
+    <td>${cesc(o.productName)||"—"}<br><span style="font-size:10px;color:#4a5568">Lot ${cesc(o.internalLot)||"—"}</span></td>
+    <td>${cesc(o.testAnalyte)||"—"}</td>
+    <td>${cesc(o.resultObtained)} ${cesc(o.units)}<br><span style="font-size:10px;color:#4a5568">spec: ${cesc(o.specification)||"—"}</span></td>
+    <td>${o.passFail?`<span class="badge ${o.passFail==="Fail"?"badge-open":"badge-closed"}">${cesc(o.passFail)}</span>`:"—"}</td>
+    <td>${oosStatusBadge(o.status)}</td>
+    <td style="font-size:11px">${cesc(o.disposition)||"—"}</td>
+    <td style="font-size:10px;color:#4a5568;white-space:nowrap">${cesc(o.dateInitiated)}<br>${cesc(o.initiatedBy)}</td>
+    <td style="text-align:center;font-size:11px">${(o.attachments||[]).length?("&#128206; "+o.attachments.length):"—"}</td>
+  </tr>`).join("");
+  c.innerHTML=`
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th>OOS ID</th><th>Material</th><th>Product / Material</th><th>Analyte</th><th>Result / Spec</th><th>P/F</th><th>Status</th><th>Disposition</th><th>Initiated</th><th>Files</th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="10" style="text-align:center;color:#4a5568;padding:26px">No OOS investigations yet for ${cesc(currentSite)}. Click <b>+ New OOS</b> to open one.</td></tr>`}</tbody>
+    </table></div>
+    <div style="margin-top:14px;padding:12px 16px;background:#FCE4E4;border:1px solid #C00000;border-radius:8px;font-size:11px;color:#7a0000;font-family:'DM Mono',monospace;text-align:center">OOS investigations follow the phased model (Phase 1 Laboratory → Phase 2 Manufacturing → Full OOS) per 21 CFR Part 111.320 and SQF Edition 9. All records, attachments and dispositions persist to the shared database with a full audit trail.</div>`;
+}
+
+async function createOOS(){
+  try{
+    const res=await fetch(OOS_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({site:currentSite,materialType:OOS_MATERIAL_TYPES[0]})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeOOS=await res.json();
+    renderOOSEditor();
+    toast("OOS "+activeOOS.id+" opened. Complete the investigation fields and Save.","green");
+  }catch(e){toast("Could not create OOS record: "+e.message,"red");}
+}
+
+async function openOOS(id){
+  try{
+    const res=await fetch(OOS_API+"?id="+encodeURIComponent(id));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    activeOOS=await res.json();
+    renderOOSEditor();
+  }catch(e){toast("Could not open OOS record: "+e.message,"red");}
+}
+
+function renderOOSEditor(){
+  const o=activeOOS;if(!o)return;
+  const back=document.getElementById("oos-back-btn");if(back)back.style.display="";
+  const canClose=isAdminUser;
+  const c=document.getElementById("oos-content");
+  c.innerHTML=`
+    <div class="crisis-block">
+      <div class="crisis-block-title">1 · Identification <span style="color:#4a5568;font-weight:400">${cesc(o.id)}</span>${isAdminUser?`<button class="btn-danger" title="Delete OOS (admin)" onclick="deleteOOS('${o.id}')" style="margin-left:auto;padding:3px 10px">✕ Delete</button>`:""}</div>
+      <div class="crisis-meta-grid">
+        <div><label class="form-label">OOS ID</label><input class="crisis-input" value="${cesc(o.id)}" disabled style="opacity:0.7"></div>
+        <div><label class="form-label">Date Initiated</label><input class="crisis-input" value="${cesc(o.dateInitiated)}" disabled style="opacity:0.7"></div>
+        <div><label class="form-label">Initiated By</label><input class="crisis-input" value="${cesc(o.initiatedBy)}" disabled style="opacity:0.7"></div>
+        <div><label class="form-label">Site</label><select class="crisis-input" id="oo-site">${optList(SITES,o.site)}</select></div>
+        <div><label class="form-label">Material Type</label><select class="crisis-input" id="oo-materialType">${optList(OOS_MATERIAL_TYPES,o.materialType)}</select></div>
+        <div><label class="form-label">Product / Material Name</label><input class="crisis-input" id="oo-productName" value="${cesc(o.productName)}"></div>
+        <div><label class="form-label">Supplier / Manufacturer <span style="color:#4a5568;font-weight:400">(raw materials)</span></label><input class="crisis-input" id="oo-supplier" value="${cesc(o.supplier)}"></div>
+        <div><label class="form-label">Internal Lot Number</label><input class="crisis-input" id="oo-internalLot" value="${cesc(o.internalLot)}"></div>
+        <div><label class="form-label">Supplier Lot Number</label><input class="crisis-input" id="oo-supplierLot" value="${cesc(o.supplierLot)}"></div>
+        <div><label class="form-label">Batch Record Number</label><input class="crisis-input" id="oo-batchRecordNumber" value="${cesc(o.batchRecordNumber)}"></div>
+        <div><label class="form-label">Manufacturing Date</label><input type="date" class="crisis-input" id="oo-manufacturingDate" value="${cesc(o.manufacturingDate)}"></div>
+        <div><label class="form-label">Expiration / Retest Date</label><input type="date" class="crisis-input" id="oo-expirationDate" value="${cesc(o.expirationDate)}"></div>
+      </div>
+    </div>
+
+    <div class="crisis-block">
+      <div class="crisis-block-title">2 · Test Data</div>
+      <div class="crisis-meta-grid">
+        <div><label class="form-label">Test / Analyte</label><input class="crisis-input" id="oo-testAnalyte" value="${cesc(o.testAnalyte)}"></div>
+        <div><label class="form-label">Test Method</label><input class="crisis-input" id="oo-testMethod" value="${cesc(o.testMethod)}"></div>
+        <div><label class="form-label">Specification</label><input class="crisis-input" id="oo-specification" value="${cesc(o.specification)}"></div>
+        <div><label class="form-label">Result Obtained</label><input class="crisis-input" id="oo-resultObtained" value="${cesc(o.resultObtained)}"></div>
+        <div><label class="form-label">Units</label><select class="crisis-input" id="oo-units">${optList(OOS_UNITS,o.units)}</select></div>
+        <div><label class="form-label">Pass / Fail</label><select class="crisis-input" id="oo-passFail">${optList(OOS_PASSFAIL,o.passFail)}</select></div>
+      </div>
+    </div>
+
+    <div class="crisis-block">
+      <div class="crisis-block-title">3 · Investigation</div>
+      <div class="crisis-meta-grid">
+        <div style="grid-column:1/-1"><label class="form-label">OOS Classification</label><select class="crisis-input" id="oo-classification">${optList(OOS_CLASSIFICATIONS,o.classification)}</select></div>
+      </div>
+      <div style="margin-top:10px"><label class="form-label">Phase 1 — Laboratory Investigation Notes</label><textarea class="crisis-input" id="oo-phase1Notes" style="min-height:70px">${cesc(o.phase1Notes)}</textarea></div>
+      <div style="margin-top:10px"><label class="form-label">Phase 2 — Manufacturing Investigation Notes</label><textarea class="crisis-input" id="oo-phase2Notes" style="min-height:70px">${cesc(o.phase2Notes)}</textarea></div>
+      <div style="margin-top:10px"><label class="form-label">Root Cause</label><textarea class="crisis-input" id="oo-rootCause" style="min-height:56px">${cesc(o.rootCause)}</textarea></div>
+      <div class="crisis-meta-grid" style="margin-top:10px"><div style="grid-column:1/-1"><label class="form-label">Root Cause Category</label><select class="crisis-input" id="oo-rootCauseCategory">${optList(OOS_ROOT_CAUSE_CATS,o.rootCauseCategory)}</select></div></div>
+      <div style="margin-top:10px"><label class="form-label">Corrective Action</label><textarea class="crisis-input" id="oo-correctiveAction" style="min-height:56px">${cesc(o.correctiveAction)}</textarea></div>
+    </div>
+
+    <div class="crisis-block">
+      <div class="crisis-block-title">4 · Disposition &amp; Closure</div>
+      <div class="crisis-meta-grid">
+        <div><label class="form-label">Disposition</label><select class="crisis-input" id="oo-disposition">${optList(OOS_DISPOSITIONS,o.disposition)}</select></div>
+        <div><label class="form-label">CAPA ID <span style="color:#4a5568;font-weight:400">(optional link)</span></label><input class="crisis-input" id="oo-capaId" value="${cesc(o.capaId)}" placeholder="QIS-####"></div>
+        <div><label class="form-label">Status</label><select class="crisis-input" id="oo-status" ${canClose?"":'title="Only an administrator can close an OOS"'}>${OOS_STATUSES.map(s=>`<option ${o.status===s?"selected":""} ${(OOS_CLOSED.includes(s)&&!canClose&&o.status!==s)?"disabled":""}>${cesc(s)}</option>`).join("")}</select></div>
+        <div><label class="form-label">Closed By</label><input class="crisis-input" value="${cesc(o.closedBy)}" disabled style="opacity:0.7"></div>
+        <div><label class="form-label">Closed Date</label><input class="crisis-input" value="${cesc(o.closedDate)}" disabled style="opacity:0.7"></div>
+      </div>
+    </div>
+
+    <div class="crisis-block">
+      <div class="crisis-block-title">5 · File Attachments <span style="color:#4a5568;font-weight:400">stored in Netlify Blobs</span></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+        <div style="flex:1;min-width:180px"><label class="form-label">Document Type</label><select class="crisis-input" id="oos-attach-desc">${OOS_ATTACH_LABELS.map(l=>`<option>${cesc(l)}</option>`).join("")}</select></div>
+        <div><label class="form-label">&nbsp;</label><button class="btn" onclick="document.getElementById('oos-file-input').click()">&#128206; Upload File(s)</button></div>
+        <input type="file" id="oos-file-input" multiple accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.xls,.csv,.doc,.docx,application/pdf,image/*" style="display:none" onchange="oosUpload(this)">
+      </div>
+      <div style="font-size:10px;color:#4a5568;margin-bottom:10px">PDF · image · Excel · Word accepted. Each file is labelled with its document type. PDFs are appended as pages and images embedded inline in the Individual OOS Event Report.</div>
+      <div id="oos-attachments"></div>
+    </div>
+
+    <div style="position:sticky;bottom:0;background:linear-gradient(transparent,#eef2f6 30%);padding:14px 0;text-align:right;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="showOOSList()">Close</button>
+      <button class="btn" style="background:#C00000;padding:10px 22px" onclick="saveOOS()">&#128190; Save OOS Record</button>
+    </div>`;
+  renderOOSAttachments();
+}
+
+function renderOOSAttachments(){
+  const el=document.getElementById("oos-attachments");if(!el||!activeOOS)return;
+  const list=activeOOS.attachments||[];
+  if(!list.length){el.innerHTML=`<div style="font-size:11px;color:#4a5568">No files attached yet.</div>`;return;}
+  el.innerHTML=`<table class="crisis-tbl"><thead><tr><th style="width:170px">Document Type</th><th>File</th><th style="width:90px">Size</th><th style="width:150px">Uploaded By</th><th style="width:40px"></th></tr></thead><tbody>`+
+    list.map(a=>`<tr>
+      <td>${cesc(a.description)||"—"}</td>
+      <td><a href="${OOS_API}?id=${encodeURIComponent(activeOOS.id)}&file=${encodeURIComponent(a.key)}" target="_blank" rel="noopener" style="color:#1F4E79;text-decoration:underline">${cesc(a.filename)}</a></td>
+      <td style="font-size:10px;color:#4a5568">${oosFmtBytes(a.size)}</td>
+      <td style="font-size:10px;color:#4a5568">${cesc(a.uploadedBy)}</td>
+      <td><button class="btn-ghost" style="color:#C00000" onclick="removeOOSAttachment('${cesc(a.key)}')">&#10005;</button></td>
+    </tr>`).join("")+`</tbody></table>`;
+}
+
+async function oosUpload(input){
+  if(!activeOOS){toast("Open an OOS record first.","red");return;}
+  const desc=document.getElementById("oos-attach-desc").value;
+  const files=Array.from(input.files||[]);
+  if(!files.length)return;
+  let ok=0;
+  for(const f of files){
+    try{
+      const dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("read error"));r.readAsDataURL(f);});
+      const res=await fetch(OOS_API+"?id="+encodeURIComponent(activeOOS.id)+"&action=attach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:f.name,contentType:f.type||"application/octet-stream",description:desc,data:dataUrl})});
+      if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+      const entry=await res.json();
+      (activeOOS.attachments=activeOOS.attachments||[]).push(entry);
+      ok++;
+    }catch(e){toast("Upload failed for "+f.name+": "+e.message,"red");}
+  }
+  input.value="";
+  renderOOSAttachments();
+  if(ok)toast(ok+" file(s) attached to "+activeOOS.id+".","green");
+}
+
+async function removeOOSAttachment(key){
+  if(!activeOOS)return;
+  if(!confirm("Remove this attachment? This permanently deletes the file."))return;
+  try{
+    const res=await fetch(OOS_API+"?id="+encodeURIComponent(activeOOS.id)+"&file="+encodeURIComponent(key),{method:"DELETE"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeOOS.attachments=(activeOOS.attachments||[]).filter(a=>a.key!==key);
+    renderOOSAttachments();
+    toast("Attachment removed.","green");
+  }catch(e){toast("Could not remove attachment: "+e.message,"red");}
+}
+
+async function saveOOS(){
+  const o=activeOOS;if(!o)return;
+  function val(id){const el=document.getElementById(id);return el?el.value:"";}
+  const body={
+    site:val("oo-site"),materialType:val("oo-materialType"),productName:val("oo-productName"),
+    supplier:val("oo-supplier"),internalLot:val("oo-internalLot"),supplierLot:val("oo-supplierLot"),
+    batchRecordNumber:val("oo-batchRecordNumber"),manufacturingDate:val("oo-manufacturingDate"),expirationDate:val("oo-expirationDate"),
+    testAnalyte:val("oo-testAnalyte"),testMethod:val("oo-testMethod"),specification:val("oo-specification"),
+    resultObtained:val("oo-resultObtained"),units:val("oo-units"),passFail:val("oo-passFail"),
+    classification:val("oo-classification"),phase1Notes:val("oo-phase1Notes"),phase2Notes:val("oo-phase2Notes"),
+    rootCause:val("oo-rootCause"),rootCauseCategory:val("oo-rootCauseCategory"),correctiveAction:val("oo-correctiveAction"),
+    disposition:val("oo-disposition"),capaId:val("oo-capaId"),status:val("oo-status"),
+  };
+  try{
+    const res=await fetch(OOS_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeOOS=await res.json();
+    renderOOSEditor();
+    toast("OOS "+o.id+" saved.","green");
+  }catch(e){toast("Could not save OOS: "+e.message,"red");}
+}
+
+async function deleteOOS(id){
+  if(!isAdminUser){toast("Only an administrator can delete OOS records.","red");return;}
+  if(!confirm("Delete OOS "+id+"? This permanently removes the record and all attached files. This cannot be undone."))return;
+  try{
+    const res=await fetch(OOS_API+"?id="+encodeURIComponent(id),{method:"DELETE"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    await showOOSList();
+    toast("OOS "+id+" deleted.","green");
+  }catch(e){toast("Delete failed: "+e.message,"red");}
+}
+
 loadSite();
 renderUserBadge();
 // App boot is gated on authentication. The Identity module (below) calls
@@ -2319,6 +2970,12 @@ renderUserBadge();
 let qisBooted=false;
 window.qisBoot=async function(user){
   setCurrentUser(user);
+  // Default the report "Lead Auditor / Prepared By" field to the signed-in
+  // user's full name and title (only while it still holds the shipped default).
+  const auditorEl=document.getElementById("ai-auditor");
+  if(auditorEl&&currentUserHasName&&(auditorEl.value===""||auditorEl.value==="Jesse Kolstad, Director of Quality")){
+    auditorEl.value=userIdentityLabel();
+  }
   if(qisBooted){render();return;}
   qisBooted=true;
   await loadData();
@@ -2403,6 +3060,13 @@ window.qisSignIn=async function(ev){
 
 window.qisShowForgot=function(){msg("auth-forgot-msg","");showPanel("auth-forgot");};
 window.qisShowSignin=function(){msg("auth-msg","");showPanel("auth-signin");};
+
+// Update the signed-in user's profile metadata (full name + title) and return
+// the refreshed user object so the app can re-stamp its identity display.
+window.qisUpdateProfile=async function(data){
+  await updateUser({data:{full_name:data.full_name,title:data.title}});
+  return await getUser();
+};
 
 window.qisForgot=async function(ev){
   ev.preventDefault();
