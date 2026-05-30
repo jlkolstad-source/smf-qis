@@ -107,6 +107,32 @@ main{padding:24px 32px 80px;}
 .csuite-stat-val{font-family:'Bebas Neue',sans-serif;font-size:28px;line-height:1;}
 .csuite-stat-label{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
 .csuite-divider{width:1px;height:32px;background:var(--border);}
+.cs-subnav{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.cs-subtab{padding:8px 16px;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;color:#4a5568;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;letter-spacing:0.3px;}
+.cs-subtab:hover{color:var(--accent);}
+.cs-subtab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.rpt-toolbar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;background:#f4f6f8;border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;}
+.rpt-toolbar .form-group{margin-bottom:0;}
+.rpt-field{display:flex;flex-direction:column;gap:4px;}
+.rpt-field label{font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#4a5568;}
+.rpt-field select,.rpt-field input{background:#fff;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;font-size:12px;font-family:'DM Sans',sans-serif;color:var(--text);min-width:120px;}
+.rpt-section{background:#fff;border:1px solid var(--border);border-radius:8px;padding:16px 18px;margin-bottom:14px;}
+.rpt-section h3{font-size:13px;color:var(--navy,#1F3864);margin:0 0 12px;font-family:'DM Sans',sans-serif;letter-spacing:0.4px;border-left:3px solid #1F4E79;padding-left:9px;}
+.rpt-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+.rpt-metric{background:#f4f6f8;border:1px solid var(--border);border-radius:7px;padding:10px 12px;}
+.rpt-metric .v{font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;color:#1F3864;}
+.rpt-metric .l{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:0.5px;text-transform:uppercase;margin-top:3px;}
+.rpt-metric.danger .v{color:var(--danger);}
+.rpt-metric.warn .v{color:#7F6000;}
+.rpt-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.rpt-tbl th{text-align:left;padding:7px 10px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#fff;background:#1F4E79;}
+.rpt-tbl td{padding:7px 10px;border-bottom:1px solid #e8ecf0;vertical-align:top;color:#1a1a2e;}
+.rpt-tbl tr:nth-child(even) td{background:#f7f9fb;}
+.rpt-risk-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:6px;background:#FCE4E4;border:1px solid #C00000;margin-bottom:6px;font-size:12px;color:#7a0000;}
+.rpt-edit label{display:block;font-size:11px;font-weight:600;color:#1F3864;margin:10px 0 4px;}
+.rpt-edit textarea,.rpt-edit input{width:100%;background:#fff;border:1px solid var(--border2);border-radius:5px;padding:8px 10px;font-size:12px;font-family:'DM Sans',sans-serif;color:var(--text);box-sizing:border-box;}
+.rpt-edit textarea{min-height:70px;resize:vertical;}
+.rpt-note{font-size:11px;color:#4a5568;font-family:'DM Mono',monospace;}
 .modal-overlay{position:fixed;inset:0;background:rgba(10,20,50,0.75);backdrop-filter:blur(6px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s;}
 .modal-overlay.open{opacity:1;pointer-events:all;}
 .modal{background:#ffffff;border:2px solid #1F4E79;border-radius:6px;padding:26px;width:680px;max-width:96vw;max-height:92vh;overflow-y:auto;transform:translateY(10px);transition:transform 0.2s;}
@@ -278,7 +304,16 @@ main{padding:24px 32px 80px;}
       <button class="signout-btn" onclick="qisSignOut()">Sign out</button>
     </div>
     <div class="deadline-badge" id="deadline-hdr" style="display:none"></div>
-    <button class="btn" onclick="openModal()">+ New Record</button>
+    <div class="newrec-switcher" id="newrec-switcher" style="position:relative">
+      <button class="btn" id="newrec-btn" onclick="toggleNewRecordMenu(event)" aria-haspopup="true" aria-expanded="false">+ New Record <span class="site-caret" style="color:rgba(0,0,0,0.45)">&#9662;</span></button>
+      <div class="site-menu" id="newrec-menu" style="left:auto;right:0;min-width:230px">
+        <div class="site-menu-item" onclick="globalCreate('CAPA')">CAPA</div>
+        <div class="site-menu-item" onclick="globalCreate('NCR')">NCR</div>
+        <div class="site-menu-item" onclick="globalCreate('AUDIT')">Audit Finding</div>
+        <div class="site-menu-item" onclick="globalCreate('OOS')">OOS Event</div>
+        <div class="site-menu-item" onclick="globalCreate('CRISIS')">Crisis Management Exercise</div>
+      </div>
+    </div>
   </div>
 </header>
 <nav>
@@ -381,9 +416,15 @@ main{padding:24px 32px 80px;}
 <!-- C-SUITE -->
 <div class="section" id="csuite">
   <div class="table-header">
-    <div class="section-title">Executive Quality Summary</div>
+    <div class="section-title">C-Suite View</div>
     <button class="btn-ghost" onclick="window.print()">Print</button>
   </div>
+  <div class="cs-subnav">
+    <div class="cs-subtab active" id="cs-subtab-exec" onclick="switchCsuiteTab('exec')">Executive Dashboard</div>
+    <div class="cs-subtab" id="cs-subtab-monthly" onclick="switchCsuiteTab('monthly')">&#128202; Monthly Flash</div>
+    <div class="cs-subtab" id="cs-subtab-annual" onclick="switchCsuiteTab('annual')">&#128203; Annual Review</div>
+  </div>
+  <div id="cs-pane-exec">
   <div class="csuite-banner">
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-risk" style="color:var(--accent)">--</div><div class="csuite-stat-label">Quality Risk</div></div>
     <div class="csuite-divider"></div>
@@ -429,6 +470,13 @@ main{padding:24px 32px 80px;}
       </div>
     </div>
   </div>
+  </div><!-- /cs-pane-exec -->
+
+  <!-- MONTHLY QUALITY FLASH REPORT -->
+  <div id="cs-pane-monthly" style="display:none"></div>
+
+  <!-- ANNUAL MANAGEMENT REVIEW REPORT -->
+  <div id="cs-pane-annual" style="display:none"></div>
 </div>
 
 <!-- CRISIS EXERCISE -->
@@ -905,6 +953,52 @@ function renderSiteSwitcher(){
   ["site-label-title","site-label-score"].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=currentSite;});
 }
 
+// ── GLOBAL "+ New Record" ENTRY POINT ───────────────────────────────────────
+// A single header dropdown that can start the creation flow for any QMS record
+// type from anywhere in the app: CAPA / NCR / Audit Finding open the record
+// modal pre-set to that type; OOS Event opens a new OOS investigation in the OOS
+// module; Crisis Management Exercise opens the new-exercise setup form.
+function toggleNewRecordMenu(e){
+  e.stopPropagation();
+  const menu=document.getElementById("newrec-menu");
+  const open=menu.classList.toggle("open");
+  document.getElementById("newrec-btn").setAttribute("aria-expanded",open?"true":"false");
+}
+function closeNewRecordMenu(){
+  const menu=document.getElementById("newrec-menu");if(menu)menu.classList.remove("open");
+  const btn=document.getElementById("newrec-btn");if(btn)btn.setAttribute("aria-expanded","false");
+}
+// Programmatically activate a top-level tab by its section id.
+function gotoTab(id){
+  const tab=Array.from(document.querySelectorAll(".tab")).find(t=>(t.getAttribute("onclick")||"").includes("'"+id+"'"));
+  if(tab)switchTab(id,tab);
+}
+// Toggle the active section/tab visuals only (no per-tab data loaders). Used by
+// the global create flow so it can sequence its own loader + creation call and
+// avoid racing the tab's default list render.
+function setActiveTab(id){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  const sec=document.getElementById(id);if(sec)sec.classList.add("active");
+  const tab=Array.from(document.querySelectorAll(".tab")).find(t=>(t.getAttribute("onclick")||"").includes("'"+id+"'"));
+  if(tab)tab.classList.add("active");
+}
+async function globalCreate(kind){
+  closeNewRecordMenu();
+  if(kind==="OOS"){
+    // Show the OOS list first, then open a fresh investigation editor over it.
+    stopCrisisPoll();setActiveTab("oos");await showOOSList();createOOS();return;
+  }
+  if(kind==="CRISIS"){
+    // The new-exercise modal is independent of the list content, so no race.
+    gotoTab("crisis");openNewCrisisModal();return;
+  }
+  // CAPA / NCR / Audit Finding all use the shared record modal; jump to the
+  // tracker so the new row is visible immediately after saving.
+  gotoTab("tracker");
+  openModal(kind);
+}
+
 // Load the current site's records from the shared database.
 async function loadData(){
   try{
@@ -1109,11 +1203,11 @@ function renderTable(f){
   }).join("");
 }
 
-function openModal(){
+function openModal(presetType){
   editingId=null;currentPhotos=[];
   document.getElementById("modal-title").textContent="New Record";
   ["f-desc","f-clause","f-owner","f-rca","f-ca","f-due","f-evidence"].forEach(i=>{const el=document.getElementById(i);if(el)el.value="";});
-  document.getElementById("f-type").value="CAPA";
+  document.getElementById("f-type").value=(presetType==="CAPA"||presetType==="NCR"||presetType==="AUDIT")?presetType:"CAPA";
   document.getElementById("f-severity").value="Minor";
   document.getElementById("f-status").value="Open";
   document.getElementById("f-photos").value="[]";
@@ -2303,7 +2397,7 @@ document.getElementById("ncr-modal").addEventListener("click",e=>{if(e.target===
 document.getElementById("profile-modal").addEventListener("click",e=>{if(e.target===document.getElementById("profile-modal"))closeProfileModal();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLightbox();closeModal();closeNCRModal();}});
 
-document.addEventListener("click",()=>{const m=document.getElementById("site-menu");if(m)m.classList.remove("open");const b=document.getElementById("site-badge-btn");if(b)b.setAttribute("aria-expanded","false");});
+document.addEventListener("click",()=>{const m=document.getElementById("site-menu");if(m)m.classList.remove("open");const b=document.getElementById("site-badge-btn");if(b)b.setAttribute("aria-expanded","false");closeNewRecordMenu();});
 
 // ── CRISIS MANAGEMENT EXERCISE (Form SOP-20-EX-001) ─────────────────────────
 const CRISIS_API="/api/crisis";
@@ -2962,6 +3056,809 @@ async function deleteOOS(id){
     toast("OOS "+id+" deleted.","green");
   }catch(e){toast("Delete failed: "+e.message,"red");}
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// C-SUITE REPORTS — Monthly Quality Flash & Annual Management Review
+//
+// Both reports compute every metric LIVE from the records / OOS / crisis tables
+// at the moment they are rendered or exported — there are no stored snapshots
+// and no AI inference: every number shown is a direct count or sum of the exact
+// rows in the database. Only the free-text narrative a reviewer types is saved
+// (to /api/report-drafts), so a report can be resumed across sessions.
+// ════════════════════════════════════════════════════════════════════════════
+const REPORT_SIGNERS_MONTHLY=[
+  {name:"Jesse Kolstad",title:"Director of Quality"},
+  {name:"Chad Hinson",title:"VP of Quality"},
+];
+const REPORT_SIGNERS_ANNUAL=[
+  {name:"Jesse Kolstad",title:"Director of Quality / SQF Practitioner"},
+  {name:"Chad Hinson",title:"VP of Quality"},
+  {name:"",title:"Plant Manager / Operations"},
+  {name:"",title:"VP / General Manager"},
+];
+
+// ── small shared helpers ────────────────────────────────────────────────────
+function rptTodayISO(){return new Date().toISOString().slice(0,10);}
+function rptPrevMonth(period){
+  const [y,m]=period.split("-").map(Number);
+  const d=new Date(Date.UTC(y,m-1,1));d.setUTCMonth(d.getUTCMonth()-1);
+  return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0");
+}
+function rptMonthName(period){
+  const [y,m]=period.split("-").map(Number);
+  return new Date(Date.UTC(y,m-1,1)).toLocaleDateString("en-US",{month:"long",year:"numeric",timeZone:"UTC"});
+}
+function rptDaysSince(dateStr){if(!dateStr)return null;const d=new Date(dateStr);if(isNaN(d))return null;return Math.floor((new Date()-d)/86400000);}
+function rptPretty(dateStr){if(!dateStr)return "—";const d=new Date(dateStr.length<=10?dateStr+"T00:00:00":dateStr);if(isNaN(d))return cesc(dateStr);return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+
+// Pull live data for the selected site ("" = all sites) from all three modules.
+async function rptFetchData(site){
+  const q=site?("?site="+encodeURIComponent(site)):"";
+  const safe=async u=>{try{const r=await fetch(u);return r.ok?await r.json():[];}catch(e){return [];}};
+  const [recs,oos,crisis]=await Promise.all([safe(API+q),safe(OOS_API+q),safe(CRISIS_API+q)]);
+  return {records:recs||[],oos:oos||[],crisis:crisis||[]};
+}
+
+// Load / save the editable narrative draft for a report.
+async function rptLoadDraft(type,period,site){
+  try{
+    const r=await fetch("/api/report-drafts?type="+type+"&period="+encodeURIComponent(period)+"&site="+encodeURIComponent(site||""));
+    if(!r.ok)return {};
+    const j=await r.json();return j.data||{};
+  }catch(e){return {};}
+}
+async function rptSaveDraft(type,period,site,data){
+  const r=await fetch("/api/report-drafts?type="+type+"&period="+encodeURIComponent(period)+"&site="+encodeURIComponent(site||""),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({data})});
+  if(!r.ok){let m="HTTP "+r.status;try{m=(await r.json()).error||m;}catch(_){}throw new Error(m);}
+  return await r.json();
+}
+
+function sendForSignature(){
+  toast("Send for Signature — Adobe Acrobat Sign integration is coming soon. The generated PDF will be routed to the management team for e-signature.","yellow");
+}
+
+// ── C-Suite sub-tab switching ───────────────────────────────────────────────
+let _monthlyInit=false,_annualInit=false;
+function switchCsuiteTab(name){
+  ["exec","monthly","annual"].forEach(n=>{
+    const pane=document.getElementById("cs-pane-"+n);if(pane)pane.style.display=(n===name)?"":"none";
+    const tab=document.getElementById("cs-subtab-"+n);if(tab)tab.classList.toggle("active",n===name);
+  });
+  if(name==="monthly"){if(!_monthlyInit){_monthlyInit=true;initMonthlyFlash();}}
+  if(name==="annual"){if(!_annualInit){_annualInit=true;initAnnualReview();}}
+}
+
+// Build the SMF site-filter <option> list ("All sites" + each site).
+function rptSiteOptions(sel){
+  return '<option value="">All Sites</option>'+SITES.map(s=>`<option value="${s}" ${s===sel?"selected":""}>${s}</option>`).join("");
+}
+// Month <input type=month> default = current month.
+function rptCurrentMonth(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
+
+// ════════════════════════ SHARED SMF PDF BUILDER ════════════════════════════
+// Renders a cover page (title block + document-control table + printed-copy
+// notice), then a Markdown body (## section bars, ### sub-bars, GitHub tables,
+// bullet lists), with the SMF navy header and gray CONFIDENTIAL footer on every
+// page. No revision number is shown — these are living documents.
+async function smfReportPDF(opts){
+  const {coverHeading,coverTitle,coverSubtitle,rptLabel,infoRows,markdown,fname}=opts;
+  if(!window.jspdf){
+    await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+  }
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'pt',format:'letter'});
+  const navy=[31,56,100],midBlue=[31,78,121],white=[255,255,255],black=[26,26,46],lightBlue=[222,234,241];
+  const pageW=612,pageH=792,margin=54,contentW=pageW-margin*2;
+  const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  function drawHeaderFooter(pageNum,total){
+    doc.setFillColor(...navy);doc.rect(0,0,pageW,38,'F');
+    doc.setFontSize(8.5);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+    doc.text('SOMAFINA UST',margin,14);
+    doc.setFont('helvetica','normal');
+    doc.text('Quality Intelligence System  ·  '+rptLabel,margin,26);
+    doc.text('Effective: '+today,pageW-margin,22,{align:'right'});
+    doc.setFillColor(240,242,245);doc.rect(0,pageH-26,pageW,26,'F');
+    doc.setDrawColor(200,208,220);doc.setLineWidth(0.5);doc.line(0,pageH-26,pageW,pageH-26);
+    doc.setFontSize(8);doc.setTextColor(80,80,100);doc.setFont('helvetica','normal');
+    doc.text(rptLabel+'  ·  SQF Edition 9 Compliant  |  CONFIDENTIAL',margin,pageH-9);
+    doc.text('Page '+pageNum+' of '+total,pageW-margin,pageH-9,{align:'right'});
+  }
+
+  // ── COVER ─────────────────────────────────────────────────────────────────
+  let y=60;
+  doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');y+=18;
+  doc.setFontSize(22);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+  doc.text(coverHeading,pageW/2,y,{align:'center'});y+=28;
+  doc.setFontSize(13);doc.setTextColor(...midBlue);doc.setFont('helvetica','normal');
+  doc.text(coverTitle,pageW/2,y,{align:'center'});y+=16;
+  doc.setFontSize(9);doc.setTextColor(100,100,120);doc.setFont('helvetica','italic');
+  doc.text(coverSubtitle,pageW/2,y,{align:'center'});y+=6;
+  doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');y+=22;
+
+  doc.setFillColor(...navy);doc.rect(margin,y,contentW,22,'F');
+  doc.setFontSize(10);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+  doc.text('Document Information',margin+8,y+15);y+=22;
+  infoRows.forEach(([label,value],i)=>{
+    doc.setFillColor(i%2===0?222:240,i%2===0?234:242,i%2===0?241:245);
+    doc.rect(margin,y,contentW,18,'F');
+    doc.setFontSize(9);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+    doc.text(label,margin+8,y+13);
+    doc.setFont('helvetica','normal');doc.setTextColor(...black);
+    const wrapped=doc.splitTextToSize(String(value),contentW-170);
+    doc.text(wrapped[0],margin+165,y+13);
+    y+=18;
+  });
+  y+=16;
+  doc.setFillColor(255,242,204);doc.rect(margin,y,contentW,22,'F');
+  doc.setDrawColor(127,96,0);doc.setLineWidth(0.5);doc.rect(margin,y,contentW,22,'S');
+  doc.setFontSize(8.5);doc.setTextColor(127,96,0);doc.setFont('helvetica','bold');
+  doc.text('⚠  Printed copies valid 7 calendar days from print date.  Verify the live record in QIS before use.',pageW/2,y+14,{align:'center'});
+
+  // ── BODY ──────────────────────────────────────────────────────────────────
+  doc.addPage();y=50;
+  const lines=markdown.split('\n');
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim();
+    if(y>pageH-46){doc.addPage();y=50;}
+    if(!line){y+=7;continue;}
+    if(line.startsWith('## ')){
+      y+=6;if(y>pageH-66){doc.addPage();y=50;}
+      doc.setFillColor(...navy);doc.rect(margin,y,contentW,20,'F');
+      doc.setFontSize(10.5);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+      doc.text(line.replace(/^##\s*/,'').toUpperCase(),margin+8,y+14);y+=26;
+    } else if(line.startsWith('### ')){
+      y+=5;if(y>pageH-60){doc.addPage();y=50;}
+      doc.setFillColor(...lightBlue);doc.rect(margin,y,contentW,18,'F');
+      doc.setFontSize(10);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+      doc.text(line.replace(/^###\s*/,''),margin+8,y+13);y+=22;
+    } else if(line.startsWith('#### ')){
+      y+=4;doc.setFontSize(9.5);doc.setTextColor(...midBlue);doc.setFont('helvetica','bold');
+      doc.text(line.replace(/^####\s*/,''),margin,y);y+=14;
+    } else if(line.startsWith('# ')){
+      y+=8;if(y>pageH-66){doc.addPage();y=50;}
+      doc.setFontSize(13);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+      doc.splitTextToSize(line.replace(/^#\s*/,''),contentW).forEach(wl=>{doc.text(wl,pageW/2,y,{align:'center'});y+=16;});y+=4;
+    } else if(line.startsWith('|')){
+      const block=[];let j=i;
+      while(j<lines.length&&lines[j].trim().startsWith('|')){block.push(lines[j].trim());j++;}
+      i=j-1;
+      const parse=r=>r.replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim());
+      const isSep=cells=>cells.length>0&&cells.every(c=>/^:?-{2,}:?$/.test(c.replace(/\s/g,'')));
+      const dataRows=block.map(parse).filter(r=>!isSep(r));
+      if(dataRows.length){
+        const ncol=Math.max(...dataRows.map(r=>r.length));
+        const colW=contentW/ncol;
+        dataRows.forEach((cells,ri)=>{
+          while(cells.length<ncol)cells.push('');
+          doc.setFontSize(8);doc.setFont('helvetica',ri===0?'bold':'normal');
+          const wrapped=cells.map(c=>doc.splitTextToSize(c.replace(/\*\*(.*?)\*\*/g,'$1'),colW-6));
+          const rowH=Math.max(1,...wrapped.map(w=>w.length))*10+6;
+          if(y+rowH>pageH-46){doc.addPage();y=50;}
+          if(ri===0){doc.setFillColor(...navy);}else{doc.setFillColor(ri%2?240:248,ri%2?242:250,ri%2?245:252);}
+          doc.rect(margin,y,contentW,rowH,'F');
+          doc.setTextColor(...(ri===0?white:black));
+          wrapped.forEach((w,ci)=>{w.forEach((wl,wi)=>{doc.text(wl,margin+ci*colW+3,y+11+wi*10);});});
+          doc.setDrawColor(210,216,226);doc.setLineWidth(0.3);
+          for(let c=1;c<ncol;c++){doc.line(margin+c*colW,y,margin+c*colW,y+rowH);}
+          y+=rowH;
+        });
+        y+=6;
+      }
+    } else if(line==='---'){
+      y+=4;doc.setDrawColor(...navy);doc.setLineWidth(0.4);doc.line(margin,y,margin+contentW,y);y+=8;
+    } else if(line.startsWith('- ')||line.startsWith('> ')){
+      const bt=line.replace(/^[->\s]+/,'');
+      doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      doc.splitTextToSize('•  '+bt.replace(/\*\*(.*?)\*\*/g,'$1'),contentW-14).forEach((wl,wi)=>{
+        if(y>pageH-46){doc.addPage();y=50;}
+        doc.text(wl,margin+(wi===0?6:14),y);y+=13;
+      });
+    } else {
+      doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      doc.splitTextToSize(line.replace(/\*\*(.*?)\*\*/g,'$1'),contentW).forEach(wl=>{
+        if(y>pageH-46){doc.addPage();y=50;}
+        doc.text(wl,margin,y);y+=13;
+      });
+      y+=4;
+    }
+  }
+  const total=doc.getNumberOfPages();
+  for(let p=1;p<=total;p++){doc.setPage(p);drawHeaderFooter(p,total);}
+  doc.save(fname);
+}
+
+// Build a Markdown signature-block section from a signer list.
+function rptSignatureMarkdown(signers){
+  let md="## SIGNATURE BLOCK\n\nThe undersigned have reviewed this report and approve its findings.\n\n";
+  md+="| Name | Title | Signature | Date |\n| --- | --- | --- | --- |\n";
+  signers.forEach(s=>{md+=`| ${s.name||"_____________"} | ${s.title||"_____________"} | _____________ | __________ |\n`;});
+  return md;
+}
+
+// ═══════════════════ MONTHLY QUALITY FLASH REPORT ═══════════════════════════
+let _monthlyCtx=null;
+function initMonthlyFlash(){
+  const pane=document.getElementById("cs-pane-monthly");if(!pane)return;
+  pane.innerHTML=`
+    <div class="rpt-toolbar">
+      <div class="rpt-field"><label>Month / Year</label><input type="month" id="mf-month" value="${rptCurrentMonth()}" onchange="renderMonthlyFlash()"></div>
+      <div class="rpt-field"><label>Site</label><select id="mf-site" onchange="renderMonthlyFlash()">${rptSiteOptions(currentSite)}</select></div>
+      <button class="btn-ghost" onclick="renderMonthlyFlash()">&#8635; Refresh Live Data</button>
+      <button class="btn-ghost" onclick="saveMonthlyDraft()">&#128190; Save Draft</button>
+      <button class="btn" onclick="genMonthlyPDF()">&#11015; Generate PDF</button>
+      <button class="btn-ghost" onclick="sendForSignature()" title="Adobe Acrobat Sign integration (coming soon)">&#9997; Send for Signature</button>
+    </div>
+    <div id="mf-body"><div class="rpt-note" style="padding:20px">Loading live data…</div></div>`;
+  renderMonthlyFlash();
+}
+
+// Compute every Monthly Flash metric directly from the live rows. Pure counts
+// and sums only — no inference. `period` is "YYYY-MM"; aging/overdue are taken
+// as of the current date so the scorecard reflects the live backlog.
+function computeMonthly(data,period,site){
+  const recs=data.records,oos=data.oos,crisis=data.crisis;
+  const now=new Date(),todayISO=rptTodayISO(),prev=rptPrevMonth(period);
+  const isClosed=r=>r.status==="Closed";
+  const open=recs.filter(r=>!isClosed(r));
+  const closedAll=recs.filter(isClosed);
+  const overdue=open.filter(r=>r.due&&r.due<todayISO);
+  const newThis=recs.filter(r=>(r.created||"").slice(0,7)===period);
+  const closedThis=recs.filter(r=>isClosed(r)&&(r.modifiedAt||r.createdAt||"").slice(0,7)===period);
+  const closedPrev=recs.filter(r=>isClosed(r)&&(r.modifiedAt||r.createdAt||"").slice(0,7)===prev);
+  const closedWithDue=closedAll.filter(r=>r.due);
+  const onTime=closedWithDue.filter(r=>(r.modifiedAt||r.createdAt||"").slice(0,10)<=r.due);
+  const qIndex=closedWithDue.length?Math.round(onTime.length/closedWithDue.length*100):null;
+  const ageDays=r=>r.created?Math.floor((now-new Date(r.created))/86400000):0;
+  const aging30=open.filter(r=>ageDays(r)>30),aging60=open.filter(r=>ageDays(r)>60),aging90=open.filter(r=>ageDays(r)>90);
+  const byOwner={};open.forEach(r=>{const k=(r.owner||"").trim()||"Unassigned";byOwner[k]=(byOwner[k]||0)+1;});
+  const majorsOpen=open.filter(r=>r.severity==="Major"||r.severity==="Critical");
+  // OOS
+  const oosThis=oos.filter(o=>(o.dateInitiated||"").slice(0,7)===period);
+  const confirmed=oosThis.filter(o=>o.status==="Closed Confirmed").length;
+  const invalidated=oosThis.filter(o=>o.status==="Closed Invalidated").length;
+  const oosOpenDisp=oos.filter(o=>!OOS_CLOSED.includes(o.status)&&((o.disposition||"Pending")==="Pending"||o.status==="Pending Disposition"));
+  const oosStale=oosOpenDisp.filter(o=>{const d=rptDaysSince(o.dateInitiated);return d!==null&&d>30;});
+  // Audit program (schedule lives in the AUDITS constant)
+  const aud=site?AUDITS.filter(a=>a.facility===site||a.facility==="Both"):AUDITS;
+  const past=aud.filter(a=>a.date<=todayISO).sort((a,b)=>b.date.localeCompare(a.date));
+  const future=aud.filter(a=>a.date>todayISO).sort((a,b)=>a.date.localeCompare(b.date));
+  const auditFindings=recs.filter(r=>r.type==="AUDIT");
+  const auditOpen=auditFindings.filter(r=>!isClosed(r)).length;
+  const auditClosed=auditFindings.filter(isClosed).length;
+  const days254=Math.ceil((new Date("2026-06-18")-now)/86400000);
+  // Crisis
+  const exPast=crisis.filter(e=>e.exerciseDate&&e.exerciseDate<=todayISO).sort((a,b)=>b.exerciseDate.localeCompare(a.exerciseDate));
+  const nextExDates=crisis.map(e=>e.nextExerciseDate).filter(x=>x&&x>todayISO).sort();
+  const crisisActions=[];
+  crisis.forEach(e=>(e.lessonsLearned||[]).forEach(l=>{
+    if(!l.item)return;
+    if(!(l.capaRequired||l.ncrId||l.capaId))return;
+    const linkId=l.ncrId||l.capaId;
+    const rec=linkId?recs.find(r=>r.id===linkId):null;
+    const stillOpen=rec?rec.status!=="Closed":true;
+    if(stillOpen)crisisActions.push({ex:e.id,item:l.item,owner:l.owner||"—",target:l.targetDate||"—",link:linkId||"—"});
+  }));
+  // Top risk items (flagged red)
+  const risks=[];
+  majorsOpen.forEach(r=>risks.push({type:"Major Finding",id:r.id,detail:(r.clause?"§"+r.clause+" — ":"")+(r.desc||"").slice(0,90),owner:r.owner||"—",due:r.due||"—"}));
+  overdue.filter(r=>r.severity!=="Major"&&r.severity!=="Critical").forEach(r=>risks.push({type:"Overdue "+(r.type||"Item"),id:r.id,detail:(r.clause?"§"+r.clause+" — ":"")+(r.desc||"").slice(0,90),owner:r.owner||"—",due:r.due||"—"}));
+  oosStale.forEach(o=>risks.push({type:"OOS Pending >30d",id:o.id,detail:(o.testAnalyte||o.productName||"OOS investigation"),owner:o.initiatedBy||"—",due:o.dateInitiated||"—"}));
+  return {
+    period,prev,site,siteLabel:site||"All Sites",
+    open:open.length,closedAll:closedAll.length,overdue:overdue.length,total:recs.length,
+    newThis:newThis.length,closedThis:closedThis.length,closedPrev:closedPrev.length,
+    qIndex,onTimeCount:onTime.length,closedWithDue:closedWithDue.length,
+    aging30:aging30.length,aging60:aging60.length,aging90:aging90.length,
+    byOwner,majorsOpen,
+    oosThis:oosThis.length,confirmed,invalidated,oosOpenDisp:oosOpenDisp.length,oosStale:oosStale.length,oosStaleList:oosStale,
+    lastAudit:past[0]||null,nextAudit:future[0]||null,auditOpen,auditClosed,days254,
+    lastEx:exPast[0]||null,nextExDate:nextExDates[0]||null,crisisActions,
+    risks,
+  };
+}
+
+function _trendArrow(cur,pr){
+  if(cur>pr)return "&#9650; +"+(cur-pr)+" vs prior month";
+  if(cur<pr)return "&#9660; "+(cur-pr)+" vs prior month";
+  return "&#8212; no change vs prior month";
+}
+
+function monthlyPreviewHTML(m,draft){
+  const ownerRows=Object.entries(m.byOwner).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${cesc(k)}</td><td>${v}</td></tr>`).join("")||`<tr><td colspan="2" class="rpt-note">No open records.</td></tr>`;
+  const majorRows=m.majorsOpen.map(r=>`<tr><td>${cesc(r.id)}</td><td>${cesc(r.clause||"—")}</td><td>${cesc((r.desc||"").slice(0,80))}</td><td>${cesc(r.owner||"—")}</td><td>${cesc(r.due||"—")}</td></tr>`).join("")||`<tr><td colspan="5" class="rpt-note">No open Major findings.</td></tr>`;
+  const riskRows=m.risks.length?m.risks.map(r=>`<div class="rpt-risk-row"><strong>${cesc(r.type)}</strong> · ${cesc(r.id)} — ${cesc(r.detail)} <span style="margin-left:auto;font-family:'DM Mono',monospace;font-size:10px">owner ${cesc(r.owner)} · ${cesc(r.due)}</span></div>`).join(""):`<div class="rpt-note">No top-risk items flagged for this selection. ✓</div>`;
+  return `
+  <div class="rpt-section">
+    <h3>1 · Quality Scorecard</h3>
+    <div class="rpt-metrics">
+      <div class="rpt-metric"><div class="v">${m.qIndex===null?"—":m.qIndex+"%"}</div><div class="l">Quality Index (closed on time)</div></div>
+      <div class="rpt-metric"><div class="v">${m.open}</div><div class="l">Total Open Findings</div></div>
+      <div class="rpt-metric ${m.overdue?"danger":""}"><div class="v">${m.overdue}</div><div class="l">Overdue Items</div></div>
+      <div class="rpt-metric"><div class="v">${m.closedThis}</div><div class="l">Closed This Month</div></div>
+      <div class="rpt-metric"><div class="v" style="font-size:13px;padding-top:6px">${_trendArrow(m.closedThis,m.closedPrev)}</div><div class="l">Closure Trend</div></div>
+    </div>
+  </div>
+  <div class="rpt-section">
+    <h3>2 · CAPA / NCR Status</h3>
+    <div class="rpt-metrics" style="margin-bottom:12px">
+      <div class="rpt-metric"><div class="v">${m.newThis}</div><div class="l">New This Month</div></div>
+      <div class="rpt-metric"><div class="v">${m.closedThis}</div><div class="l">Closed This Month</div></div>
+      <div class="rpt-metric ${m.aging30?"warn":""}"><div class="v">${m.aging30}</div><div class="l">Open &gt;30 days</div></div>
+      <div class="rpt-metric ${m.aging60?"warn":""}"><div class="v">${m.aging60}</div><div class="l">Open &gt;60 days</div></div>
+      <div class="rpt-metric ${m.aging90?"danger":""}"><div class="v">${m.aging90}</div><div class="l">Open &gt;90 days</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px">
+      <div><div class="rpt-note" style="margin-bottom:5px">Open by Department / Owner</div><table class="rpt-tbl"><thead><tr><th>Owner</th><th>Open</th></tr></thead><tbody>${ownerRows}</tbody></table></div>
+      <div><div class="rpt-note" style="margin-bottom:5px">Open Major Findings</div><table class="rpt-tbl"><thead><tr><th>ID</th><th>Clause</th><th>Description</th><th>Owner</th><th>Due</th></tr></thead><tbody>${majorRows}</tbody></table></div>
+    </div>
+  </div>
+  <div class="rpt-section">
+    <h3>3 · OOS Summary</h3>
+    <div class="rpt-metrics">
+      <div class="rpt-metric"><div class="v">${m.oosThis}</div><div class="l">OOS Events This Month</div></div>
+      <div class="rpt-metric"><div class="v">${m.confirmed} / ${m.invalidated}</div><div class="l">Confirmed / Invalidated</div></div>
+      <div class="rpt-metric"><div class="v">${m.oosOpenDisp}</div><div class="l">Open Disposition Items</div></div>
+      <div class="rpt-metric ${m.oosStale?"danger":""}"><div class="v">${m.oosStale}</div><div class="l">Pending Disposition &gt;30d</div></div>
+    </div>
+  </div>
+  <div class="rpt-section">
+    <h3>4 · Audit Program Status</h3>
+    <div class="rpt-metrics">
+      <div class="rpt-metric"><div class="v" style="font-size:14px;padding-top:5px">${m.lastAudit?rptPretty(m.lastAudit.date):"—"}</div><div class="l">Last Audit</div></div>
+      <div class="rpt-metric"><div class="v" style="font-size:14px;padding-top:5px">${m.nextAudit?rptPretty(m.nextAudit.date):"—"}</div><div class="l">Next Scheduled</div></div>
+      <div class="rpt-metric"><div class="v">${m.auditOpen} / ${m.auditClosed}</div><div class="l">Findings Open / Closed</div></div>
+      <div class="rpt-metric ${m.days254<=14?"danger":""}"><div class="v">${m.days254>0?m.days254:"PAST"}</div><div class="l">Days to §2.5.4 CA</div></div>
+    </div>
+  </div>
+  <div class="rpt-section">
+    <h3>5 · Crisis Exercise Status</h3>
+    <div class="rpt-metrics">
+      <div class="rpt-metric"><div class="v" style="font-size:14px;padding-top:5px">${m.lastEx?rptPretty(m.lastEx.exerciseDate):"—"}</div><div class="l">Last Exercise</div></div>
+      <div class="rpt-metric"><div class="v" style="font-size:14px;padding-top:5px">${m.nextExDate?rptPretty(m.nextExDate):"—"}</div><div class="l">Next Scheduled</div></div>
+      <div class="rpt-metric ${m.crisisActions.length?"warn":""}"><div class="v">${m.crisisActions.length}</div><div class="l">Open Action Items</div></div>
+    </div>
+  </div>
+  <div class="rpt-section" style="border:1px solid #C00000">
+    <h3 style="border-left-color:#C00000;color:#7a0000">6 · Top Risk Items</h3>
+    ${riskRows}
+  </div>
+  <div class="rpt-section rpt-edit">
+    <h3>7 · Executive Commentary <span class="rpt-note">(saved to the database — resume anytime)</span></h3>
+    <label>Director of Quality commentary / month-over-month narrative</label>
+    <textarea id="mf-commentary" placeholder="Optional narrative for the executive readers — context, escalations, decisions requested…">${cesc(draft.commentary||"")}</textarea>
+  </div>`;
+}
+
+async function renderMonthlyFlash(){
+  const period=document.getElementById("mf-month").value||rptCurrentMonth();
+  const site=document.getElementById("mf-site").value;
+  const body=document.getElementById("mf-body");
+  body.innerHTML='<div class="rpt-note" style="padding:20px">Loading live data…</div>';
+  const data=await rptFetchData(site);
+  const m=computeMonthly(data,period,site);
+  const draft=await rptLoadDraft("monthly-flash",period,site);
+  _monthlyCtx={period,site};
+  body.innerHTML=monthlyPreviewHTML(m,draft);
+}
+
+async function saveMonthlyDraft(){
+  if(!_monthlyCtx){toast("Open the Monthly Flash first.","red");return;}
+  const data={commentary:(document.getElementById("mf-commentary")||{}).value||""};
+  try{await rptSaveDraft("monthly-flash",_monthlyCtx.period,_monthlyCtx.site,data);toast("Monthly Flash draft saved.","green");}
+  catch(e){toast("Save failed: "+e.message,"red");}
+}
+
+function monthlyMarkdown(m,commentary){
+  const f=v=>(v===undefined||v===null||v==="")?"—":String(v);
+  let md=`# SOMAFINA UST — MONTHLY QUALITY FLASH REPORT\n\nReporting Period: ${rptMonthName(m.period)} · Site: ${m.siteLabel}\n\n`;
+  md+=`## 1. QUALITY SCORECARD\n\n`;
+  md+=`| Metric | Value |\n| --- | --- |\n`;
+  md+=`| Overall Quality Index (records closed on time) | ${m.qIndex===null?"No closed records with a due date":m.qIndex+"% ("+m.onTimeCount+" of "+m.closedWithDue+")"} |\n`;
+  md+=`| Total Open Findings | ${m.open} |\n| Overdue Items | ${m.overdue} |\n| Closed This Month | ${m.closedThis} |\n| Closed Prior Month | ${m.closedPrev} |\n| Closure Rate Trend | ${m.closedThis>m.closedPrev?"Up +"+(m.closedThis-m.closedPrev):m.closedThis<m.closedPrev?"Down "+(m.closedThis-m.closedPrev):"No change"} vs prior month |\n\n`;
+  md+=`## 2. CAPA / NCR STATUS\n\n`;
+  md+=`| Metric | Count |\n| --- | --- |\n| New Records This Month | ${m.newThis} |\n| Closed This Month | ${m.closedThis} |\n| Open Aging > 30 days | ${m.aging30} |\n| Open Aging > 60 days | ${m.aging60} |\n| Open Aging > 90 days | ${m.aging90} |\n\n`;
+  md+=`### Open Records by Department / Owner\n\n| Owner / Department | Open |\n| --- | --- |\n`;
+  const oe=Object.entries(m.byOwner).sort((a,b)=>b[1]-a[1]);
+  md+=(oe.length?oe.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | 0 |")+"\n\n";
+  md+=`### Open Major Findings\n\n| ID | Clause | Description | Owner | Due |\n| --- | --- | --- | --- | --- |\n`;
+  md+=(m.majorsOpen.length?m.majorsOpen.map(r=>`| ${f(r.id)} | ${f(r.clause)} | ${f((r.desc||"").slice(0,110))} | ${f(r.owner)} | ${f(r.due)} |`).join("\n"):"| (none) | — | No open Major findings | — | — |")+"\n\n";
+  md+=`## 3. OOS SUMMARY\n\n| Metric | Value |\n| --- | --- |\n| OOS Events This Month | ${m.oosThis} |\n| Confirmed | ${m.confirmed} |\n| Invalidated | ${m.invalidated} |\n| Open Disposition Items | ${m.oosOpenDisp} |\n| Pending Disposition > 30 days | ${m.oosStale} |\n\n`;
+  if(m.oosStaleList.length){
+    md+=`### OOS Pending Disposition Over 30 Days\n\n| OOS ID | Analyte / Product | Initiated | Days Open |\n| --- | --- | --- | --- |\n`;
+    md+=m.oosStaleList.map(o=>`| ${f(o.id)} | ${f(o.testAnalyte||o.productName)} | ${f(o.dateInitiated)} | ${rptDaysSince(o.dateInitiated)} |`).join("\n")+"\n\n";
+  }
+  md+=`## 4. AUDIT PROGRAM STATUS\n\n| Metric | Value |\n| --- | --- |\n`;
+  md+=`| Last Audit Date | ${m.lastAudit?rptPretty(m.lastAudit.date)+" ("+f(m.lastAudit.id)+")":"—"} |\n`;
+  md+=`| Next Scheduled Audit | ${m.nextAudit?rptPretty(m.nextAudit.date)+" ("+f(m.nextAudit.id)+")":"—"} |\n`;
+  md+=`| Audit Findings Open | ${m.auditOpen} |\n| Audit Findings Closed | ${m.auditClosed} |\n`;
+  md+=`| §2.5.4 Compliance Countdown | ${m.days254>0?m.days254+" days to June 18, 2026 CA deadline":"Deadline passed (June 18, 2026)"} |\n\n`;
+  md+=`## 5. CRISIS EXERCISE STATUS\n\n| Metric | Value |\n| --- | --- |\n`;
+  md+=`| Last Exercise Date | ${m.lastEx?rptPretty(m.lastEx.exerciseDate)+" ("+f(m.lastEx.id)+")":"—"} |\n`;
+  md+=`| Next Scheduled Exercise | ${m.nextExDate?rptPretty(m.nextExDate):"—"} |\n`;
+  md+=`| Open Action Items (lessons learned) | ${m.crisisActions.length} |\n\n`;
+  if(m.crisisActions.length){
+    md+=`| Exercise | Improvement Item | Owner | Target | Linked Record |\n| --- | --- | --- | --- | --- |\n`;
+    md+=m.crisisActions.map(a=>`| ${f(a.ex)} | ${f((a.item||"").slice(0,90))} | ${f(a.owner)} | ${f(a.target)} | ${f(a.link)} |`).join("\n")+"\n\n";
+  }
+  md+=`## 6. TOP RISK ITEMS\n\n`;
+  if(m.risks.length){
+    md+=`| Risk Type | Record | Detail | Owner | Date |\n| --- | --- | --- | --- | --- |\n`;
+    md+=m.risks.map(r=>`| ${f(r.type)} | ${f(r.id)} | ${f((r.detail||"").slice(0,90))} | ${f(r.owner)} | ${f(r.due)} |`).join("\n")+"\n\n";
+  }else{
+    md+=`No top-risk items are flagged for this period. No open Major findings, overdue items, or OOS dispositions pending over 30 days.\n\n`;
+  }
+  md+=`## 7. EXECUTIVE COMMENTARY\n\n${commentary&&commentary.trim()?commentary.trim():"(No commentary recorded.)"}\n\n`;
+  md+=rptSignatureMarkdown(REPORT_SIGNERS_MONTHLY);
+  md+=`\n\nSOMAFINA UST — CONFIDENTIAL · Monthly Quality Flash Report · SQF Edition 9 · Living document — retain per SOP #02.`;
+  return md;
+}
+
+async function genMonthlyPDF(){
+  const period=document.getElementById("mf-month").value||rptCurrentMonth();
+  const site=document.getElementById("mf-site").value;
+  const commentary=(document.getElementById("mf-commentary")||{}).value||"";
+  toast("Building Monthly Flash PDF from live data…","green");
+  const data=await rptFetchData(site);              // live data at generation time
+  const m=computeMonthly(data,period,site);
+  const markdown=monthlyMarkdown(m,commentary);
+  const infoRows=[
+    ["Report Type","Monthly Quality Flash Report"],
+    ["Reporting Period",rptMonthName(period)],
+    ["Site",(site||"All Sites")+"  ·  Somafina UST"],
+    ["Prepared By",userIdentityLabel()],
+    ["Generated",new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})],
+    ["Data Source","Live QIS database (CAPA/NCR/Audit · OOS · Crisis) at generation time"],
+    ["Governing Standard","SQF Edition 9  ·  21 CFR Part 111"],
+  ];
+  try{
+    await smfReportPDF({
+      coverHeading:"MONTHLY QUALITY FLASH",
+      coverTitle:"Monthly Quality Flash Report — "+rptMonthName(period),
+      coverSubtitle:"SQF Edition 9  –  Live Quality Intelligence Summary  |  Dietary Supplement Manufacturing",
+      rptLabel:"Monthly Quality Flash Report",
+      infoRows,markdown,
+      fname:"SMF_Monthly_Flash_"+period+"_"+(site||"AllSites")+".pdf",
+    });
+    toast("Monthly Flash PDF downloaded.","green");
+  }catch(e){toast("PDF failed: "+e.message,"red");}
+}
+
+// ═══════════════════ ANNUAL MANAGEMENT REVIEW REPORT ════════════════════════
+// Satisfies the SQF Edition 9 management-review input requirements. Auto-
+// populated sections pull live from the database; editable narrative sections
+// (attendees, policy notes, supplier notes, objectives, prior action items,
+// management decisions, resource adequacy) persist to /api/report-drafts so the
+// review can be drafted and finalized over multiple sessions.
+const ANNUAL_DEFAULT_POLICY="Somafina UST is committed to manufacturing safe, legal, and authentic dietary supplements that consistently meet customer, statutory, and regulatory requirements. Senior management provides the resources, training, and food-safety culture necessary to maintain and continually improve the SQF System under SQF Edition 9 and 21 CFR Part 111.";
+const ANNUAL_FIELDS=["policyStatement","policyUpdateNotes","attendees","supplierNotes","regCertStatus","regScore","regLastAudit","regNextCert","regCommitments","resStaffing","resTraining","resEquipment","decisions"];
+const ANNUAL_REG_CITATIONS=[
+  ["§2.1.2.1","Annual review of the SQF System covering all required management-review inputs; action items assigned"],
+  ["§2.1.2.2","SQF Practitioner updates to senior management documented"],
+  ["§2.1.3.1","Complaint procedure documented; qualified responsible person identified"],
+  ["§2.1.3.2","Adverse complaint trends investigated and root cause established"],
+  ["§2.1.3.3","CAPA implemented per seriousness; complaint / investigation / resolution records maintained"],
+  ["§2.5.4","Internal audit program and corrective-action submission"],
+  ["§2.6.4","Crisis management plan documented and tested"],
+];
+let _annualState=null;
+
+function rptYearOptions(sel){
+  const cy=new Date().getFullYear();const out=[];
+  for(let y=cy+1;y>=cy-3;y--)out.push(`<option value="${y}" ${String(y)===String(sel)?"selected":""}>${y}</option>`);
+  return out.join("");
+}
+
+function computeAnnual(data,period,site){
+  const recs=data.records,oos=data.oos,crisis=data.crisis;
+  const yr=period,today=rptTodayISO();
+  const inYear=s=>(s||"").slice(0,4)===yr;
+  const isClosed=r=>r.status==="Closed";
+  // Internal audits
+  const aud=(site?AUDITS.filter(a=>a.facility===site||a.facility==="Both"):AUDITS).filter(a=>inYear(a.date));
+  const auditFindings=recs.filter(r=>r.type==="AUDIT"&&inYear(r.created));
+  const auditBySeverity={};auditFindings.forEach(r=>{const k=r.severity||"Unspecified";auditBySeverity[k]=(auditBySeverity[k]||0)+1;});
+  const auditClosed=auditFindings.filter(isClosed).length;
+  const clauseCount={};recs.filter(r=>inYear(r.created)&&r.clause).forEach(r=>{clauseCount[r.clause]=(clauseCount[r.clause]||0)+1;});
+  const repeats=Object.entries(clauseCount).filter(([k,v])=>v>1).sort((a,b)=>b[1]-a[1]);
+  const clausesCovered=[...new Set(auditFindings.map(r=>r.clause).filter(Boolean))];
+  // CAPA / corrective action effectiveness
+  const capas=recs.filter(r=>r.type==="CAPA"||r.type==="NCR");
+  const capaOpened=capas.filter(r=>inYear(r.created));
+  const capaClosed=capas.filter(r=>isClosed(r)&&inYear(r.modifiedAt||r.createdAt));
+  const closeTimes=capaClosed.map(r=>{const c=new Date(r.created),m=new Date(r.modifiedAt||r.createdAt);const d=Math.round((m-c)/86400000);return d;}).filter(d=>!isNaN(d)&&d>=0);
+  const avgClose=closeTimes.length?Math.round(closeTimes.reduce((a,b)=>a+b,0)/closeTimes.length):null;
+  const oosCats={};oos.filter(o=>inYear(o.dateInitiated)).forEach(o=>{const k=o.rootCauseCategory||"(uncategorized)";oosCats[k]=(oosCats[k]||0)+1;});
+  // OOS trends
+  const oosYear=oos.filter(o=>inYear(o.dateInitiated));
+  const oosConfirmed=oosYear.filter(o=>o.status==="Closed Confirmed").length;
+  const oosInvalidated=oosYear.filter(o=>o.status==="Closed Invalidated").length;
+  const analyteFail={};oosYear.filter(o=>o.passFail==="Fail").forEach(o=>{const k=o.testAnalyte||"(unspecified)";analyteFail[k]=(analyteFail[k]||0)+1;});
+  const oosRaw=oosYear.filter(o=>o.materialType==="Raw Material").length;
+  const oosFin=oosYear.filter(o=>o.materialType==="Finished Product").length;
+  // Crisis
+  const exYear=crisis.filter(e=>inYear(e.exerciseDate));
+  const planUpdates=exYear.filter(e=>{const p=(e.planUpdateRequired||"");return /revision|minor update/i.test(p);}).length;
+  const exActions=[];
+  exYear.forEach(e=>(e.lessonsLearned||[]).forEach(l=>{
+    if(!l.item)return;if(!(l.capaRequired||l.ncrId||l.capaId))return;
+    const linkId=l.ncrId||l.capaId;const rec=linkId?recs.find(r=>r.id===linkId):null;
+    const stillOpen=rec?rec.status!=="Closed":true;
+    if(stillOpen)exActions.push({ex:e.id,item:l.item,owner:l.owner||"—",target:l.targetDate||"—",link:linkId||"—"});
+  }));
+  const nextEx=crisis.map(e=>e.nextExerciseDate).filter(x=>x&&x>today).sort()[0]||null;
+  return {
+    period,site,siteLabel:site||"All Sites",
+    aud,auditFindings,auditBySeverity,auditClosed,repeats,clausesCovered,
+    capaOpened:capaOpened.length,capaClosed:capaClosed.length,avgClose,oosCats,
+    capaClosedList:capaClosed,
+    oosYear,oosConfirmed,oosInvalidated,analyteFail,oosRaw,oosFin,
+    exYear,planUpdates,exActions,nextEx,
+  };
+}
+
+function initAnnualReview(){
+  const pane=document.getElementById("cs-pane-annual");if(!pane)return;
+  const cy=new Date().getFullYear();
+  pane.innerHTML=`
+    <div class="rpt-toolbar">
+      <div class="rpt-field"><label>Review Year</label><select id="an-year" onchange="renderAnnualReview()">${rptYearOptions(cy)}</select></div>
+      <div class="rpt-field"><label>Site</label><select id="an-site" onchange="renderAnnualReview()">${rptSiteOptions(currentSite)}</select></div>
+      <button class="btn-ghost" onclick="renderAnnualReview()">&#8635; Refresh Live Data</button>
+      <button class="btn-ghost" onclick="saveAnnualDraft()">&#128190; Save Draft</button>
+      <button class="btn" onclick="genAnnualPDF()">&#11015; Generate PDF</button>
+      <button class="btn-ghost" onclick="sendForSignature()" title="Adobe Acrobat Sign integration (coming soon)">&#9997; Send for Signature</button>
+    </div>
+    <div id="an-body"><div class="rpt-note" style="padding:20px">Loading live data…</div></div>`;
+  renderAnnualReview();
+}
+
+function annualSet(k,v){if(_annualState)_annualState.data[k]=v;}
+function annualArr(k){if(!_annualState.data[k]||!Array.isArray(_annualState.data[k]))_annualState.data[k]=[];return _annualState.data[k];}
+
+async function renderAnnualReview(){
+  const period=document.getElementById("an-year").value||String(new Date().getFullYear());
+  const site=document.getElementById("an-site").value;
+  const body=document.getElementById("an-body");
+  body.innerHTML='<div class="rpt-note" style="padding:20px">Loading live data…</div>';
+  const data=await rptFetchData(site);
+  const m=computeAnnual(data,period,site);
+  const draft=await rptLoadDraft("annual-review",period,site);
+  _annualState={period,site,data:draft||{}};
+  // Seed editable defaults the first time.
+  if(!_annualState.data.policyStatement)_annualState.data.policyStatement=ANNUAL_DEFAULT_POLICY;
+  if(!_annualState.data.regCertStatus)_annualState.data.regCertStatus="SQF Certified — Edition 9";
+  body.innerHTML=annualPreviewHTML(m,_annualState.data);
+  renderAnnualPriorObjectives();renderAnnualNextObjectives();renderAnnualPriorActions();
+}
+
+const _ed=(k,ph,rows)=>`<textarea rows="${rows||3}" oninput="annualSet('${k}',this.value)" placeholder="${ph}">${cesc((_annualState&&_annualState.data[k])||"")}</textarea>`;
+const _ei=(k,ph)=>`<input type="text" oninput="annualSet('${k}',this.value)" value="${cesc((_annualState&&_annualState.data[k])||"")}" placeholder="${ph}">`;
+
+function annualPreviewHTML(m,d){
+  const sevRows=Object.entries(m.auditBySeverity).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${cesc(k)}</td><td>${v}</td></tr>`).join("")||`<tr><td colspan="2" class="rpt-note">No audit findings recorded for ${m.period}.</td></tr>`;
+  const auditRows=m.aud.map(a=>`<tr><td>${cesc(a.id)}</td><td>${rptPretty(a.date)}</td><td>${cesc(a.clauses||a.desc||"—")}</td><td>${cesc(a.status)}</td></tr>`).join("")||`<tr><td colspan="4" class="rpt-note">No audit sessions scheduled in ${m.period}.</td></tr>`;
+  const repeatRows=m.repeats.length?m.repeats.map(([k,v])=>`<tr><td>${cesc(k)}</td><td>${v}</td></tr>`).join(""):`<tr><td colspan="2" class="rpt-note">No repeat findings on the same clause. ✓</td></tr>`;
+  const oosCatRows=Object.entries(m.oosCats).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${cesc(k)}</td><td>${v}</td></tr>`).join("")||`<tr><td colspan="2" class="rpt-note">No OOS events in ${m.period}.</td></tr>`;
+  const analyteRows=Object.entries(m.analyteFail).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${cesc(k)}</td><td>${v}</td></tr>`).join("")||`<tr><td colspan="2" class="rpt-note">No failed analytes recorded.</td></tr>`;
+  const exRows=m.exYear.map(e=>`<tr><td>${cesc(e.id)}</td><td>${rptPretty(e.exerciseDate)}</td><td>${cesc(e.scenarioName||e.scenarioType||"—")}</td><td>${cesc(e.status)}</td></tr>`).join("")||`<tr><td colspan="4" class="rpt-note">No exercises completed in ${m.period}.</td></tr>`;
+  return `
+  <div class="rpt-section"><h3>Review Period &amp; Attendees</h3>
+    <div class="rpt-note">This review covers calendar year <b>${m.period}</b> for <b>${cesc(m.siteLabel)}</b>, Somafina UST. It satisfies the SQF Edition 9 management-review input requirements.</div>
+    <div class="rpt-edit"><label>Attendees (one per line: Name, Title)</label>${_ed("attendees","Jesse Kolstad, Director of Quality\nChad Hinson, VP of Quality\n…",4)}</div>
+  </div>
+  <div class="rpt-section rpt-edit"><h3>1 · Food Safety &amp; Quality Policy Review</h3>
+    <label>Current Policy Statement</label>${_ed("policyStatement","Current policy statement…",4)}
+    <label>Policy Update Notes</label>${_ed("policyUpdateNotes","Any policy changes approved this period…",3)}
+  </div>
+  <div class="rpt-section"><h3>2 · Internal Audit Results <span class="rpt-note">(live)</span></h3>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px">
+      <div><div class="rpt-note" style="margin-bottom:5px">Audit sessions in ${m.period}</div><table class="rpt-tbl"><thead><tr><th>Audit ID</th><th>Date</th><th>Scope</th><th>Status</th></tr></thead><tbody>${auditRows}</tbody></table></div>
+      <div><div class="rpt-note" style="margin-bottom:5px">Findings by classification</div><table class="rpt-tbl"><thead><tr><th>Severity</th><th>#</th></tr></thead><tbody>${sevRows}</tbody></table></div>
+    </div>
+    <div class="rpt-metrics" style="margin-top:12px">
+      <div class="rpt-metric"><div class="v">${m.auditFindings.length}</div><div class="l">Total Audit Findings</div></div>
+      <div class="rpt-metric"><div class="v">${m.auditClosed}</div><div class="l">Closed</div></div>
+      <div class="rpt-metric"><div class="v">${m.auditFindings.length?Math.round(m.auditClosed/m.auditFindings.length*100):0}%</div><div class="l">Closure Rate</div></div>
+      <div class="rpt-metric"><div class="v">${m.clausesCovered.length}</div><div class="l">Clauses Covered</div></div>
+    </div>
+    <div class="rpt-note" style="margin-top:10px;margin-bottom:5px">Repeat findings (same clause &gt; 1)</div>
+    <table class="rpt-tbl"><thead><tr><th>Clause</th><th>Occurrences</th></tr></thead><tbody>${repeatRows}</tbody></table>
+  </div>
+  <div class="rpt-section"><h3>3 · CAPA &amp; Corrective Action Effectiveness <span class="rpt-note">(live)</span></h3>
+    <div class="rpt-metrics">
+      <div class="rpt-metric"><div class="v">${m.capaOpened}</div><div class="l">CAPAs/NCRs Opened</div></div>
+      <div class="rpt-metric"><div class="v">${m.capaClosed}</div><div class="l">Closed This Year</div></div>
+      <div class="rpt-metric"><div class="v">${m.avgClose===null?"—":m.avgClose+"d"}</div><div class="l">Avg Closure Time</div></div>
+      <div class="rpt-metric"><div class="v">${m.repeats.length}</div><div class="l">Repeat-Clause Findings</div></div>
+    </div>
+    <div class="rpt-note" style="margin-top:10px;margin-bottom:5px">Root cause category distribution (OOS-categorized events)</div>
+    <table class="rpt-tbl"><thead><tr><th>Category</th><th>#</th></tr></thead><tbody>${oosCatRows}</tbody></table>
+  </div>
+  <div class="rpt-section"><h3>4 · OOS Trends <span class="rpt-note">(live)</span></h3>
+    <div class="rpt-metrics">
+      <div class="rpt-metric"><div class="v">${m.oosYear.length}</div><div class="l">OOS Events</div></div>
+      <div class="rpt-metric"><div class="v">${m.oosConfirmed} / ${m.oosInvalidated}</div><div class="l">Confirmed / Invalidated</div></div>
+      <div class="rpt-metric"><div class="v">${m.oosYear.length?Math.round(m.oosConfirmed/m.oosYear.length*100):0}%</div><div class="l">Confirmed Rate</div></div>
+      <div class="rpt-metric"><div class="v">${m.oosRaw} / ${m.oosFin}</div><div class="l">Raw / Finished</div></div>
+    </div>
+    <div class="rpt-note" style="margin-top:10px;margin-bottom:5px">Top analytes with failures</div>
+    <table class="rpt-tbl"><thead><tr><th>Analyte</th><th>Failures</th></tr></thead><tbody>${analyteRows}</tbody></table>
+    <div class="rpt-edit"><label>Supplier Performance Notes</label>${_ed("supplierNotes","Supplier-related OOS trends, supplier corrective actions, approval-status changes…",3)}</div>
+  </div>
+  <div class="rpt-section rpt-edit"><h3>5 · Regulatory Compliance Status</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><label>SQF Certification Status</label>${_ei("regCertStatus","SQF Certified — Edition 9")}</div>
+      <div><label>Certification Score</label>${_ei("regScore","e.g. 83 / 100")}</div>
+      <div><label>Last Audit Date</label>${_ei("regLastAudit","e.g. May 2026")}</div>
+      <div><label>Next Certification Date</label>${_ei("regNextCert","e.g. 2027")}</div>
+    </div>
+    <label>Outstanding Regulatory Commitments</label>${_ed("regCommitments","Any open regulatory commitments, CB conditions, or pending submissions…",3)}
+  </div>
+  <div class="rpt-section"><h3>6 · Crisis Management <span class="rpt-note">(live)</span></h3>
+    <div class="rpt-metrics" style="margin-bottom:12px">
+      <div class="rpt-metric"><div class="v">${m.exYear.length}</div><div class="l">Exercises Completed</div></div>
+      <div class="rpt-metric"><div class="v">${m.planUpdates}</div><div class="l">Plan Updates Triggered</div></div>
+      <div class="rpt-metric"><div class="v">${m.exActions.length}</div><div class="l">Open Action Items</div></div>
+      <div class="rpt-metric"><div class="v" style="font-size:13px;padding-top:6px">${m.nextEx?rptPretty(m.nextEx):"—"}</div><div class="l">Next Exercise</div></div>
+    </div>
+    <table class="rpt-tbl"><thead><tr><th>Exercise</th><th>Date</th><th>Scenario</th><th>Status</th></tr></thead><tbody>${exRows}</tbody></table>
+  </div>
+  <div class="rpt-section rpt-edit"><h3>7 · Resource Adequacy</h3>
+    <label>Staffing Assessment</label>${_ed("resStaffing","Quality / food-safety staffing adequacy, vacancies, hires…",2)}
+    <label>Training Completion Summary</label>${_ed("resTraining","Training completion %, outstanding training, competency gaps…",2)}
+    <label>Equipment &amp; Facility Status</label>${_ed("resEquipment","Equipment condition, facility maintenance, capital needs…",2)}
+  </div>
+  <div class="rpt-section"><h3>8 · Quality Objectives — Prior Year vs Actuals <button class="btn-ghost" onclick="annualAddRow('priorObjectives');renderAnnualPriorObjectives()">+ Row</button></h3>
+    <div style="overflow-x:auto"><table class="rpt-tbl" id="an-prior-obj"></table></div>
+  </div>
+  <div class="rpt-section"><h3>9 · Next-Year Proposed Objectives <button class="btn-ghost" onclick="annualAddRow('nextObjectives');renderAnnualNextObjectives()">+ Row</button></h3>
+    <div style="overflow-x:auto"><table class="rpt-tbl" id="an-next-obj"></table></div>
+  </div>
+  <div class="rpt-section"><h3>10 · Action Items from Prior Management Review <button class="btn-ghost" onclick="annualAddRow('priorActions');renderAnnualPriorActions()">+ Row</button></h3>
+    <div style="overflow-x:auto"><table class="rpt-tbl" id="an-prior-actions"></table></div>
+  </div>
+  <div class="rpt-section rpt-edit"><h3>11 · Management Decisions &amp; Commitments</h3>
+    <label>Decisions made, resources allocated, responsibilities assigned</label>${_ed("decisions","Document the decisions, resource allocations, and responsibilities agreed in this review…",4)}
+  </div>
+  <div class="rpt-section"><h3>12 · Regulatory Citations</h3>
+    <table class="rpt-tbl"><thead><tr><th>Clause</th><th>Requirement Satisfied</th></tr></thead><tbody>${ANNUAL_REG_CITATIONS.map(([c,t])=>`<tr><td>${cesc(c)}</td><td>${cesc(t)}</td></tr>`).join("")}</tbody></table>
+  </div>`;
+}
+
+function annualAddRow(key){
+  const a=annualArr(key);
+  if(key==="priorObjectives")a.push({objective:"",target:"",actual:"",status:""});
+  else if(key==="nextObjectives")a.push({objective:"",target:"",owner:""});
+  else if(key==="priorActions")a.push({item:"",owner:"",status:""});
+}
+function annualEditCell(key,i,field,v){const a=annualArr(key);if(a[i])a[i][field]=v;}
+function annualDelRow(key,i,renderFn){annualArr(key).splice(i,1);window[renderFn]();}
+
+function renderAnnualPriorObjectives(){
+  const t=document.getElementById("an-prior-obj");if(!t)return;
+  const a=annualArr("priorObjectives");
+  t.innerHTML=`<thead><tr><th>Objective</th><th style="width:130px">Target</th><th style="width:130px">Actual</th><th style="width:120px">Status</th><th style="width:34px"></th></tr></thead><tbody>`+
+    (a.length?a.map((r,i)=>`<tr>
+      <td><input class="crisis-input" value="${cesc(r.objective)}" oninput="annualEditCell('priorObjectives',${i},'objective',this.value)"></td>
+      <td><input class="crisis-input" value="${cesc(r.target)}" oninput="annualEditCell('priorObjectives',${i},'target',this.value)"></td>
+      <td><input class="crisis-input" value="${cesc(r.actual)}" oninput="annualEditCell('priorObjectives',${i},'actual',this.value)"></td>
+      <td><input class="crisis-input" value="${cesc(r.status)}" oninput="annualEditCell('priorObjectives',${i},'status',this.value)"></td>
+      <td><button class="btn-ghost" style="color:#C00000" onclick="annualDelRow('priorObjectives',${i},'renderAnnualPriorObjectives')">&#10005;</button></td></tr>`).join(""):`<tr><td colspan="5" class="rpt-note">No prior-year objectives recorded. Click <b>+ Row</b>.</td></tr>`)+`</tbody>`;
+}
+function renderAnnualNextObjectives(){
+  const t=document.getElementById("an-next-obj");if(!t)return;
+  const a=annualArr("nextObjectives");
+  t.innerHTML=`<thead><tr><th>Proposed Objective</th><th style="width:150px">Target</th><th style="width:150px">Owner</th><th style="width:34px"></th></tr></thead><tbody>`+
+    (a.length?a.map((r,i)=>`<tr>
+      <td><input class="crisis-input" value="${cesc(r.objective)}" oninput="annualEditCell('nextObjectives',${i},'objective',this.value)"></td>
+      <td><input class="crisis-input" value="${cesc(r.target)}" oninput="annualEditCell('nextObjectives',${i},'target',this.value)"></td>
+      <td><input class="crisis-input" value="${cesc(r.owner)}" oninput="annualEditCell('nextObjectives',${i},'owner',this.value)"></td>
+      <td><button class="btn-ghost" style="color:#C00000" onclick="annualDelRow('nextObjectives',${i},'renderAnnualNextObjectives')">&#10005;</button></td></tr>`).join(""):`<tr><td colspan="4" class="rpt-note">No proposed objectives recorded. Click <b>+ Row</b>.</td></tr>`)+`</tbody>`;
+}
+function renderAnnualPriorActions(){
+  const t=document.getElementById("an-prior-actions");if(!t)return;
+  const a=annualArr("priorActions");
+  t.innerHTML=`<thead><tr><th>Prior Commitment / Action Item</th><th style="width:150px">Owner</th><th style="width:140px">Current Status</th><th style="width:34px"></th></tr></thead><tbody>`+
+    (a.length?a.map((r,i)=>`<tr>
+      <td><input class="crisis-input" value="${cesc(r.item)}" oninput="annualEditCell('priorActions',${i},'item',this.value)"></td>
+      <td><input class="crisis-input" value="${cesc(r.owner)}" oninput="annualEditCell('priorActions',${i},'owner',this.value)"></td>
+      <td><input class="crisis-input" value="${cesc(r.status)}" oninput="annualEditCell('priorActions',${i},'status',this.value)"></td>
+      <td><button class="btn-ghost" style="color:#C00000" onclick="annualDelRow('priorActions',${i},'renderAnnualPriorActions')">&#10005;</button></td></tr>`).join(""):`<tr><td colspan="4" class="rpt-note">No prior action items recorded. Click <b>+ Row</b>.</td></tr>`)+`</tbody>`;
+}
+
+async function saveAnnualDraft(){
+  if(!_annualState){toast("Open the Annual Review first.","red");return;}
+  try{await rptSaveDraft("annual-review",_annualState.period,_annualState.site,_annualState.data);toast("Annual Review draft saved.","green");}
+  catch(e){toast("Save failed: "+e.message,"red");}
+}
+
+function annualMarkdown(m,d){
+  const f=v=>(v===undefined||v===null||v==="")?"—":String(v);
+  const attendees=(d.attendees||"").split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  let md=`# SOMAFINA UST — ANNUAL MANAGEMENT REVIEW\n\nReview Period: Calendar Year ${m.period} · Facility: ${m.siteLabel}\n\n`;
+  md+=`This Annual Management Review satisfies the SQF Edition 9 management-review input requirements (§2.1.2 / §2.1.3). All metric data below is drawn live from the QIS database at generation time; narrative sections are completed by management.\n\n`;
+  md+=`### Attendees\n\n`+(attendees.length?attendees.map(a=>`- ${a}`).join("\n"):"- (attendees to be recorded)")+"\n\n";
+  md+=`## 1. FOOD SAFETY & QUALITY POLICY REVIEW\n\n**Current Policy Statement:**\n\n${f(d.policyStatement)}\n\n**Policy Update Notes:**\n\n${d.policyUpdateNotes&&d.policyUpdateNotes.trim()?d.policyUpdateNotes.trim():"No policy changes were made during the review period."}\n\n`;
+  md+=`## 2. INTERNAL AUDIT RESULTS\n\n### Audit Sessions Completed in ${m.period}\n\n| Audit ID | Date | Scope | Status |\n| --- | --- | --- | --- |\n`;
+  md+=(m.aud.length?m.aud.map(a=>`| ${f(a.id)} | ${rptPretty(a.date)} | ${f(a.clauses||a.desc)} | ${f(a.status)} |`).join("\n"):`| — | — | No audit sessions in ${m.period} | — |`)+"\n\n";
+  md+=`### Findings by Classification\n\n| Severity | Count |\n| --- | --- |\n`;
+  const sev=Object.entries(m.auditBySeverity).sort((a,b)=>b[1]-a[1]);
+  md+=(sev.length?sev.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | 0 |")+"\n\n";
+  md+=`Total audit findings: ${m.auditFindings.length} · Closed: ${m.auditClosed} · Closure rate: ${m.auditFindings.length?Math.round(m.auditClosed/m.auditFindings.length*100):0}% · Distinct clauses covered: ${m.clausesCovered.length}.\n\n`;
+  md+=`### Repeat Findings (Same Clause)\n\n| Clause | Occurrences |\n| --- | --- |\n`;
+  md+=(m.repeats.length?m.repeats.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | No repeat findings on the same clause |")+"\n\n";
+  md+=`## 3. CAPA & CORRECTIVE ACTION EFFECTIVENESS\n\n| Metric | Value |\n| --- | --- |\n`;
+  md+=`| CAPAs / NCRs Opened in ${m.period} | ${m.capaOpened} |\n| Closed in ${m.period} | ${m.capaClosed} |\n| Average Closure Time | ${m.avgClose===null?"— (no closed records with dates)":m.avgClose+" days"} |\n| Repeat Findings on Same Clause | ${m.repeats.length} |\n\n`;
+  md+=`### Root Cause Category Distribution (OOS-categorized events)\n\n| Category | Count |\n| --- | --- |\n`;
+  const oc=Object.entries(m.oosCats).sort((a,b)=>b[1]-a[1]);
+  md+=(oc.length?oc.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | 0 |")+"\n\n";
+  md+=`Effectiveness verification: closed CAPAs are verified through evidence-of-implementation review and confirmed at closure in the QIS audit trail.\n\n`;
+  md+=`## 4. OOS TRENDS\n\n| Metric | Value |\n| --- | --- |\n| Total OOS Events | ${m.oosYear.length} |\n| Confirmed | ${m.oosConfirmed} |\n| Invalidated | ${m.oosInvalidated} |\n| Confirmed Rate | ${m.oosYear.length?Math.round(m.oosConfirmed/m.oosYear.length*100):0}% |\n| Raw Material / Finished Product | ${m.oosRaw} / ${m.oosFin} |\n\n`;
+  md+=`### Top Analytes with Failures\n\n| Analyte | Failures |\n| --- | --- |\n`;
+  const an=Object.entries(m.analyteFail).sort((a,b)=>b[1]-a[1]);
+  md+=(an.length?an.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | 0 |")+"\n\n";
+  md+=`**Supplier Performance Notes:** ${d.supplierNotes&&d.supplierNotes.trim()?d.supplierNotes.trim():"(none recorded)"}\n\n`;
+  md+=`## 5. REGULATORY COMPLIANCE STATUS\n\n| Item | Status |\n| --- | --- |\n`;
+  md+=`| SQF Certification Status | ${f(d.regCertStatus)} |\n| Certification Score | ${f(d.regScore)} |\n| Last Audit Date | ${f(d.regLastAudit)} |\n| Next Certification Date | ${f(d.regNextCert)} |\n\n`;
+  md+=`**Outstanding Regulatory Commitments:** ${d.regCommitments&&d.regCommitments.trim()?d.regCommitments.trim():"(none recorded)"}\n\n`;
+  md+=`## 6. CRISIS MANAGEMENT\n\n| Metric | Value |\n| --- | --- |\n| Exercises Completed in ${m.period} | ${m.exYear.length} |\n| Plan Updates Triggered | ${m.planUpdates} |\n| Open Action Items | ${m.exActions.length} |\n| Next Exercise Scheduled | ${m.nextEx?rptPretty(m.nextEx):"—"} |\n\n`;
+  if(m.exYear.length){
+    md+=`| Exercise | Date | Scenario | Status |\n| --- | --- | --- | --- |\n`;
+    md+=m.exYear.map(e=>`| ${f(e.id)} | ${rptPretty(e.exerciseDate)} | ${f(e.scenarioName||e.scenarioType)} | ${f(e.status)} |`).join("\n")+"\n\n";
+  }
+  if(m.exActions.length){
+    md+=`### Open Crisis Action Items\n\n| Exercise | Item | Owner | Target | Linked |\n| --- | --- | --- | --- | --- |\n`;
+    md+=m.exActions.map(a=>`| ${f(a.ex)} | ${f((a.item||"").slice(0,80))} | ${f(a.owner)} | ${f(a.target)} | ${f(a.link)} |`).join("\n")+"\n\n";
+  }
+  md+=`## 7. RESOURCE ADEQUACY\n\n**Staffing Assessment:** ${d.resStaffing&&d.resStaffing.trim()?d.resStaffing.trim():"(none recorded)"}\n\n**Training Completion Summary:** ${d.resTraining&&d.resTraining.trim()?d.resTraining.trim():"(none recorded)"}\n\n**Equipment & Facility Status:** ${d.resEquipment&&d.resEquipment.trim()?d.resEquipment.trim():"(none recorded)"}\n\n`;
+  md+=`## 8. QUALITY OBJECTIVES — PRIOR YEAR VS ACTUALS\n\n| Objective | Target | Actual | Status |\n| --- | --- | --- | --- |\n`;
+  const po=annualArr("priorObjectives");
+  md+=(po.length?po.map(r=>`| ${f(r.objective)} | ${f(r.target)} | ${f(r.actual)} | ${f(r.status)} |`).join("\n"):"| (none recorded) | — | — | — |")+"\n\n";
+  md+=`## 9. NEXT-YEAR PROPOSED OBJECTIVES\n\n| Proposed Objective | Target | Owner |\n| --- | --- | --- |\n`;
+  const no=annualArr("nextObjectives");
+  md+=(no.length?no.map(r=>`| ${f(r.objective)} | ${f(r.target)} | ${f(r.owner)} |`).join("\n"):"| (none recorded) | — | — |")+"\n\n";
+  md+=`## 10. ACTION ITEMS FROM PRIOR MANAGEMENT REVIEW\n\n| Prior Commitment / Action Item | Owner | Current Status |\n| --- | --- | --- |\n`;
+  const pa=annualArr("priorActions");
+  md+=(pa.length?pa.map(r=>`| ${f(r.item)} | ${f(r.owner)} | ${f(r.status)} |`).join("\n"):"| (none recorded) | — | — |")+"\n\n";
+  md+=`## 11. MANAGEMENT DECISIONS & COMMITMENTS\n\n${d.decisions&&d.decisions.trim()?d.decisions.trim():"(Decisions, resource allocations, and assigned responsibilities to be recorded.)"}\n\n`;
+  md+=`## 12. REGULATORY CITATIONS\n\n| Clause | Requirement Satisfied |\n| --- | --- |\n`;
+  md+=ANNUAL_REG_CITATIONS.map(([c,t])=>`| ${c} | ${t} |`).join("\n")+"\n\n";
+  md+=rptSignatureMarkdown(REPORT_SIGNERS_ANNUAL);
+  md+=`\n\nSOMAFINA UST — CONFIDENTIAL · Annual Management Review · SQF Edition 9 §2.1.2 / §2.1.3 · Living document — retain per SOP #02.`;
+  return md;
+}
+
+async function genAnnualPDF(){
+  if(!_annualState){toast("Open the Annual Review first.","red");return;}
+  const period=document.getElementById("an-year").value||_annualState.period;
+  const site=document.getElementById("an-site").value;
+  toast("Building Annual Management Review PDF from live data…","green");
+  const data=await rptFetchData(site);              // live data at generation time
+  const m=computeAnnual(data,period,site);
+  const markdown=annualMarkdown(m,_annualState.data);
+  const infoRows=[
+    ["Report Type","Annual Management Review"],
+    ["Review Period","Calendar Year "+period],
+    ["Facility",(site||"All Sites")+"  ·  Somafina UST"],
+    ["Prepared By",userIdentityLabel()],
+    ["Generated",new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})],
+    ["Data Source","Live QIS database (CAPA/NCR/Audit · OOS · Crisis) at generation time"],
+    ["Governing Standard","SQF Edition 9 §2.1.2 / §2.1.3  ·  21 CFR Part 111"],
+  ];
+  try{
+    await smfReportPDF({
+      coverHeading:"ANNUAL MANAGEMENT REVIEW",
+      coverTitle:"Annual Management Review — Calendar Year "+period,
+      coverSubtitle:"SQF Edition 9 §2.1.2 / §2.1.3 Management Review Inputs  |  Dietary Supplement Manufacturing",
+      rptLabel:"Annual Management Review",
+      infoRows,markdown,
+      fname:"SMF_Annual_Management_Review_"+period+"_"+(site||"AllSites")+".pdf",
+    });
+    toast("Annual Management Review PDF downloaded.","green");
+  }catch(e){toast("PDF failed: "+e.message,"red");}
+}
+
 
 loadSite();
 renderUserBadge();

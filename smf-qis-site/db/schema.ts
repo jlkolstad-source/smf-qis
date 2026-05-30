@@ -4,7 +4,7 @@
 // a `site` so the header site selector can scope the view to a single facility.
 // Audit-trail columns (created_by/at, modified_by/at) live on the row itself;
 // the `audit_log` table below captures the full per-change history.
-import { pgTable, serial, text, timestamp, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const records = pgTable(
   "records",
@@ -173,5 +173,30 @@ export const oosRecords = pgTable(
   },
   (t) => ({
     siteIdx: index("oos_records_site_idx").on(t.site),
+  })
+);
+
+// ── MANAGEMENT REPORT DRAFTS (Monthly Flash / Annual Management Review) ──────
+// The Monthly Quality Flash Report and the Annual Management Review pull all of
+// their metrics live from the other tables at generation time — nothing about
+// those numbers is stored here. What IS stored is the editable NARRATIVE that a
+// reviewer types into the report (attendee lists, policy-update notes, supplier
+// performance notes, quality-objective tables, management decisions, etc.) so a
+// report can be saved and resumed across multiple sessions. One row per
+// (report type, period, site); the free-form fields live in the `data` blob.
+export const reportDrafts = pgTable(
+  "report_drafts",
+  {
+    id: serial("id").primaryKey(),
+    reportType: text("report_type").notNull(), // monthly-flash | annual-review
+    period: text("period").notNull(),          // "YYYY-MM" (monthly) or "YYYY" (annual)
+    site: text("site").notNull().default(""),  // "" = all sites
+    // Arbitrary map of editable narrative field id → value.
+    data: jsonb("data").$type<Record<string, any>>().notNull().default({}),
+    updatedBy: text("updated_by").notNull().default(""),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    keyIdx: uniqueIndex("report_drafts_key_idx").on(t.reportType, t.period, t.site),
   })
 );
