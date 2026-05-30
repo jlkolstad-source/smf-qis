@@ -153,6 +153,30 @@ main{padding:24px 32px 80px;}
 .ncr-btn:hover{background:#C00000;color:#fff;}
 .ncr-issued{background:#FFE0E0;border:1px solid #C00000;border-radius:4px;padding:3px 7px;font-size:10px;font-family:'DM Mono',monospace;color:#C00000;text-align:center;}
 .section-band{padding:7px 12px;font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;}
+/* ── Crisis Management Exercise ── */
+.crisis-card{position:relative;background:#ffffff;border:1px solid #d0d6de;border-left:4px solid #C00000;border-radius:4px;padding:16px;cursor:pointer;transition:all 0.2s;}
+.crisis-card:hover{background:#FCE4E4;border-left-color:#7a0000;}
+.crisis-card.complete{border-left-color:#385723;}
+.crisis-card-id{font-family:'DM Mono',monospace;font-size:11px;color:#C00000;letter-spacing:1px;margin-bottom:5px;font-weight:700;}
+.crisis-block{background:#ffffff;border:1px solid var(--border2);border-radius:8px;padding:16px 18px;margin-bottom:14px;}
+.crisis-block-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:#C00000;font-weight:700;margin-bottom:12px;border-bottom:1px solid #f0d0d0;padding-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+.crisis-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+.crisis-timeline{position:relative;border-left:2px solid #C00000;margin-left:6px;padding-left:0;}
+.tl-entry{position:relative;padding:0 0 14px 20px;}
+.tl-entry:before{content:'';position:absolute;left:-7px;top:3px;width:12px;height:12px;border-radius:50%;background:#C00000;border:2px solid #fff;}
+.tl-entry.resolved:before{background:#385723;}
+.tl-time{font-family:'DM Mono',monospace;font-size:10px;color:#4a5568;letter-spacing:0.5px;}
+.tl-user{font-weight:700;font-size:12px;color:#1F3864;}
+.tl-phase{display:inline-block;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:0.5px;text-transform:uppercase;background:#1F3864;color:#fff;padding:1px 6px;border-radius:3px;margin-left:6px;}
+.tl-body{font-size:12px;color:#1a1a2e;line-height:1.55;margin-top:3px;}
+.tl-body b{color:#1F4E79;}
+.crisis-tbl{width:100%;border-collapse:collapse;}
+.crisis-tbl th{text-align:left;padding:7px 9px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#fff;background:#C00000;}
+.crisis-tbl td{padding:7px 9px;border-bottom:1px solid #e8ecf0;font-size:12px;vertical-align:top;color:#1a1a2e;}
+.crisis-input{background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif;box-sizing:border-box;}
+.crisis-disc-q{background:#f4f6f8;border:1px solid #c0c8d2;border-radius:6px;padding:12px 14px;margin-bottom:10px;}
+.crisis-resp{background:#fff;border-left:3px solid #2E75B6;padding:6px 10px;margin-top:6px;border-radius:3px;font-size:12px;}
+.crisis-resp .who{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;}
 .ai-output{background:#f4f6f8;border:1px solid #c0c8d2;border-radius:6px;padding:16px;font-size:12px;line-height:1.8;white-space:pre-wrap;min-height:180px;max-height:480px;overflow-y:auto;color:#1a1a2e;}
 .ai-thinking{display:flex;align-items:center;gap:8px;color:#1F4E79;font-size:11px;font-family:'DM Mono',monospace;padding:20px;}
 .dot-pulse{display:flex;gap:4px;}
@@ -262,6 +286,7 @@ main{padding:24px 32px 80px;}
   <div class="tab" onclick="switchTab('tracker',this)">CAPA / NCR / Audit</div>
   <div class="tab" onclick="switchTab('audit-program',this)">&#9998; Audit Program</div>
   <div class="tab" onclick="switchTab('csuite',this)">C-Suite View</div>
+  <div class="tab" onclick="switchTab('crisis',this)">&#9888; Crisis Exercise</div>
   <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
 </nav>
 <main>
@@ -394,6 +419,19 @@ main{padding:24px 32px 80px;}
   </div>
 </div>
 
+<!-- CRISIS EXERCISE -->
+<div class="section" id="crisis">
+  <div class="table-header">
+    <div class="section-title">Crisis Management Exercise · Form SOP-20-EX-001</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-ghost" id="crisis-back-btn" onclick="showCrisisList()" style="display:none">&#8592; All Exercises</button>
+      <button class="btn-ghost" id="crisis-refresh-btn" onclick="refreshCrisisActive()" style="display:none">&#8635; Refresh Timeline</button>
+      <button class="btn" onclick="openNewCrisisModal()" style="background:#C00000">+ New Exercise</button>
+    </div>
+  </div>
+  <div id="crisis-content"></div>
+</div>
+
 <!-- AI REPORT -->
 <div class="section" id="ai-report">
   <div class="table-header"><div class="section-title">AI Report Generator</div></div>
@@ -402,12 +440,17 @@ main{padding:24px 32px 80px;}
       <div class="chart-card" style="margin-bottom:12px">
         <div class="chart-title" style="margin-bottom:10px">Report Type</div>
         <div style="display:flex;flex-direction:column;gap:8px;font-size:12px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="sqfi-submission" checked style="accent-color:var(--accent)"> SQFI CA Submission</label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="executive" style="accent-color:var(--accent)"> Executive Summary</label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="audit-report" style="accent-color:var(--accent)"> Full Audit Report (§2.1/§2.2)</label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="capa-summary" style="accent-color:var(--accent)"> CAPA Status Summary</label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="finding-detail" style="accent-color:var(--accent)"> Per-Finding Detail</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="sqfi-submission" checked style="accent-color:var(--accent)" onchange="onReportTypeChange()"> SQFI CA Submission</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="executive" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> Executive Summary</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="audit-report" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> Full Audit Report (§2.1/§2.2)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="capa-summary" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> CAPA Status Summary</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="finding-detail" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> Per-Finding Detail</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="crisis-exercise" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#9888; Crisis Exercise After-Action (SOP-20-EX-001)</label>
         </div>
+      </div>
+      <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-crisis-picker">
+        <div class="chart-title" style="margin-bottom:10px">Crisis Exercise</div>
+        <div class="form-group"><label class="form-label">Select Exercise</label><select class="form-select" id="ai-crisis-id"><option value="">— choose an exercise —</option></select></div>
       </div>
       <div class="chart-card" style="margin-bottom:12px">
         <div class="chart-title" style="margin-bottom:10px">Context</div>
@@ -572,6 +615,63 @@ main{padding:24px 32px 80px;}
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeNewAuditModal()">Cancel</button>
       <button class="btn" style="background:#1F4E79" onclick="saveNewAudit()">Schedule Audit</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW CRISIS EXERCISE MODAL -->
+<div class="modal-overlay" id="new-crisis-modal">
+  <div class="modal" style="border-top:3px solid #C00000;max-width:620px">
+    <div class="modal-title" style="color:#C00000">&#9888; New Crisis Management Exercise</div>
+    <div style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;font-family:'DM Mono',monospace;color:#7a0000">
+      FORM SOP-20-EX-001 · Governing: SOP #20 | SQF Clause 2.6.4 · Facilitator auto-filled from your login
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">Exercise ID</label><input class="form-input" id="nc-id" value="Auto-generated (CMT-EX-YYYY-NNN)" disabled style="opacity:0.7"></div>
+      <div class="form-group"><label class="form-label">Facilitator</label><input class="form-input" id="nc-facilitator" disabled style="opacity:0.7"></div>
+      <div class="form-group">
+        <label class="form-label">Exercise Type</label>
+        <select class="form-select" id="nc-type">
+          <option>Annual Mock Crisis Exercise</option>
+          <option>Unannounced Drill</option>
+          <option>Tabletop Exercise</option>
+          <option>Full-Scale Exercise</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Exercise Format</label>
+        <select class="form-select" id="nc-format">
+          <option>Tabletop — In Person</option>
+          <option>Tabletop — Teams Meeting</option>
+          <option>Functional Drill</option>
+          <option>Full-Scale</option>
+        </select>
+      </div>
+      <div class="form-group form-full"><label class="form-label">Scenario Name</label><input class="form-input" id="nc-scenario" placeholder="e.g. Loss of municipal power during gummy production"></div>
+      <div class="form-group">
+        <label class="form-label">Scenario Type</label>
+        <select class="form-select" id="nc-scenario-type">
+          <option>Power Outage</option>
+          <option>Allergen Release</option>
+          <option>Product Recall</option>
+          <option>Facility Breach</option>
+          <option>Contamination Event</option>
+          <option>Natural Disaster</option>
+          <option>Supply Chain Disruption</option>
+          <option>Cybersecurity Incident</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Exercise Date</label><input class="form-input" id="nc-date" type="date"></div>
+      <div class="form-group">
+        <label class="form-label">Site Affected</label>
+        <select class="form-select" id="nc-site"><option value="Lindon">Lindon</option><option value="Layton">Layton</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Governing SOP</label><input class="form-input" id="nc-sop" value="SOP #20 | SQF Clause 2.6.4"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeNewCrisisModal()">Cancel</button>
+      <button class="btn" style="background:#C00000" onclick="createCrisisExercise()">Create Exercise</button>
     </div>
   </div>
 </div>
@@ -1182,6 +1282,137 @@ async function saveQuickNCR(){
   }catch(e){toast("Could not issue NCR: "+e.message,"red");}
 }
 
+// Show/hide the crisis exercise picker (and populate it) based on report type.
+function onReportTypeChange(){
+  const t=document.querySelector("input[name='rpt-type']:checked")?.value;
+  const picker=document.getElementById("ai-crisis-picker");
+  if(!picker)return;
+  if(t==="crisis-exercise"){picker.style.display="";populateCrisisReportPicker();}
+  else{picker.style.display="none";}
+}
+async function populateCrisisReportPicker(){
+  const sel=document.getElementById("ai-crisis-id");if(!sel)return;
+  const prev=sel.value;
+  try{
+    const res=await fetch(CRISIS_API+"?site="+encodeURIComponent(currentSite));
+    const list=res.ok?await res.json():[];
+    sel.innerHTML='<option value="">— choose an exercise —</option>'+list.map(e=>`<option value="${cesc(e.id)}">${cesc(e.id)} · ${cesc(e.scenarioName||e.scenarioType)}</option>`).join("");
+    if(prev)sel.value=prev;
+  }catch(e){}
+}
+
+// Build a complete after-action report for one crisis exercise (SOP-20-EX-001).
+async function generateCrisisReport(exerciseId,context,wrap){
+  if(!exerciseId){
+    wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Select a crisis exercise to generate its after-action report.</div>';
+    toast("Select a crisis exercise first.","red");return;
+  }
+  let ex;
+  try{
+    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(exerciseId));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    ex=await res.json();
+  }catch(e){
+    wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Could not load exercise: ${e.message}</div>`;return;
+  }
+  const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not yet completed)":s;};
+  const log=ex.responseLog||[];
+  const timeline=log.length?log.map(x=>`- [${fld(x.loggedAt)}] ${fld(x.userName)} | Phase: ${fld(x.phase)} | Status: ${fld(x.status)}\n  Program/Control: ${fld(x.program)}\n  Action: ${fld(x.action)}\n  Outcome: ${fld(x.outcome)}\n  SMF Doc Ref: ${fld(x.docRef)}`).join("\n"):"(no response entries logged)";
+  const objectives=(ex.objectives||[]).length?ex.objectives.map(o=>`${fld(o.num)}. ${fld(o.desc)}`).join("\n"):"(none recorded)";
+  const discussion=(ex.discussion||[]).length?ex.discussion.map(q=>`Q: ${fld(q.question)} (by ${fld(q.by)})\n`+((q.responses||[]).map(r=>`   - ${fld(r.user)} [${fld(r.at)}]: ${fld(r.text)}`).join("\n")||"   (no responses)")).join("\n\n"):"(none recorded)";
+  const lessons=(ex.lessonsLearned||[]).length?ex.lessonsLearned.map(l=>`- Gap: ${fld(l.item)} | Owner: ${fld(l.owner)} | Target: ${fld(l.targetDate)} | CAPA Required: ${l.capaRequired?"Yes":"No"} | CAPA ID: ${fld(l.capaId)} | Linked NCR: ${l.ncrId?fld(l.ncrId):"—"}`).join("\n"):"(none recorded)";
+  const openCapas=(ex.lessonsLearned||[]).filter(l=>l.capaRequired).map(l=>`${fld(l.capaId)} — ${fld(l.item)} (owner ${fld(l.owner)}, target ${fld(l.targetDate)})`);
+  const linkedNcrs=(ex.lessonsLearned||[]).filter(l=>l.ncrId).map(l=>`${fld(l.ncrId)} — ${fld(l.item)} (owner ${fld(l.owner)}, due ${fld(l.targetDate)})`);
+  const attendees=(ex.attendees||[]).length?ex.attendees.map(a=>`- ${fld(a.name)} | Title: ${fld(a.title)} | Qualifications: ${fld(a.qualifications)} | CMT Role: ${fld(a.role)} | Signed off: ${a.signoffAt?fld(a.signoffAt):"NOT SIGNED"}`).join("\n"):"(none recorded)";
+
+  // Report format is modeled on the completed reference exercise document
+  // SMF_Crisis_Exercise_PowerOutage_April2026 (Form SOP-20-EX-001 Rev 01,
+  // April 2026), retained under public/assets/. The prompt below reproduces
+  // that document's section order, field structure, narrative style, and
+  // regulatory language so generated after-action reports match the SMF form.
+  const prompt=`You are a food safety crisis management expert producing a formal MOCK CRISIS MANAGEMENT EXERCISE after-action report for Somafina UST (SOMAFINA UST — a dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). The report MUST reproduce the exact format, section order, field structure, section headings, narrative style, and regulatory language of SMF Form SOP-20-EX-001 Rev 01 (April 2026), governed by SOP #20 and SQF Clause 2.6.4. Records are retained a minimum of 2 years per SOP #02. Mark the document CONFIDENTIAL.
+
+DATA INTEGRITY: Use ONLY the exact data provided below. Never invent timestamps, names, actions, outcomes, document references, or regulatory citations. If a field is pending or blank, state it as pending — do not fabricate. Preserve every timestamp and user name verbatim.
+
+OUTPUT FORMAT: Markdown. Use "# " for the report title, "## " for the numbered major section headings, "### " for sub-headings, "| ... |" GitHub tables where the reference form uses tables, and "- " for lists. Use the SMF section headings in ALL CAPS exactly as named below.
+
+Produce the report in this exact section order, matching the reference form:
+
+# SOMAFINA UST | MOCK CRISIS MANAGEMENT EXERCISE — AFTER-ACTION REPORT
+
+## EXERCISE HEADER
+Render as a two-column field table reproducing the reference form's header block, with these rows: Document No. (SOP-20-EX-001), Governing SOP (${fld(ex.governingSop)}), Exercise Type (${fld(ex.exerciseType)}), Exercise Date (${fld(ex.exerciseDate)}), Scenario (${fld(ex.scenarioName)} — ${fld(ex.scenarioType)}), Exercise ID (${fld(ex.id)}), Facilitated By (${fld(ex.facilitator)}), Exercise Format (${fld(ex.exerciseFormat)}), Site Affected (${fld(ex.site)}), Status (${fld(ex.status)}), Retention (2 years per SOP #02).
+
+## SCENARIO NARRATIVE
+Write in the reference form's narrative style — a continuous, present-tense operational account that opens with the time/setting and lists in-scope facilities affected. Base it strictly on the provided narrative:
+${fld(ex.scenarioNarrative)}
+
+## EXERCISE OBJECTIVES
+Open with the line "This exercise tests the following CMT capabilities per SOP #20 Section 10:" then a numbered list. Provided objectives:
+${objectives}
+
+## SMF PROGRAM CONTROLS — HOW THE SYSTEM RESPONDS
+Reproduce the reference form's response table from the CMT Response Log, grouped chronologically by phase. Render as a table with columns: Phase | Program / Control Activated | What the System Does (action taken and outcome) | SMF Document(s). Append a parenthetical "[logged HH:MM by Name]" preserving each entry's timestamp and user name. Response log:
+${timeline}
+
+## CMT TABLETOP DISCUSSION QUESTIONS
+Render as a table with columns: # | Discussion Question | CMT Response / Notes, numbered Q1, Q2, … exactly as the reference form. Provided Q&A:
+${discussion}
+
+## LESSONS LEARNED & IMPROVEMENT ACTIONS
+Render as a table with columns: Improvement Item / Gap Identified | Owner | Target Date | CAPA Required? | Linked NCR. Provided items:
+${lessons}
+
+## OVERALL EXERCISE ASSESSMENT
+Render as a field table matching the reference form, with rows: Exercise Outcome (${fld(ex.outcome)} — present the Satisfactory / Needs Improvement / Unsatisfactory options, marking the selected one), CMT Response Adequate? (${fld(ex.responseAdequate)} — options Yes / Partially / No — CAPA required), Plan Update Required? (${fld(ex.planUpdateRequired)} — options No update needed / Minor update / SOP #20 revision required), Next Exercise Date (${fld(ex.nextExerciseDate)}; annual minimum per SQF 2.6.4.2), and Facilitator Summary Notes (${fld(ex.summaryNotes)}).
+
+## CMT ATTENDEES & SIGN-OFF — SQF 2.6.4 / SOP #20 §10
+Render as a table with columns: Name | Title | Qualifications | Role | Signature & Date (show the electronic sign-off timestamp where present, otherwise "— not signed —"). Provided attendees:
+${attendees}
+
+## REGULATORY CITATIONS
+Explicitly cite SOP #20 (Crisis Management), SQF Code Edition 9 Clause 2.6.4 (Crisis Management Planning) including 2.6.4.2 (the plan shall be tested), SOP #02 (record retention — minimum 2 years), and SOP #MR-001 (Management Review standing agenda item for mock crises and recalls). Cite only the SMF documents and clauses referenced in the data above; do not invent additional citations.
+
+## OPEN CAPA ITEMS GENERATED BY THIS EXERCISE
+${openCapas.length?openCapas.map(c=>"- "+c).join("\n"):"(none)"}
+
+## LINKED NCRs GENERATED FROM THIS EXERCISE
+${linkedNcrs.length?linkedNcrs.map(c=>"- "+c).join("\n"):"(none)"}
+
+## NEXT EXERCISE DATE
+State the next exercise date clearly: ${fld(ex.nextExerciseDate)}.
+
+## SIGNATURE BLOCK
+Provide signature lines for the Facilitator, the SQF Practitioner / Director of Quality, and each required CMT signatory listed above (show their electronic sign-off timestamp where present).
+
+Close the document with the reference form's footer line exactly: "SOP #20 | Form SOP-20-EX-001 Rev 01 April 2026 | Retain minimum 2 years per SOP #02 | SOMAFINA UST — CONFIDENTIAL".
+
+${context?"ADDITIONAL CONTEXT:\n"+context+"\n":""}
+Use formal SQF-compliant regulatory language throughout, matching the measured, audit-ready tone of the reference form.`;
+
+  try{
+    wrap.innerHTML='<div class="ai-output" id="ai-stream-out"></div>';
+    const outEl=document.getElementById("ai-stream-out");
+    const esc=s=>s.replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+    const response=await fetch("/.netlify/functions/generate-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,part:1,totalParts:1})});
+    if(!response.ok){let m="Server error "+response.status;try{m=(await response.json()).error||m;}catch(_){}throw new Error(m);}
+    const reader=response.body.getReader();const decoder=new TextDecoder();let full="";
+    while(true){const{done,value}=await reader.read();if(done)break;full+=decoder.decode(value,{stream:true});outEl.innerHTML=esc(full);}
+    full+=decoder.decode();
+    if(!full.trim())throw new Error("No content returned");
+    outEl.innerHTML=esc(full);
+    document.getElementById("copy-rpt-btn").style.display="";
+    document.getElementById("dl-rpt-btn").style.display="";
+    document.getElementById("dl-pdf-btn").style.display="";
+    window._lastReport=full;
+    window._lastReportMeta={type:"crisis-exercise",exerciseId:ex.id,site:ex.site,nextExerciseDate:ex.nextExerciseDate};
+    toast("After-action report generated.","green");
+  }catch(err){
+    wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Generation failed: ${err.message}</div>`;
+    toast("Generation failed — see output.","red");
+  }
+}
+
 async function generateAIReport(){
   const rptType=document.querySelector("input[name='rpt-type']:checked").value;
   const auditDate=document.getElementById("ai-audit-date").value;
@@ -1195,6 +1426,9 @@ async function generateAIReport(){
   wrap.innerHTML='<div class="ai-thinking"><div class="dot-pulse"><span></span><span></span><span></span></div>&nbsp; Claude is generating your report...</div>';
   document.getElementById("copy-rpt-btn").style.display="none";
   document.getElementById("dl-rpt-btn").style.display="none";
+  // Crisis Exercise after-action reports run on a single selected exercise, not
+  // on the CAPA/NCR records, so they take their own generation path.
+  if(rptType==="crisis-exercise"){return generateCrisisReport(document.getElementById("ai-crisis-id").value,context,wrap);}
   // Apply the report filters — only this subset of records is passed to the AI.
   const filtered=records.filter(r=>
     (!fStatus||(r.status||"")===fStatus)&&
@@ -1306,6 +1540,7 @@ BE CONCISE. Do NOT write full narrative paragraphs for each finding. Use abbrevi
     document.getElementById("dl-rpt-btn").style.display="";
     document.getElementById("dl-pdf-btn").style.display="";
     window._lastReport=full;
+    window._lastReportMeta=null;
     toast("Report generated.","green");
   }catch(err){
     wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Generation failed: ${err.message}</div>`;
@@ -1337,8 +1572,9 @@ async function downloadReportPDF(){
   const lightBlue=[222,234,241];
   const pageW=612,pageH=792,margin=54,contentW=612-54*2;
   const rptType=document.querySelector("input[name='rpt-type']:checked")?.value||'';
-  const rptLabels={"sqfi-submission":"SQFI Corrective Action Submission","executive":"Executive Quality Summary","audit-report":"SQF Internal Audit Report §2.1/§2.2","capa-summary":"CAPA Status Summary","finding-detail":"Per-Finding Detail Report"};
+  const rptLabels={"sqfi-submission":"SQFI Corrective Action Submission","executive":"Executive Quality Summary","audit-report":"SQF Internal Audit Report §2.1/§2.2","capa-summary":"CAPA Status Summary","finding-detail":"Per-Finding Detail Report","crisis-exercise":"Crisis Exercise After-Action Report"};
   const rptLabel=rptLabels[rptType]||'Audit Report';
+  const isCrisis=rptType==="crisis-exercise";
   const auditor=document.getElementById('ai-auditor')?.value||'Jesse Kolstad, Director of Quality';
   const auditSession=document.getElementById('ai-audit-date')?.value||'';
   const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
@@ -1374,7 +1610,7 @@ async function downloadReportPDF(){
   doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');
   y+=18;
   doc.setFontSize(22);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
-  doc.text('INTERNAL AUDIT REPORT',pageW/2,y,{align:'center'});
+  doc.text(isCrisis?'CRISIS MANAGEMENT EXERCISE':'INTERNAL AUDIT REPORT',pageW/2,y,{align:'center'});
   y+=28;
   doc.setFontSize(13);doc.setTextColor(...midBlue);doc.setFont('helvetica','normal');
   doc.text(rptLabel,pageW/2,y,{align:'center'});
@@ -1390,7 +1626,17 @@ async function downloadReportPDF(){
   doc.setFontSize(10);doc.setTextColor(...white);doc.setFont('helvetica','bold');
   doc.text('Document Information',margin+8,y+15);
   y+=22;
-  const infoRows=[
+  const crisisMeta=window._lastReportMeta&&window._lastReportMeta.type==="crisis-exercise"?window._lastReportMeta:null;
+  const infoRows=isCrisis?[
+    ['Report Type',rptLabel],
+    ['Exercise ID',crisisMeta&&crisisMeta.exerciseId?crisisMeta.exerciseId:'CMT-EX'],
+    ['Facilitator',auditor],
+    ['Site',(crisisMeta&&crisisMeta.site?crisisMeta.site:'Lindon')+', Utah  ·  Somafina UST'],
+    ['Generated',today],
+    ['Governing Standard','SQF Edition 9 — Clause 2.6.4 Crisis Management'],
+    ['Governing SOP','SOP #20 — Crisis Management  |  Form SOP-20-EX-001'],
+    ['Next Exercise Date',crisisMeta&&crisisMeta.nextExerciseDate?crisisMeta.nextExerciseDate:'(see report)'],
+  ]:[
     ['Report Type',rptLabel],
     ['Audit / Session',auditSession||'AUDIT-LDN-2026-001-S1'],
     ['Lead Auditor',auditor],
@@ -1449,6 +1695,42 @@ async function downloadReportPDF(){
       doc.setFontSize(9.5);doc.setTextColor(...midBlue);doc.setFont('helvetica','bold');
       doc.text(line.replace(/^####\s*/,''),margin,y);
       y+=14;
+    } else if(line.startsWith('# ')){
+      y+=8;
+      if(y>pageH-66){doc.addPage();y=50;}
+      doc.setFontSize(13);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+      const h=line.replace(/^#\s*/,'');
+      const wrapped=doc.splitTextToSize(h,contentW);
+      wrapped.forEach(wl=>{doc.text(wl,pageW/2,y,{align:'center'});y+=16;});
+      y+=4;
+    } else if(line.startsWith('|')){
+      // Markdown table block — gather contiguous "| ... |" rows and render a
+      // bordered, wrapped table (header row shaded navy).
+      const block=[];let j=i;
+      while(j<lines.length&&lines[j].trim().startsWith('|')){block.push(lines[j].trim());j++;}
+      i=j-1;
+      const parse=r=>r.replace(/^\|/,'').replace(/\|$/,'').split('|').map(c=>c.trim());
+      const isSep=cells=>cells.length>0&&cells.every(c=>/^:?-{2,}:?$/.test(c.replace(/\s/g,'')));
+      const dataRows=block.map(parse).filter(r=>!isSep(r));
+      if(dataRows.length){
+        const ncol=Math.max(...dataRows.map(r=>r.length));
+        const colW=contentW/ncol;
+        dataRows.forEach((cells,ri)=>{
+          while(cells.length<ncol)cells.push('');
+          doc.setFontSize(8);doc.setFont('helvetica',ri===0?'bold':'normal');
+          const wrapped=cells.map(c=>doc.splitTextToSize(c.replace(/\*\*(.*?)\*\*/g,'$1'),colW-6));
+          const rowH=Math.max(1,...wrapped.map(w=>w.length))*10+6;
+          if(y+rowH>pageH-46){doc.addPage();y=50;}
+          if(ri===0){doc.setFillColor(...navy);}else{doc.setFillColor(ri%2?240:248,ri%2?242:250,ri%2?245:252);}
+          doc.rect(margin,y,contentW,rowH,'F');
+          doc.setTextColor(...(ri===0?white:black));
+          wrapped.forEach((w,ci)=>{w.forEach((wl,wi)=>{doc.text(wl,margin+ci*colW+3,y+11+wi*10);});});
+          doc.setDrawColor(210,216,226);doc.setLineWidth(0.3);
+          for(let c=1;c<ncol;c++){doc.line(margin+c*colW,y,margin+c*colW,y+rowH);}
+          y+=rowH;
+        });
+        y+=6;
+      }
     } else if(line==='---'){
       y+=4;
       doc.setDrawColor(...navy);doc.setLineWidth(0.4);
@@ -1529,6 +1811,7 @@ function switchTab(id,el){
   document.getElementById(id).classList.add("active");
   el.classList.add("active");
   if(id==="audit-program")showAuditList();
+  if(id==="crisis"){stopCrisisPoll();showCrisisList();}else{stopCrisisPoll();}
 }
 
 function filterRecords(f,el){
@@ -1610,6 +1893,424 @@ document.getElementById("ncr-modal").addEventListener("click",e=>{if(e.target===
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLightbox();closeModal();closeNCRModal();}});
 
 document.addEventListener("click",()=>{const m=document.getElementById("site-menu");if(m)m.classList.remove("open");const b=document.getElementById("site-badge-btn");if(b)b.setAttribute("aria-expanded","false");});
+
+// ── CRISIS MANAGEMENT EXERCISE (Form SOP-20-EX-001) ─────────────────────────
+const CRISIS_API="/api/crisis";
+const CRISIS_PHASES=["Immediate Response 0-15min","Product Safety 15-60min","Environmental Continuity","Continuity of Operations","Customer Communications","Production Restart","Post-Event Documentation"];
+const CRISIS_EX_TYPES=["Annual Mock Crisis Exercise","Unannounced Drill","Tabletop Exercise","Full-Scale Exercise"];
+const CRISIS_SCENARIO_TYPES=["Power Outage","Allergen Release","Product Recall","Facility Breach","Contamination Event","Natural Disaster","Supply Chain Disruption","Cybersecurity Incident","Other"];
+const CRISIS_FORMATS=["Tabletop — In Person","Tabletop — Teams Meeting","Functional Drill","Full-Scale"];
+let crisisList=[], activeCrisis=null, crisisPollTimer=null;
+
+function cesc(s){return (s===undefined||s===null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function cfmtTs(iso){if(!iso)return "—";const d=new Date(iso);if(isNaN(d))return cesc(iso);return d.toLocaleString("en-US",{month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"});}
+function optList(opts,sel){return opts.map(o=>`<option ${o===sel?"selected":""}>${cesc(o)}</option>`).join("");}
+
+function stopCrisisPoll(){if(crisisPollTimer){clearInterval(crisisPollTimer);crisisPollTimer=null;}}
+function startCrisisPoll(){stopCrisisPoll();crisisPollTimer=setInterval(pollCrisisTimeline,12000);}
+
+async function loadCrisisList(){
+  try{
+    const res=await fetch(CRISIS_API+"?site="+encodeURIComponent(currentSite));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    crisisList=await res.json();
+  }catch(e){crisisList=[];toast("Could not load exercises: "+e.message,"red");}
+}
+
+async function showCrisisList(){
+  activeCrisis=null;stopCrisisPoll();
+  document.getElementById("crisis-back-btn").style.display="none";
+  document.getElementById("crisis-refresh-btn").style.display="none";
+  await loadCrisisList();
+  const c=document.getElementById("crisis-content");
+  const cards=crisisList.map(e=>`
+    <div class="crisis-card ${e.status==="Complete"?"complete":""}" onclick="openCrisisExercise('${e.id}')">
+      ${isAdminUser?`<button class="btn-danger" title="Delete exercise (admin)" onclick="event.stopPropagation();deleteCrisisExercise('${e.id}')" style="position:absolute;top:8px;right:8px;padding:2px 8px;line-height:1.4">✕</button>`:""}
+      <div class="crisis-card-id">${cesc(e.id)}</div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:3px">${cesc(e.scenarioName||"(unnamed scenario)")}</div>
+      <div style="font-size:11px;color:#4a5568">${cesc(e.exerciseType)} · ${cesc(e.scenarioType)}</div>
+      <div style="font-size:11px;color:#4a5568;margin-top:3px">${cesc(e.exerciseDate||"no date")} · Facilitator: ${cesc(e.facilitator||"—")}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+        <span class="badge ${e.status==="Complete"?"badge-closed":"badge-open"}">${cesc(e.status)}</span>
+        <span style="font-size:10px;color:#4a5568">${cesc(e.site)}</span>
+      </div>
+    </div>`).join("");
+  c.innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:16px">
+      ${cards||`<div style="grid-column:1/-1;padding:30px;text-align:center;color:#4a5568;font-size:13px;background:#fff;border:1px dashed #c0c8d2;border-radius:8px">No crisis exercises yet for ${cesc(currentSite)}. Click <b>+ New Exercise</b> to start one per SOP #20 / SQF §2.6.4.</div>`}
+    </div>
+    <div style="padding:14px 16px;background:#FCE4E4;border:1px solid #C00000;border-radius:8px;font-size:11px;color:#7a0000;font-family:'DM Mono',monospace;text-align:center">Crisis exercises mock-test the SMF crisis management plan (SOP #20) to satisfy SQF Clause 2.6.4. All entries persist to the shared database and the CMT response log is a live, time-stamped record.</div>`;
+}
+
+// Delete an exercise and its full response log (admin only).
+async function deleteCrisisExercise(id){
+  if(!isAdminUser){toast("Only an administrator can delete exercises.","red");return;}
+  if(!confirm("Delete crisis exercise "+id+"? This permanently removes the exercise and its entire CMT response log. This cannot be undone."))return;
+  try{
+    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(id),{method:"DELETE"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    await showCrisisList();
+    toast("Exercise "+id+" deleted.","green");
+  }catch(e){toast("Delete failed: "+e.message,"red");}
+}
+
+function openNewCrisisModal(){
+  document.getElementById("nc-facilitator").value=currentUser||"—";
+  document.getElementById("nc-id").value="Auto-generated (CMT-EX-YYYY-NNN)";
+  document.getElementById("nc-date").value=new Date().toISOString().slice(0,10);
+  document.getElementById("nc-scenario").value="";
+  document.getElementById("nc-type").value=CRISIS_EX_TYPES[0];
+  document.getElementById("nc-format").value=CRISIS_FORMATS[0];
+  document.getElementById("nc-scenario-type").value=CRISIS_SCENARIO_TYPES[0];
+  document.getElementById("nc-site").value=currentSite;
+  document.getElementById("nc-sop").value="SOP #20 | SQF Clause 2.6.4";
+  document.getElementById("new-crisis-modal").classList.add("open");
+}
+function closeNewCrisisModal(){document.getElementById("new-crisis-modal").classList.remove("open");}
+
+async function createCrisisExercise(){
+  const body={
+    exerciseType:document.getElementById("nc-type").value,
+    scenarioName:document.getElementById("nc-scenario").value.trim(),
+    scenarioType:document.getElementById("nc-scenario-type").value,
+    exerciseDate:document.getElementById("nc-date").value,
+    exerciseFormat:document.getElementById("nc-format").value,
+    governingSop:document.getElementById("nc-sop").value.trim()||"SOP #20 | SQF Clause 2.6.4",
+    site:document.getElementById("nc-site").value,
+    facilitator:currentUser||"",
+  };
+  if(!body.scenarioName){toast("Scenario name is required.","red");return;}
+  try{
+    const res=await fetch(CRISIS_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeCrisis=await res.json();
+    closeNewCrisisModal();
+    renderCrisisEditor();
+    toast("Exercise "+activeCrisis.id+" created.","green");
+  }catch(e){toast("Could not create exercise: "+e.message,"red");}
+}
+
+async function openCrisisExercise(id){
+  try{
+    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(id));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    activeCrisis=await res.json();
+    renderCrisisEditor();
+  }catch(e){toast("Could not open exercise: "+e.message,"red");}
+}
+
+// Re-fetch only the live response timeline while the editor is open.
+async function pollCrisisTimeline(){
+  if(!activeCrisis)return;
+  try{
+    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(activeCrisis.id));
+    if(!res.ok)return;
+    const fresh=await res.json();
+    activeCrisis.responseLog=fresh.responseLog;
+    renderCrisisTimeline();
+  }catch(e){}
+}
+
+async function refreshCrisisActive(){
+  if(!activeCrisis)return;
+  await openCrisisExercise(activeCrisis.id);
+  toast("Timeline refreshed.","green");
+}
+
+function renderCrisisEditor(){
+  const e=activeCrisis;if(!e)return;
+  document.getElementById("crisis-back-btn").style.display="";
+  document.getElementById("crisis-refresh-btn").style.display="";
+  const canComplete=isAdminUser;
+  const c=document.getElementById("crisis-content");
+  c.innerHTML=`
+    <!-- (1) HEADER -->
+    <div class="crisis-block">
+      <div class="crisis-block-title">1 · Exercise Header <span style="color:#4a5568;font-weight:400">${cesc(e.id)}</span>${isAdminUser?`<button class="btn-danger" title="Delete exercise (admin)" onclick="deleteCrisisExercise('${e.id}')" style="margin-left:auto;padding:3px 10px">✕ Delete Exercise</button>`:""}</div>
+      <div class="crisis-meta-grid">
+        <div><label class="form-label">Exercise ID</label><input class="crisis-input" value="${cesc(e.id)}" disabled style="opacity:0.7"></div>
+        <div><label class="form-label">Facilitator</label><input class="crisis-input" id="ce-facilitator" value="${cesc(e.facilitator)}"></div>
+        <div><label class="form-label">Exercise Type</label><select class="crisis-input" id="ce-type">${optList(CRISIS_EX_TYPES,e.exerciseType)}</select></div>
+        <div><label class="form-label">Exercise Format</label><select class="crisis-input" id="ce-format">${optList(CRISIS_FORMATS,e.exerciseFormat)}</select></div>
+        <div><label class="form-label">Scenario Name</label><input class="crisis-input" id="ce-scenario" value="${cesc(e.scenarioName)}"></div>
+        <div><label class="form-label">Scenario Type</label><select class="crisis-input" id="ce-scenario-type">${optList(CRISIS_SCENARIO_TYPES,e.scenarioType)}</select></div>
+        <div><label class="form-label">Exercise Date</label><input type="date" class="crisis-input" id="ce-date" value="${cesc(e.exerciseDate)}"></div>
+        <div><label class="form-label">Site Affected</label><select class="crisis-input" id="ce-site">${optList(SITES,e.site)}</select></div>
+        <div><label class="form-label">Governing SOP</label><input class="crisis-input" id="ce-sop" value="${cesc(e.governingSop)}"></div>
+        <div><label class="form-label">Status</label><select class="crisis-input" id="ce-status" ${canComplete?"":'title="Only an administrator can mark Complete"'}>
+          <option ${e.status==="In Progress"?"selected":""}>In Progress</option>
+          <option ${e.status==="Complete"?"selected":""} ${canComplete||e.status==="Complete"?"":"disabled"}>Complete</option>
+        </select></div>
+      </div>
+    </div>
+
+    <!-- (2) NARRATIVE -->
+    <div class="crisis-block">
+      <div class="crisis-block-title">2 · Scenario Narrative</div>
+      <textarea class="crisis-input" id="ce-narrative" style="min-height:90px" placeholder="Describe the injected scenario presented to the CMT...">${cesc(e.scenarioNarrative)}</textarea>
+    </div>
+
+    <!-- (3) OBJECTIVES -->
+    <div class="crisis-block">
+      <div class="crisis-block-title">3 · Exercise Objectives <button class="btn-ghost" onclick="addCrisisObjective()">+ Objective</button></div>
+      <div id="crisis-objectives"></div>
+    </div>
+
+    <!-- (4) CMT RESPONSE LOG (live) -->
+    <div class="crisis-block" style="border:1px solid #C00000">
+      <div class="crisis-block-title">4 · CMT Response Log — Live Timeline <span style="color:#4a5568;font-weight:400">auto-refreshing</span></div>
+      <div style="background:#f4f6f8;border:1px solid var(--border2);border-radius:6px;padding:12px;margin-bottom:14px">
+        <div style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;color:#C00000;margin-bottom:8px">ADD RESPONSE ENTRY · timestamp &amp; your name captured automatically</div>
+        <div class="crisis-meta-grid">
+          <div><label class="form-label">Phase</label><select class="crisis-input" id="ce-log-phase">${optList(CRISIS_PHASES,CRISIS_PHASES[0])}</select></div>
+          <div><label class="form-label">Program / Control Activated</label><input class="crisis-input" id="ce-log-program" placeholder="e.g. SOP #20 §6 CMT activation"></div>
+          <div><label class="form-label">SMF Document Reference</label><input class="crisis-input" id="ce-log-docref" placeholder="e.g. SOP #20, Form SOP-20-EX-001"></div>
+          <div><label class="form-label">Status</label><select class="crisis-input" id="ce-log-status"><option>Active</option><option>Resolved</option></select></div>
+        </div>
+        <div style="margin-top:8px"><label class="form-label">Action Taken</label><textarea class="crisis-input" id="ce-log-action" style="min-height:48px" placeholder="What the CMT did..."></textarea></div>
+        <div style="margin-top:8px"><label class="form-label">Outcome</label><textarea class="crisis-input" id="ce-log-outcome" style="min-height:48px" placeholder="Result of the action..."></textarea></div>
+        <div style="margin-top:10px;text-align:right"><button class="btn" style="background:#C00000" onclick="addCrisisLog()">&#9201; Log Response</button></div>
+      </div>
+      <div id="crisis-timeline-wrap"></div>
+    </div>
+
+    <!-- (5) DISCUSSION -->
+    <div class="crisis-block">
+      <div class="crisis-block-title">5 · Discussion Questions</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="crisis-input" id="ce-new-question" placeholder="Facilitator: add a discussion question...">
+        <button class="btn" onclick="addCrisisQuestion()" style="white-space:nowrap">+ Add Question</button>
+      </div>
+      <div id="crisis-discussion"></div>
+    </div>
+
+    <!-- (6) LESSONS LEARNED -->
+    <div class="crisis-block">
+      <div class="crisis-block-title">6 · Lessons Learned &amp; Improvement Actions <button class="btn-ghost" onclick="addCrisisLesson()">+ Item</button></div>
+      <div style="overflow-x:auto"><table class="crisis-tbl" id="crisis-lessons"></table></div>
+    </div>
+
+    <!-- (7) OVERALL ASSESSMENT -->
+    <div class="crisis-block">
+      <div class="crisis-block-title">7 · Overall Assessment</div>
+      <div class="crisis-meta-grid">
+        <div><label class="form-label">Exercise Outcome</label><select class="crisis-input" id="ce-outcome">${optList(["","Satisfactory","Needs Improvement","Unsatisfactory"],e.outcome)}</select></div>
+        <div><label class="form-label">CMT Response Adequate</label><select class="crisis-input" id="ce-adequate">${optList(["","Yes","Partially","No"],e.responseAdequate)}</select></div>
+        <div><label class="form-label">Plan Update Required</label><select class="crisis-input" id="ce-planupdate">${optList(["","No update","Minor update","SOP revision required"],e.planUpdateRequired)}</select></div>
+        <div><label class="form-label">Next Exercise Date</label><input type="date" class="crisis-input" id="ce-next-date" value="${cesc(e.nextExerciseDate)}"></div>
+      </div>
+      <div style="margin-top:10px"><label class="form-label">Facilitator Summary Notes</label><textarea class="crisis-input" id="ce-summary" style="min-height:70px">${cesc(e.summaryNotes)}</textarea></div>
+    </div>
+
+    <!-- (8) ATTENDEES -->
+    <div class="crisis-block">
+      <div class="crisis-block-title">8 · CMT Attendees &amp; Electronic Sign-off
+        <span style="display:flex;gap:6px"><button class="btn-ghost" onclick="addCrisisAttendee()">+ Attendee</button><button class="btn" style="background:#385723" onclick="crisisSignoff()">&#9989; Sign off as me</button></span>
+      </div>
+      <div style="overflow-x:auto"><table class="crisis-tbl" id="crisis-attendees"></table></div>
+    </div>
+
+    <div style="position:sticky;bottom:0;background:linear-gradient(transparent,#eef2f6 30%);padding:14px 0;text-align:right;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="showCrisisList()">Close</button>
+      <button class="btn" style="background:#C00000;padding:10px 22px" onclick="saveCrisis()">&#128190; Save Exercise</button>
+    </div>`;
+  renderCrisisObjectives();
+  renderCrisisTimeline();
+  renderCrisisDiscussion();
+  renderCrisisLessons();
+  renderCrisisAttendees();
+  startCrisisPoll();
+}
+
+// ── (3) Objectives ──
+function renderCrisisObjectives(){
+  const objs=activeCrisis.objectives||(activeCrisis.objectives=[]);
+  const el=document.getElementById("crisis-objectives");if(!el)return;
+  el.innerHTML=objs.length?objs.map((o,i)=>`
+    <div style="display:flex;gap:8px;margin-bottom:7px;align-items:center">
+      <input class="crisis-input" style="max-width:70px;text-align:center" value="${cesc(o.num)}" onchange="activeCrisis.objectives[${i}].num=this.value" placeholder="#">
+      <input class="crisis-input" value="${cesc(o.desc)}" onchange="activeCrisis.objectives[${i}].desc=this.value" placeholder="Objective description">
+      <button class="btn-ghost" onclick="activeCrisis.objectives.splice(${i},1);renderCrisisObjectives()" style="color:#C00000">&#10005;</button>
+    </div>`).join(""):`<div style="font-size:11px;color:#4a5568">No objectives yet. Click <b>+ Objective</b>.</div>`;
+}
+function addCrisisObjective(){activeCrisis.objectives.push({num:String(activeCrisis.objectives.length+1),desc:""});renderCrisisObjectives();}
+
+// ── (4) Live response timeline ──
+function renderCrisisTimeline(){
+  const wrap=document.getElementById("crisis-timeline-wrap");if(!wrap)return;
+  const log=activeCrisis.responseLog||[];
+  if(!log.length){wrap.innerHTML=`<div style="font-size:11px;color:#4a5568;padding:8px">No response entries yet. The timeline updates live as the CMT logs actions.</div>`;return;}
+  wrap.innerHTML=`<div class="crisis-timeline">${log.map(x=>`
+    <div class="tl-entry ${x.status==="Resolved"?"resolved":""}">
+      <div><span class="tl-time">${cfmtTs(x.loggedAt)}</span><span class="tl-phase">${cesc(x.phase)}</span> <span class="badge ${x.status==="Resolved"?"badge-closed":"badge-open"}">${cesc(x.status)}</span></div>
+      <div class="tl-user">${cesc(x.userName)}</div>
+      <div class="tl-body">${x.program?`<b>Activated:</b> ${cesc(x.program)}<br>`:""}<b>Action:</b> ${cesc(x.action)||"—"}<br>${x.outcome?`<b>Outcome:</b> ${cesc(x.outcome)}<br>`:""}${x.docRef?`<b>SMF Ref:</b> ${cesc(x.docRef)}`:""}</div>
+    </div>`).join("")}</div>`;
+}
+async function addCrisisLog(){
+  const body={
+    phase:document.getElementById("ce-log-phase").value,
+    program:document.getElementById("ce-log-program").value.trim(),
+    action:document.getElementById("ce-log-action").value.trim(),
+    outcome:document.getElementById("ce-log-outcome").value.trim(),
+    docRef:document.getElementById("ce-log-docref").value.trim(),
+    status:document.getElementById("ce-log-status").value,
+  };
+  if(!body.action){toast("Action taken is required for a response entry.","red");return;}
+  try{
+    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(activeCrisis.id)+"&action=log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const entry=await res.json();
+    (activeCrisis.responseLog=activeCrisis.responseLog||[]).push(entry);
+    renderCrisisTimeline();
+    ["ce-log-program","ce-log-action","ce-log-outcome","ce-log-docref"].forEach(id=>document.getElementById(id).value="");
+    toast("Response logged at "+cfmtTs(entry.loggedAt)+".","green");
+  }catch(e){toast("Could not log response: "+e.message,"red");}
+}
+
+// ── (5) Discussion ──
+function renderCrisisDiscussion(){
+  const el=document.getElementById("crisis-discussion");if(!el)return;
+  const disc=activeCrisis.discussion||[];
+  el.innerHTML=disc.length?disc.map(q=>`
+    <div class="crisis-disc-q">
+      <div style="font-weight:600;font-size:12px;color:#1F3864">Q: ${cesc(q.question)} <span style="font-size:10px;color:#4a5568;font-weight:400">— ${cesc(q.by||"facilitator")}</span></div>
+      ${(q.responses||[]).map(r=>`<div class="crisis-resp"><div class="who">${cesc(r.user)} · ${cfmtTs(r.at)}</div>${cesc(r.text)}</div>`).join("")}
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <input class="crisis-input" id="resp-${cesc(q.id)}" placeholder="Add your response...">
+        <button class="btn-ghost" onclick="addCrisisResponse('${cesc(q.id)}')" style="white-space:nowrap">Reply</button>
+      </div>
+    </div>`).join(""):`<div style="font-size:11px;color:#4a5568">No discussion questions yet.</div>`;
+}
+async function addCrisisQuestion(){
+  const inp=document.getElementById("ce-new-question");
+  const text=inp.value.trim();if(!text){toast("Enter a question.","red");return;}
+  const qid="Q"+Date.now().toString(36);
+  (activeCrisis.discussion=activeCrisis.discussion||[]).push({id:qid,question:text,by:currentUser||"Facilitator",responses:[]});
+  inp.value="";
+  renderCrisisDiscussion();
+  await saveCrisis(true); // persist so participants can respond
+}
+async function addCrisisResponse(qid){
+  const inp=document.getElementById("resp-"+qid);
+  const text=inp?inp.value.trim():"";
+  if(!text){toast("Enter a response.","red");return;}
+  try{
+    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(activeCrisis.id)+"&action=respond",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({qid,text})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeCrisis=await res.json();
+    renderCrisisDiscussion();
+    toast("Response added.","green");
+  }catch(e){toast("Could not add response: "+e.message,"red");}
+}
+
+// ── (6) Lessons learned ──
+function renderCrisisLessons(){
+  const t=document.getElementById("crisis-lessons");if(!t)return;
+  const rows=activeCrisis.lessonsLearned||(activeCrisis.lessonsLearned=[]);
+  t.innerHTML=`<thead><tr><th>Improvement Item / Gap Identified</th><th style="width:140px">Owner</th><th style="width:130px">Target Date</th><th style="width:90px">CAPA?</th><th style="width:130px">CAPA ID</th><th style="width:72px">NCR</th><th style="width:40px"></th></tr></thead><tbody>`+
+    (rows.length?rows.map((l,i)=>`<tr>
+      <td><input class="crisis-input" value="${cesc(l.item)}" onchange="activeCrisis.lessonsLearned[${i}].item=this.value"></td>
+      <td><input class="crisis-input" value="${cesc(l.owner)}" onchange="activeCrisis.lessonsLearned[${i}].owner=this.value"></td>
+      <td><input type="date" class="crisis-input" value="${cesc(l.targetDate)}" onchange="activeCrisis.lessonsLearned[${i}].targetDate=this.value"></td>
+      <td><select class="crisis-input" onchange="activeCrisis.lessonsLearned[${i}].capaRequired=(this.value==='Yes')"><option ${l.capaRequired?"":"selected"}>No</option><option ${l.capaRequired?"selected":""}>Yes</option></select></td>
+      <td><input class="crisis-input" value="${cesc(l.capaId)}" placeholder="QIS-####" onchange="activeCrisis.lessonsLearned[${i}].capaId=this.value"></td>
+      <td style="text-align:center">${l.ncrId?`<div class="ncr-issued" style="cursor:pointer;text-decoration:underline" title="Open NCR ${cesc(l.ncrId)}" onclick="openLessonNCR('${cesc(l.ncrId)}')">NCR<br>${cesc(l.ncrId)}</div>`:`<button class="ncr-btn" onclick="createLessonNCR(${i})">+ NCR</button>`}</td>
+      <td><button class="btn-ghost" style="color:#C00000" onclick="activeCrisis.lessonsLearned.splice(${i},1);renderCrisisLessons()">&#10005;</button></td>
+    </tr>`).join(""):`<tr><td colspan="7" style="color:#4a5568;font-size:11px">No items yet. Click <b>+ Item</b>.</td></tr>`)+`</tbody>`;
+}
+function addCrisisLesson(){activeCrisis.lessonsLearned.push({item:"",owner:"",targetDate:"",capaRequired:false,capaId:"",ncrId:""});renderCrisisLessons();}
+
+// Create an NCR from a lesson-learned row — mirrors the Audit Program "+ NCR"
+// flow. The record is a self-assigned NCR sourced to this exercise: its clause
+// field carries the Exercise ID (the source), the description/owner/due come
+// from the row, and the "Crisis Exercise" origin is recorded in the evidence
+// field. The server assigns the QIS-#### id, which is stored on the row and
+// rendered inline as a clickable link.
+async function createLessonNCR(i){
+  const l=activeCrisis.lessonsLearned[i];if(!l)return;
+  if(l.ncrId){openLessonNCR(l.ncrId);return;}
+  const item=(l.item||"").trim();
+  if(!item){toast("Enter the improvement item / gap text before issuing an NCR.","red");return;}
+  const data={
+    user:ensureUser(),type:"NCR",severity:"Minor",
+    clause:activeCrisis.id,desc:item,owner:(l.owner||"").trim(),
+    due:l.targetDate||"",status:"Open",
+    site:activeCrisis.site||currentSite,selfAssigned:true,
+    evidence:"Crisis Exercise — generated from "+activeCrisis.id+" (SOP #20 / SQF 2.6.4)",
+  };
+  try{
+    const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const created=await res.json();
+    l.ncrId=created.id;
+    await saveCrisis(true);   // persist the ncrId onto the exercise
+    await loadData();         // refresh the tracker so the new NCR is available
+    render();
+    renderCrisisLessons();
+    toast("NCR "+created.id+" issued and linked to this lesson learned.","green");
+  }catch(e){toast("Could not issue NCR: "+e.message,"red");}
+}
+
+// Open a linked NCR record in the CAPA / NCR / Audit tracker tab.
+async function openLessonNCR(id){
+  await loadData();
+  const trackerTab=Array.from(document.querySelectorAll(".tab")).find(t=>(t.getAttribute("onclick")||"").includes("'tracker'"));
+  if(trackerTab)switchTab("tracker",trackerTab);
+  editRecord(id);
+}
+
+// ── (8) Attendees ──
+function renderCrisisAttendees(){
+  const t=document.getElementById("crisis-attendees");if(!t)return;
+  const rows=activeCrisis.attendees||(activeCrisis.attendees=[]);
+  t.innerHTML=`<thead><tr><th>Name</th><th>Title</th><th>Qualifications</th><th>Role in CMT</th><th style="width:150px">Electronic Sign-off</th><th style="width:40px"></th></tr></thead><tbody>`+
+    (rows.length?rows.map((a,i)=>`<tr>
+      <td><input class="crisis-input" value="${cesc(a.name)}" onchange="activeCrisis.attendees[${i}].name=this.value"></td>
+      <td><input class="crisis-input" value="${cesc(a.title)}" onchange="activeCrisis.attendees[${i}].title=this.value"></td>
+      <td><input class="crisis-input" value="${cesc(a.qualifications)}" onchange="activeCrisis.attendees[${i}].qualifications=this.value"></td>
+      <td><input class="crisis-input" value="${cesc(a.role)}" onchange="activeCrisis.attendees[${i}].role=this.value"></td>
+      <td style="font-family:'DM Mono',monospace;font-size:10px;color:${a.signoffAt?"#385723":"#4a5568"}">${a.signoffAt?"&#9989; "+cfmtTs(a.signoffAt):"— not signed —"}</td>
+      <td><button class="btn-ghost" style="color:#C00000" onclick="activeCrisis.attendees.splice(${i},1);renderCrisisAttendees()">&#10005;</button></td>
+    </tr>`).join(""):`<tr><td colspan="6" style="color:#4a5568;font-size:11px">No attendees yet. Add attendees or click <b>Sign off as me</b>.</td></tr>`)+`</tbody>`;
+}
+function addCrisisAttendee(){activeCrisis.attendees.push({name:"",title:"",qualifications:"",role:"",signoffAt:""});renderCrisisAttendees();}
+async function crisisSignoff(){
+  try{
+    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(activeCrisis.id)+"&action=signoff",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeCrisis=await res.json();
+    renderCrisisAttendees();
+    toast("Signed off as "+(currentUser||"you")+".","green");
+  }catch(e){toast("Could not sign off: "+e.message,"red");}
+}
+
+// Persist the whole exercise (header + sections). `quiet` suppresses the toast
+// and avoids a full re-render (used when persisting a newly added question).
+async function saveCrisis(quiet){
+  const e=activeCrisis;if(!e)return;
+  const body={
+    facilitator:val("ce-facilitator"),exerciseType:val("ce-type"),exerciseFormat:val("ce-format"),
+    scenarioName:val("ce-scenario"),scenarioType:val("ce-scenario-type"),exerciseDate:val("ce-date"),
+    site:val("ce-site"),governingSop:val("ce-sop"),status:val("ce-status"),
+    scenarioNarrative:val("ce-narrative"),
+    objectives:e.objectives,discussion:e.discussion,lessonsLearned:e.lessonsLearned,attendees:e.attendees,
+    outcome:val("ce-outcome"),responseAdequate:val("ce-adequate"),planUpdateRequired:val("ce-planupdate"),
+    nextExerciseDate:val("ce-next-date"),summaryNotes:val("ce-summary"),
+  };
+  function val(id){const el=document.getElementById(id);return el?el.value:"";}
+  try{
+    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(e.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const fresh=await res.json();
+    // Keep live arrays/log from the authoritative response.
+    activeCrisis.discussion=fresh.discussion;activeCrisis.attendees=fresh.attendees;activeCrisis.responseLog=fresh.responseLog;
+    activeCrisis.status=fresh.status;activeCrisis.modifiedAt=fresh.modifiedAt;
+    if(!quiet)toast("Exercise saved.","green");
+  }catch(e2){toast("Could not save: "+e2.message,"red");}
+}
+
+document.getElementById("new-crisis-modal").addEventListener("click",e=>{if(e.target===document.getElementById("new-crisis-modal"))closeNewCrisisModal();});
 
 loadSite();
 renderUserBadge();
