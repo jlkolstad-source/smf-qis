@@ -38,13 +38,14 @@ function isAdmin(user: Identity): boolean {
   return Array.isArray(user.roles) && user.roles.includes("admin");
 }
 
-// Build the string stamped into created_by / modified_by / changed_by. It pairs
-// the user's display name with their email so the audit trail captures both.
+// Build the string stamped into created_by / modified_by / changed_by. Per
+// policy this shows the user's full name and title, never their email address;
+// it falls back to the email only when no profile name has been set yet.
 function actorString(user: Identity): string {
-  const name = user.name || "";
-  const email = user.email || "";
-  if (name && email) return `${name} (${email})`;
-  return name || email || "Unknown";
+  const name = (user.name || "").trim();
+  const title = ((user.userMetadata && (user.userMetadata as any).title) || "").toString().trim();
+  if (name && title) return `${name}, ${title}`;
+  return name || user.email || "Unknown";
 }
 
 // Initial Lindon audit findings — used only to seed a brand-new (empty)

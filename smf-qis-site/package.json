@@ -5,6 +5,7 @@
   "type": "module",
   "description": "QIS — Quality Intelligence System (Somafina UST)",
   "dependencies": {
+    "@netlify/blobs": "latest",
     "@netlify/database": "latest",
     "@netlify/identity": "^1.2.0",
     "drizzle-orm": "beta"
