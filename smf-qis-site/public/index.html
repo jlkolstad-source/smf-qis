@@ -178,7 +178,69 @@ main{padding:24px 32px 80px;}
 @media(max-width:600px){.kpi-grid{grid-template-columns:1fr 1fr;}main{padding:14px 16px 80px;}header{padding:12px 16px;}}
 </style>
 </head>
-<body>
+<body class="qis-locked">
+<style>
+.qis-locked header,.qis-locked nav,.qis-locked main{display:none !important;}
+.auth-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#1F3864 0%,#1F4E79 60%,#2E75B6 100%);}
+.auth-overlay::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.05) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+.auth-card{position:relative;width:100%;max-width:380px;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.35);padding:34px 32px 30px;}
+.auth-logo{font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:4px;color:#1F4E79;line-height:1;text-align:center;}
+.auth-logo span{display:block;color:#2E75B6;font-size:11px;font-family:'DM Mono',monospace;letter-spacing:2px;margin-top:2px;}
+.auth-form{margin-top:26px;display:flex;flex-direction:column;}
+.auth-form h2{font-family:'DM Sans',sans-serif;font-size:19px;color:#1a1a2e;margin:0 0 4px;}
+.auth-sub{font-size:12.5px;color:#4a5568;margin:0 0 18px;line-height:1.5;}
+.auth-label{font-size:11px;font-family:'DM Mono',monospace;color:#2d3748;letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px;}
+.auth-input{width:100%;box-sizing:border-box;border:1px solid #d0d6de;border-radius:8px;padding:11px 12px;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a1a2e;margin-bottom:15px;outline:none;transition:border-color .15s;}
+.auth-input:focus{border-color:#2E75B6;box-shadow:0 0 0 3px rgba(46,117,182,0.15);}
+.auth-btn{width:100%;background:#1F4E79;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .15s;}
+.auth-btn:hover{background:#1F3864;}
+.auth-btn:disabled{opacity:.6;cursor:default;}
+.auth-link{background:none;border:none;color:#2E75B6;font-size:12.5px;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:14px;padding:0;text-align:center;}
+.auth-link:hover{text-decoration:underline;}
+.auth-msg{margin-top:14px;font-size:12.5px;min-height:16px;text-align:center;}
+.auth-msg.err{color:#C00000;}
+.auth-msg.ok{color:#2f7d32;}
+.user-badge{display:flex;align-items:center;gap:6px;}
+.user-badge .admin-tag{font-size:9px;font-family:'DM Mono',monospace;background:rgba(189,215,238,0.25);border:1px solid rgba(189,215,238,0.5);color:#BDD7EE;border-radius:4px;padding:1px 5px;letter-spacing:.5px;}
+.signout-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:6px;padding:5px 10px;font-size:11px;font-family:'DM Mono',monospace;color:#e8eaf0;cursor:pointer;}
+.signout-btn:hover{background:rgba(255,255,255,0.2);}
+</style>
+<div id="auth-overlay" class="auth-overlay">
+  <div class="auth-card">
+    <div class="auth-logo">QIS<span>QUALITY INTELLIGENCE SYSTEM · SOMAFINA UST</span></div>
+
+    <form id="auth-signin" class="auth-form" onsubmit="return qisSignIn(event)">
+      <h2>Sign in</h2>
+      <p class="auth-sub">Access is by invitation only. Use the email and password for your QIS account.</p>
+      <label class="auth-label" for="auth-email">Email</label>
+      <input class="auth-input" id="auth-email" type="email" autocomplete="username" required>
+      <label class="auth-label" for="auth-password">Password</label>
+      <input class="auth-input" id="auth-password" type="password" autocomplete="current-password" required>
+      <button class="auth-btn" type="submit" id="auth-signin-btn">Sign in</button>
+      <button class="auth-link" type="button" onclick="qisShowForgot()">Forgot password?</button>
+      <div class="auth-msg" id="auth-msg"></div>
+    </form>
+
+    <form id="auth-forgot" class="auth-form" style="display:none" onsubmit="return qisForgot(event)">
+      <h2>Reset password</h2>
+      <p class="auth-sub">Enter your email and a password reset link will be sent to you.</p>
+      <label class="auth-label" for="auth-forgot-email">Email</label>
+      <input class="auth-input" id="auth-forgot-email" type="email" autocomplete="username" required>
+      <button class="auth-btn" type="submit">Send reset link</button>
+      <button class="auth-link" type="button" onclick="qisShowSignin()">Back to sign in</button>
+      <div class="auth-msg" id="auth-forgot-msg"></div>
+    </form>
+
+    <form id="auth-setpw" class="auth-form" style="display:none" onsubmit="return qisSetPassword(event)">
+      <h2 id="auth-setpw-title">Set your password</h2>
+      <p class="auth-sub" id="auth-setpw-sub">Welcome to QIS. Choose a password to activate your account.</p>
+      <label class="auth-label" for="auth-newpw">New password</label>
+      <input class="auth-input" id="auth-newpw" type="password" autocomplete="new-password" minlength="8" required>
+      <button class="auth-btn" type="submit">Save password &amp; continue</button>
+      <div class="auth-msg" id="auth-setpw-msg"></div>
+    </form>
+  </div>
+</div>
 <div class="app">
 <header>
   <div><div class="logo">QIS<span>QUALITY INTELLIGENCE SYSTEM · SOMAFINA UST</span></div></div>
@@ -187,7 +249,10 @@ main{padding:24px 32px 80px;}
       <button class="site-badge" id="site-badge-btn" onclick="toggleSiteMenu(event)" aria-haspopup="true" aria-expanded="false">Site: <strong id="site-badge-name">Lindon</strong> | SQF Ed. 9 <span class="site-caret">&#9662;</span></button>
       <div class="site-menu" id="site-menu"></div>
     </div>
-    <button class="site-badge" id="user-badge-btn" onclick="changeUser(event)" title="Click to set the name recorded in the audit trail">&#128100; <strong id="user-badge-name">Set name</strong></button>
+    <div class="user-badge">
+      <span class="site-badge" id="user-badge-btn" style="cursor:default" title="Signed-in user — recorded in the audit trail">&#128100; <strong id="user-badge-name">—</strong><span class="admin-tag" id="user-admin-tag" style="display:none">ADMIN</span></span>
+      <button class="signout-btn" onclick="qisSignOut()">Sign out</button>
+    </div>
     <div class="deadline-badge" id="deadline-hdr" style="display:none"></div>
     <button class="btn" onclick="openModal()">+ New Record</button>
   </div>
@@ -594,26 +659,28 @@ const API="/api/records";
 let records=[], editingId=null, currentFilter="all", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
 
 // ── USER IDENTITY (for the audit trail) ────────────────────────────────────
-// There is no login; the user types their name once. It is stored locally and
-// sent with every create/update/delete so the database records who made the
-// change. Records are shared across all users — only the "who" is local.
-let currentUser="";
-function loadUser(){try{currentUser=localStorage.getItem("qis-user")||"";}catch(e){}}
-function renderUserBadge(){const el=document.getElementById("user-badge-name");if(el)el.textContent=currentUser||"Set name";}
-function changeUser(e){
-  if(e)e.stopPropagation();
-  const n=prompt("Your name (recorded in the audit trail for every change):",currentUser||"");
-  if(n===null)return;
-  currentUser=n.trim()||"Anonymous";
-  try{localStorage.setItem("qis-user",currentUser);}catch(_){}
+// The signed-in Netlify Identity user is the source of truth. The server stamps
+// created_by / modified_by from the JWT; these client values drive the header
+// display and gate the admin-only controls (delete records, close findings).
+let currentUser="";       // display name of the signed-in user
+let currentUserEmail="";  // email of the signed-in user
+let isAdminUser=false;    // admin accounts may delete records and close findings
+const ADMIN_EMAILS=["jkolstad@somafina.com","chad.hinson@somafina.com"];
+function setCurrentUser(user){
+  currentUser=(user&&(user.name||user.email))||"";
+  currentUserEmail=(user&&user.email)||"";
+  const roles=(user&&user.roles)||[];
+  isAdminUser=ADMIN_EMAILS.includes(currentUserEmail.toLowerCase())||(!!user&&user.role==="admin")||(Array.isArray(roles)&&roles.includes("admin"));
+  document.body.classList.toggle("is-admin",isAdminUser);
   renderUserBadge();
 }
-// Ensure a user name exists before a write; prompts on first use.
-function ensureUser(){
-  if(!currentUser)changeUser(null);
-  if(!currentUser)currentUser="Anonymous";
-  return currentUser;
+function renderUserBadge(){
+  const el=document.getElementById("user-badge-name");if(el)el.textContent=currentUser||"—";
+  const tag=document.getElementById("user-admin-tag");if(tag)tag.style.display=isAdminUser?"inline-block":"none";
 }
+// Retained for compatibility with existing call sites; identity is enforced
+// server-side, so this simply returns the signed-in display name.
+function ensureUser(){return currentUser||"Unknown";}
 
 function setSaveStatus(txt){const el=document.getElementById("save-status");if(el)el.textContent=txt;}
 
@@ -811,7 +878,7 @@ function renderTable(f){
       <td><span class="badge ${sb}</span></td>
       <td style="white-space:nowrap">
         <button class="btn-ghost" style="padding:4px 9px;font-size:11px;margin-right:4px" onclick="editRecord('${r.id}')">Edit</button>
-        <button class="btn-danger" onclick="deleteRecord('${r.id}')">✕</button>
+        ${isAdminUser?`<button class="btn-danger" onclick="deleteRecord('${r.id}')">✕</button>`:""}
       </td>
     </tr>`;
   }).join("");
@@ -826,7 +893,16 @@ function openModal(){
   document.getElementById("f-status").value="Open";
   document.getElementById("f-photos").value="[]";
   document.getElementById("photo-preview-grid").innerHTML="";
+  applyCloseGate("Open");
   document.getElementById("modal").classList.add("open");
+}
+
+// Only admins may close a finding. Disable the "Closed" status option for
+// everyone else — unless the record is already Closed, so it still displays.
+function applyCloseGate(currentStatus){
+  const sel=document.getElementById("f-status");if(!sel)return;
+  const opt=Array.from(sel.options).find(o=>o.value==="Closed");if(!opt)return;
+  opt.disabled=!isAdminUser&&currentStatus!=="Closed";
 }
 
 function editRecord(id){
@@ -845,6 +921,7 @@ function editRecord(id){
   document.getElementById("f-evidence").value=r.evidence||"";
   document.getElementById("f-photos").value=JSON.stringify(currentPhotos);
   renderPhotoPreview("photo-preview-grid",currentPhotos);
+  applyCloseGate(r.status||"Open");
   document.getElementById("modal").classList.add("open");
 }
 
@@ -858,7 +935,11 @@ async function saveRecord(){
   const wasEditing=!!editingId;
   const editId=editingId;
   const existing=wasEditing?records.find(r=>r.id===editId):null;
-  const data={user,type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:document.getElementById("f-status").value,evidence:document.getElementById("f-evidence").value.trim(),photos,site:existing?existing.site:currentSite};
+  const newStatus=document.getElementById("f-status").value;
+  if(newStatus==="Closed"&&!isAdminUser&&(!existing||existing.status!=="Closed")){
+    toast("Only an administrator can close a finding.","red");return;
+  }
+  const data={user,type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:newStatus,evidence:document.getElementById("f-evidence").value.trim(),photos,site:existing?existing.site:currentSite};
   try{
     let res;
     if(wasEditing){
@@ -874,10 +955,10 @@ async function saveRecord(){
 }
 
 async function deleteRecord(id){
+  if(!isAdminUser){toast("Only an administrator can delete records.","red");return;}
   if(!confirm("Delete?"))return;
-  const user=ensureUser();
   try{
-    const res=await fetch(API+"?id="+encodeURIComponent(id)+"&user="+encodeURIComponent(user),{method:"DELETE"});
+    const res=await fetch(API+"?id="+encodeURIComponent(id),{method:"DELETE"});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     await refresh();
     toast("Record deleted.","green");
@@ -1531,9 +1612,184 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLightbox();clo
 document.addEventListener("click",()=>{const m=document.getElementById("site-menu");if(m)m.classList.remove("open");const b=document.getElementById("site-badge-btn");if(b)b.setAttribute("aria-expanded","false");});
 
 loadSite();
-loadUser();
 renderUserBadge();
-(async()=>{await loadData();render();})();
+// App boot is gated on authentication. The Identity module (below) calls
+// window.qisBoot(user) exactly once after a valid session is established.
+let qisBooted=false;
+window.qisBoot=async function(user){
+  setCurrentUser(user);
+  if(qisBooted){render();return;}
+  qisBooted=true;
+  await loadData();
+  render();
+};
+</script>
+<script type="module">
+// ── AUTHENTICATION (Netlify Identity, email/password, invite-only) ──────────
+// Loaded as an ESM module from a pinned CDN build of @netlify/identity. It owns
+// the sign-in screen, invite/recovery password flows, and session lifecycle.
+// The rest of the app (classic script above) only runs once a user is signed in.
+import {
+  login, logout, getUser, acceptInvite, requestPasswordRecovery,
+  updateUser, handleAuthCallback, onAuthChange, AuthError, MissingIdentityError
+} from "https://esm.sh/@netlify/identity@1.2.0";
+
+const overlay=document.getElementById("auth-overlay");
+const $=id=>document.getElementById(id);
+function showPanel(id){
+  ["auth-signin","auth-forgot","auth-setpw"].forEach(p=>{const el=$(p);if(el)el.style.display=p===id?"flex":"none";});
+}
+function msg(id,text,kind){const el=$(id);if(el){el.textContent=text||"";el.className="auth-msg"+(kind?" "+kind:"");}}
+function authError(e){
+  if(e instanceof MissingIdentityError)return "Identity is not enabled for this site yet.";
+  if(e instanceof AuthError){
+    if(e.status===401)return "Invalid email or password.";
+    if(e.status===403)return "Sign-ups are disabled. Access is by invitation only.";
+    if(e.status===422)return "Please check your email and password.";
+    return e.message;
+  }
+  return (e&&e.message)||"Something went wrong. Please try again.";
+}
+
+// Reveal the app and boot it with the signed-in user.
+function enterApp(user){
+  overlay.style.display="none";
+  document.body.classList.remove("qis-locked");
+  window.qisBoot(user);
+}
+function lockApp(){
+  document.body.classList.add("qis-locked");
+  overlay.style.display="flex";
+  showPanel("auth-signin");
+}
+
+// Pending invite/recovery token (set by handleAuthCallback) so the set-password
+// form knows which flow to complete.
+let pendingInviteToken=null;
+let pendingMode=null; // "invite" | "recovery"
+
+// The known deploy-preview account. If signing in with it fails because it has
+// not been provisioned yet, ask the server to create it (auto-confirmed) and
+// retry once — so the credentials "just work" on the preview without an invite.
+const BOOTSTRAP_EMAIL="jkolstad@somafina.com";
+async function ensureBootstrapAccount(){
+  try{await fetch("/api/bootstrap-user",{method:"POST"});}catch(e){}
+}
+
+window.qisSignIn=async function(ev){
+  ev.preventDefault();
+  const btn=$("auth-signin-btn");btn.disabled=true;msg("auth-msg","Signing in…");
+  const email=$("auth-email").value.trim();
+  const pw=$("auth-password").value;
+  try{
+    let user;
+    try{
+      user=await login(email,pw);
+    }catch(e){
+      // First-time access to the preview: provision the known account, then retry.
+      if(e instanceof AuthError&&(e.status===401||e.status===404)&&email.toLowerCase()===BOOTSTRAP_EMAIL){
+        msg("auth-msg","Setting up your account…");
+        await ensureBootstrapAccount();
+        user=await login(email,pw);
+      }else{throw e;}
+    }
+    msg("auth-msg","");
+    enterApp(user);
+  }catch(e){msg("auth-msg",authError(e),"err");}
+  finally{btn.disabled=false;}
+  return false;
+};
+
+window.qisShowForgot=function(){msg("auth-forgot-msg","");showPanel("auth-forgot");};
+window.qisShowSignin=function(){msg("auth-msg","");showPanel("auth-signin");};
+
+window.qisForgot=async function(ev){
+  ev.preventDefault();
+  try{
+    await requestPasswordRecovery($("auth-forgot-email").value.trim());
+    msg("auth-forgot-msg","If that email has an account, a reset link is on its way.","ok");
+  }catch(e){msg("auth-forgot-msg",authError(e),"err");}
+  return false;
+};
+
+window.qisSetPassword=async function(ev){
+  ev.preventDefault();
+  const pw=$("auth-newpw").value;
+  if(pw.length<8){msg("auth-setpw-msg","Password must be at least 8 characters.","err");return false;}
+  try{
+    let user;
+    if(pendingMode==="invite"&&pendingInviteToken){
+      user=await acceptInvite(pendingInviteToken,pw);
+    }else{
+      await updateUser({password:pw});
+      user=await getUser();
+    }
+    history.replaceState(null,"",location.pathname+location.search);
+    msg("auth-setpw-msg","");
+    enterApp(user);
+  }catch(e){msg("auth-setpw-msg",authError(e),"err");}
+  return false;
+};
+
+window.qisSignOut=async function(){
+  try{await logout();}catch(e){}
+  location.reload();
+};
+
+// Keep the UI honest if the session is dropped in another tab.
+onAuthChange((event)=>{
+  if(event==="logout")location.reload();
+});
+
+// The Identity SDK reads callback tokens (invite, recovery, confirmation, …)
+// from the URL hash. Some email clients and HTTP redirects deliver them as a
+// query string instead, which would leave the user staring at the sign-in
+// screen with no way to set a password. Promote any such query params into the
+// hash before the SDK looks, so the invite/recovery prompt always appears.
+function normalizeAuthHash(){
+  const tokenKeys=["access_token","invite_token","recovery_token","confirmation_token","email_change_token"];
+  if(tokenKeys.some(k=>location.hash.includes(k+"=")))return;
+  const qs=new URLSearchParams(location.search);
+  if(!tokenKeys.some(k=>qs.has(k)))return;
+  const carried=[];
+  for(const [k,v] of qs.entries())carried.push(encodeURIComponent(k)+"="+encodeURIComponent(v));
+  location.hash=carried.join("&");
+  history.replaceState(null,"",location.pathname+location.hash);
+}
+
+// Always present the set-password panel inside the visible, locked overlay.
+function showSetPassword(title,sub){
+  document.body.classList.add("qis-locked");
+  overlay.style.display="flex";
+  $("auth-setpw-title").textContent=title;
+  $("auth-setpw-sub").textContent=sub;
+  showPanel("auth-setpw");
+}
+
+// Boot sequence: handle any invite/recovery callback in the URL first, then
+// fall back to an existing session, otherwise show the sign-in screen.
+(async()=>{
+  try{
+    normalizeAuthHash();
+    const result=await handleAuthCallback();
+    if(result){
+      if(result.type==="invite"){
+        pendingMode="invite";pendingInviteToken=result.token;
+        showSetPassword("Welcome to QIS","You've been invited. Choose a password to activate your account.");
+        return;
+      }
+      if(result.type==="recovery"){
+        pendingMode="recovery";
+        showSetPassword("Set a new password","Enter a new password for your account.");
+        return;
+      }
+      if(result.user){enterApp(result.user);return;}
+    }
+  }catch(e){lockApp();msg("auth-msg",authError(e),"err");return;}
+
+  const user=await getUser();
+  if(user)enterApp(user); else lockApp();
+})();
 </script>
 </body>
 </html>

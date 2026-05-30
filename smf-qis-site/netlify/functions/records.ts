@@ -10,6 +10,7 @@
 // Every mutation writes a row to `audit_log`, and create/update also stamp the
 // record's created_by/at and modified_by/at columns, giving a full audit trail.
 import type { Config } from "@netlify/functions";
+import { getUser } from "@netlify/identity";
 import { eq, asc, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { records, auditLog } from "../../db/schema.js";
@@ -18,6 +19,32 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
 
 function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
+}
+
+// Admin users may additionally delete records and close findings. Everyone else
+// has full create/edit access. Membership is enforced here on the server so the
+// rules hold regardless of what the browser sends.
+const ADMIN_EMAILS = new Set([
+  "jkolstad@somafina.com",
+  "chad.hinson@somafina.com",
+]);
+
+type Identity = NonNullable<Awaited<ReturnType<typeof getUser>>>;
+
+function isAdmin(user: Identity): boolean {
+  const email = (user.email || "").toLowerCase();
+  if (ADMIN_EMAILS.has(email)) return true;
+  if (user.role === "admin") return true;
+  return Array.isArray(user.roles) && user.roles.includes("admin");
+}
+
+// Build the string stamped into created_by / modified_by / changed_by. It pairs
+// the user's display name with their email so the audit trail captures both.
+function actorString(user: Identity): string {
+  const name = user.name || "";
+  const email = user.email || "";
+  if (name && email) return `${name} (${email})`;
+  return name || email || "Unknown";
 }
 
 // Initial Lindon audit findings — used only to seed a brand-new (empty)
@@ -138,6 +165,13 @@ export default async (req: Request) => {
   const url = new URL(req.url);
 
   try {
+    // Every operation requires an authenticated Identity user. The created_by /
+    // modified_by trail is taken from this user, never from the request body.
+    const user = await getUser();
+    if (!user) return json(401, { error: "Sign in required." });
+    const actor = actorString(user);
+    const admin = isAdmin(user);
+
     if (req.method === "GET") {
       await ensureSeed();
 
@@ -160,7 +194,6 @@ export default async (req: Request) => {
 
     if (req.method === "POST") {
       const body = await req.json();
-      const user = (body.user || "Unknown").toString();
 
       // Bulk import: { records: [...] }
       if (Array.isArray(body.records)) {
@@ -176,12 +209,12 @@ export default async (req: Request) => {
           const [existing] = await db.select().from(records).where(eq(records.id, id));
           await db
             .insert(records)
-            .values({ id, ...row, createdBy: user, createdAt: now, modifiedBy: user, modifiedAt: now })
+            .values({ id, ...row, createdBy: actor, createdAt: now, modifiedBy: actor, modifiedAt: now })
             .onConflictDoUpdate({
               target: records.id,
-              set: { ...row, modifiedBy: user, modifiedAt: now },
+              set: { ...row, modifiedBy: actor, modifiedAt: now },
             });
-          await logChange(id, existing ? "update" : "create", existing ? "Imported (updated)" : "Imported (created)", user);
+          await logChange(id, existing ? "update" : "create", existing ? "Imported (updated)" : "Imported (created)", actor);
           imported++;
         }
         return json(200, { ok: true, imported });
@@ -193,17 +226,16 @@ export default async (req: Request) => {
       const row = toRow(body);
       const [created] = await db
         .insert(records)
-        .values({ id, ...row, createdBy: user, createdAt: now, modifiedBy: user, modifiedAt: now })
+        .values({ id, ...row, createdBy: actor, createdAt: now, modifiedBy: actor, modifiedAt: now })
         .onConflictDoNothing()
         .returning();
       if (!created) return json(409, { error: "A record with id " + id + " already exists." });
-      await logChange(id, "create", `Created ${created.type} (${created.severity}) — status ${created.status}`, user);
+      await logChange(id, "create", `Created ${created.type} (${created.severity}) — status ${created.status}`, actor);
       return json(201, toClient(created));
     }
 
     if (req.method === "PUT") {
       const body = await req.json();
-      const user = (body.user || "Unknown").toString();
       const id = (url.searchParams.get("id") || body.id || "").toString();
       if (!id) return json(400, { error: "Missing record id." });
 
@@ -215,9 +247,14 @@ export default async (req: Request) => {
       // Preserve the original site unless one is explicitly supplied.
       if (!body.site) row.site = existing.site;
 
+      // Only admins may close a finding.
+      if (row.status === "Closed" && existing.status !== "Closed" && !admin) {
+        return json(403, { error: "Only an administrator can close a finding." });
+      }
+
       const [updated] = await db
         .update(records)
-        .set({ ...row, modifiedBy: user, modifiedAt: now })
+        .set({ ...row, modifiedBy: actor, modifiedAt: now })
         .where(eq(records.id, id))
         .returning();
 
@@ -236,20 +273,21 @@ export default async (req: Request) => {
       ];
       const changed = tracked.filter(([, a, b]) => a !== b).map(([f]) => f);
       if (existing.status !== updated.status) {
-        await logChange(id, "status_change", `Status ${existing.status} → ${updated.status}`, user);
+        await logChange(id, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
       }
-      await logChange(id, "update", changed.length ? `Updated: ${changed.join(", ")}` : "Saved (no field changes)", user);
+      await logChange(id, "update", changed.length ? `Updated: ${changed.join(", ")}` : "Saved (no field changes)", actor);
       return json(200, toClient(updated));
     }
 
     if (req.method === "DELETE") {
-      const user = (url.searchParams.get("user") || "Unknown").toString();
+      // Only admins may delete records.
+      if (!admin) return json(403, { error: "Only an administrator can delete records." });
       const id = (url.searchParams.get("id") || "").toString();
       if (!id) return json(400, { error: "Missing record id." });
       const [existing] = await db.select().from(records).where(eq(records.id, id));
       if (!existing) return json(404, { error: "Record not found." });
       await db.delete(records).where(eq(records.id, id));
-      await logChange(id, "delete", `Deleted ${existing.type} (${existing.severity}) — ${existing.clause || "no clause"}`, user);
+      await logChange(id, "delete", `Deleted ${existing.type} (${existing.severity}) — ${existing.clause || "no clause"}`, actor);
       return json(200, { ok: true });
     }
 
