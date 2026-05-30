@@ -4,6 +4,8 @@
 // buffered a full (up to 6000-token) generation before returning — a buffered
 // response routinely blew past the 26s synchronous-function ceiling.
 
+import { getUser } from '@netlify/identity';
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -24,6 +26,10 @@ export default async (req) => {
   if (req.method !== 'POST') {
     return json(405, { error: 'Method not allowed' });
   }
+
+  // Report generation is for authenticated users only.
+  const user = await getUser();
+  if (!user) return json(401, { error: 'Sign in required.' });
 
   let body;
   try {

@@ -6,6 +6,7 @@
   "description": "QIS — Quality Intelligence System (Somafina UST)",
   "dependencies": {
     "@netlify/database": "latest",
+    "@netlify/identity": "^1.2.0",
     "drizzle-orm": "beta"
   },
   "devDependencies": {
