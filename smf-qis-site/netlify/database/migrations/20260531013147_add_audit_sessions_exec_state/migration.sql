@@ -1,0 +1,1 @@
+ALTER TABLE "audit_sessions" ADD COLUMN "exec_state" jsonb DEFAULT '{}' NOT NULL;

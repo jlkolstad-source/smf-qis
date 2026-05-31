@@ -20,3 +20,8 @@
   from = "/api/generate-report"
   to = "/.netlify/functions/generate-report"
   status = 200
+
+[[redirects]]
+  from = "/api/audits"
+  to = "/.netlify/functions/audits"
+  status = 200

@@ -118,6 +118,7 @@ function toClient(r: typeof oosRecords.$inferSelect) {
     closedBy: r.closedBy || "",
     closedDate: r.closedDate || "",
     attachments: arr(r.attachments),
+    signatures: arr(r.signatures),
     dateInitiated: createdISO ? createdISO.slice(0, 10) : "",
     createdBy: r.createdBy || "",
     createdAt: createdISO,
@@ -266,6 +267,38 @@ export default async (req: Request) => {
           .where(eq(oosRecords.id, id));
         await logChange(id, "attachment", `Attached "${filename}" (${description || "no description"})`, actor);
         return json(201, entry);
+      }
+
+      // ── Electronic sign-off on a signature row, by role ───────────────────
+      // Finds the matching signature row by role, stamps the signed-in user's
+      // name + title + timestamp on it, and moves the record to "Signed".
+      if (id && action === "sign") {
+        const [existing] = await db.select().from(oosRecords).where(eq(oosRecords.id, id));
+        if (!existing) return json(404, { error: "OOS record not found." });
+        const body = await req.json().catch(() => ({}));
+        const role = (body.role || "").toString().trim();
+        if (!role) return json(400, { error: "Missing signature role." });
+
+        const signatures = arr(existing.signatures);
+        const signerName = (user.name || user.email || "Unknown").toString();
+        const signerTitle = ((user.userMetadata && (user.userMetadata as any).title) || "").toString().trim();
+        const stamp = new Date().toISOString();
+        const sig = signatures.find((s: any) => (s.role || "").trim().toLowerCase() === role.toLowerCase());
+        if (sig) {
+          sig.name = signerName;
+          sig.title = signerTitle;
+          sig.signedAt = stamp;
+        } else {
+          signatures.push({ role, name: signerName, title: signerTitle, signedAt: stamp });
+        }
+        const now = new Date();
+        const [updated] = await db
+          .update(oosRecords)
+          .set({ signatures, status: "Signed", modifiedBy: actor, modifiedAt: now })
+          .where(eq(oosRecords.id, id))
+          .returning();
+        await logChange(id, "signoff", `Electronic sign-off (${role}) by ${signerName}`, actor);
+        return json(200, toClient(updated));
       }
 
       // ── Create a new OOS record ───────────────────────────────────────────
