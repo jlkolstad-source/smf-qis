@@ -319,9 +319,9 @@ main{padding:24px 32px 80px;}
 </header>
 <nav>
   <div class="tab active" onclick="switchTab('dashboard',this)">Dashboard</div>
-  <div class="tab" onclick="switchTab('tracker',this)">CAPA / NCR / Audit</div>
+  <div class="tab" onclick="switchTab('tracker',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F4B942" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>CAPA / NCR / Audit</div>
   <div class="tab" onclick="switchTab('audit-program',this)">&#9998; Audit Program</div>
-  <div class="tab" onclick="switchTab('csuite',this)">C-Suite View</div>
+  <div class="tab" onclick="switchTab('csuite',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C8956C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>C-Suite View</div>
   <div class="tab" onclick="switchTab('crisis',this)">&#9888; Crisis Exercise</div>
   <div class="tab" onclick="switchTab('oos',this)">&#129514; OOS</div>
   <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
@@ -427,17 +427,17 @@ main{padding:24px 32px 80px;}
   </div>
   <div id="cs-pane-exec">
   <div class="csuite-banner">
-    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-risk" style="color:var(--accent)">--</div><div class="csuite-stat-label">Quality Risk</div></div>
-    <div class="csuite-divider"></div>
-    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-cost" style="color:var(--accent3)">$0</div><div class="csuite-stat-label">Cost Avoidance</div></div>
-    <div class="csuite-divider"></div>
-    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-closure-rate" style="color:var(--warn)">--%</div><div class="csuite-stat-label">On-Time Closure</div></div>
-    <div class="csuite-divider"></div>
-    <div class="csuite-stat"><div class="csuite-stat-val" style="color:var(--accent)">83</div><div class="csuite-stat-label">SQF Score</div></div>
-    <div class="csuite-divider"></div>
-    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-open" style="color:var(--accent2)">0</div><div class="csuite-stat-label">Open Items</div></div>
-    <div class="csuite-divider"></div>
-    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-days2" style="color:var(--warn)">--</div><div class="csuite-stat-label">Days to CA Deadline</div></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-risk" style="color:#fff">--</div><div class="csuite-stat-label" style="color:#BDD7EE">Quality Risk</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-cost" style="color:#fff">$0</div><div class="csuite-stat-label" style="color:#BDD7EE">Cost Avoidance</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-closure-rate" style="color:#fff">--%</div><div class="csuite-stat-label" style="color:#BDD7EE">On-Time Closure</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" style="color:#fff">83</div><div class="csuite-stat-label" style="color:#BDD7EE">SQF Score</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-open" style="color:#fff">0</div><div class="csuite-stat-label" style="color:#BDD7EE">Open Items</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-days2" style="color:#fff">--</div><div class="csuite-stat-label" style="color:#BDD7EE">Days to CA Deadline</div></div>
   </div>
   <div class="csuite-banner" style="background:linear-gradient(135deg,#7a0000,#C00000);border-color:#E8A87C">
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-oos-month" style="color:#fff">0</div><div class="csuite-stat-label" style="color:#FCE4D6">OOS This Month</div></div>
@@ -3262,8 +3262,11 @@ function updateKPIs(){
 function updateDeadline(){
   const diff=Math.ceil((new Date("2026-06-18")-new Date())/(1000*60*60*24));
   const color=diff<=7?"var(--danger)":diff<=14?"var(--warn)":"var(--accent)";
+  // Banner sits on a dark-blue background, so use light urgency variants there for contrast.
+  const bannerColor=diff<=7?"#FF8888":diff<=14?"#FFE08A":"#FFFFFF";
   const txt=diff>0?diff+" days remaining":"PAST DUE";
-  ["cs-deadline-txt","cs-days2"].forEach(id=>{const el=document.getElementById(id);if(el){el.textContent=txt;el.style.color=color;}});
+  const deadlineTxt=document.getElementById("cs-deadline-txt");if(deadlineTxt){deadlineTxt.textContent=txt;deadlineTxt.style.color=color;}
+  const days2=document.getElementById("cs-days2");if(days2){days2.textContent=txt;days2.style.color=bannerColor;}
 
   // Header badge: nearest due date among open records; hidden when none have a due date.
   const hdr=document.getElementById("deadline-hdr");
@@ -3336,7 +3339,7 @@ function updateCSuite(){
   const total=records.length;
   const majors=records.filter(r=>r.severity==="Major"&&r.status!=="Closed").length;
   document.getElementById("cs-risk").textContent=majors>0?"HIGH":open>5?"MED":"LOW";
-  document.getElementById("cs-risk").style.color=majors>0?"var(--danger)":open>5?"var(--warn)":"var(--accent)";
+  document.getElementById("cs-risk").style.color=majors>0?"#FF8888":open>5?"#FFE08A":"#FFFFFF";
   document.getElementById("cs-cost").textContent="$"+(closed*2400).toLocaleString();
   document.getElementById("cs-closure-rate").textContent=total>0?Math.round(closed/total*100)+"%":"--%";
   document.getElementById("cs-open").textContent=open;
