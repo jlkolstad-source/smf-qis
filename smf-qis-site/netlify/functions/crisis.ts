@@ -47,6 +47,11 @@ function displayName(user: Identity): string {
   return user.name || user.email || "Unknown";
 }
 
+// The user's title as set on their Identity profile.
+function userTitle(user: Identity): string {
+  return ((user.userMetadata && (user.userMetadata as any).title) || "").toString().trim();
+}
+
 // Richer string for the audit trail — full name and title, never the email.
 function actorString(user: Identity): string {
   const name = (user.name || "").trim();
@@ -91,6 +96,7 @@ function toClient(r: typeof crisisExercises.$inferSelect) {
     nextExerciseDate: r.nextExerciseDate || "",
     summaryNotes: r.summaryNotes || "",
     status: r.status || "In Progress",
+    signatures: arr(r.signatures),
     createdBy: r.createdBy || "",
     createdAt: toISO(r.createdAt),
     modifiedBy: r.modifiedBy || "",
@@ -259,6 +265,34 @@ export default async (req: Request) => {
           .set({ attendees, modifiedBy: actor, modifiedAt: new Date() })
           .where(eq(crisisExercises.id, id));
         await logChange(id, "signoff", `Electronic sign-off by ${name}`, actor);
+        return json(200, await loadFull(id));
+      }
+
+      // ── Electronic sign-off on a signature row, by role ───────────────────
+      // Distinct from the attendee "signoff" above: this stamps the signed-in
+      // user's name + title + timestamp onto the matching signatures[] row (by
+      // role) and moves the exercise to "Signed".
+      if (id && action === "sign") {
+        const [ex] = await db.select().from(crisisExercises).where(eq(crisisExercises.id, id));
+        if (!ex) return json(404, { error: "Exercise not found." });
+        const role = (body.role || "").toString().trim();
+        if (!role) return json(400, { error: "Missing signature role." });
+        const signatures = arr(ex.signatures);
+        const signerTitle = userTitle(user);
+        const stamp = new Date().toISOString();
+        const sig = signatures.find((s: any) => (s.role || "").trim().toLowerCase() === role.toLowerCase());
+        if (sig) {
+          sig.name = name;
+          sig.title = signerTitle;
+          sig.signedAt = stamp;
+        } else {
+          signatures.push({ role, name, title: signerTitle, signedAt: stamp });
+        }
+        await db
+          .update(crisisExercises)
+          .set({ signatures, status: "Signed", modifiedBy: actor, modifiedAt: new Date() })
+          .where(eq(crisisExercises.id, id));
+        await logChange(id, "signoff", `Electronic sign-off (${role}) by ${name}`, actor);
         return json(200, await loadFull(id));
       }
 

@@ -87,6 +87,8 @@ function toClient(r: typeof records.$inferSelect) {
     evidence: r.evidence || "",
     photos: r.photos || [],
     selfAssigned: !!r.selfAssigned,
+    auditId: r.auditId || "",
+    signatures: Array.isArray(r.signatures) ? r.signatures : [],
     created: createdISO ? createdISO.slice(0, 10) : "",
     createdBy: r.createdBy || "",
     createdAt: createdISO,
@@ -159,6 +161,7 @@ function toRow(r: any) {
     evidence: r.evidence || "",
     photos: Array.isArray(r.photos) ? r.photos : [],
     selfAssigned: !!r.selfAssigned,
+    auditId: (r.auditId || "").toString(),
   };
 }
 
@@ -195,6 +198,40 @@ export default async (req: Request) => {
 
     if (req.method === "POST") {
       const body = await req.json();
+      const action = (url.searchParams.get("action") || body.action || "").toString();
+
+      // ── Electronic sign-off on a signature row, by role ───────────────────
+      // Finds the matching signature row by role, stamps the signed-in user's
+      // name + title + timestamp on it, and moves the record to "Signed".
+      if (action === "sign") {
+        const id = (url.searchParams.get("id") || body.id || "").toString();
+        if (!id) return json(400, { error: "Missing record id." });
+        const role = (body.role || "").toString().trim();
+        if (!role) return json(400, { error: "Missing signature role." });
+        const [existing] = await db.select().from(records).where(eq(records.id, id));
+        if (!existing) return json(404, { error: "Record not found." });
+
+        const signatures = Array.isArray(existing.signatures) ? existing.signatures : [];
+        const signerName = (user.name || user.email || "Unknown").toString();
+        const signerTitle = ((user.userMetadata && (user.userMetadata as any).title) || "").toString().trim();
+        const stamp = new Date().toISOString();
+        const sig = signatures.find((s: any) => (s.role || "").trim().toLowerCase() === role.toLowerCase());
+        if (sig) {
+          sig.name = signerName;
+          sig.title = signerTitle;
+          sig.signedAt = stamp;
+        } else {
+          signatures.push({ role, name: signerName, title: signerTitle, signedAt: stamp });
+        }
+        const now = new Date();
+        const [updated] = await db
+          .update(records)
+          .set({ signatures, status: "Signed", modifiedBy: actor, modifiedAt: now })
+          .where(eq(records.id, id))
+          .returning();
+        await logChange(id, "signoff", `Electronic sign-off (${role}) by ${signerName}`, actor);
+        return json(200, toClient(updated));
+      }
 
       // Bulk import: { records: [...] }
       if (Array.isArray(body.records)) {
@@ -245,8 +282,9 @@ export default async (req: Request) => {
 
       const now = new Date();
       const row = toRow(body);
-      // Preserve the original site unless one is explicitly supplied.
+      // Preserve the original site / audit link unless one is explicitly supplied.
       if (!body.site) row.site = existing.site;
+      if (!body.auditId) row.auditId = existing.auditId;
 
       // Only admins may close a finding.
       if (row.status === "Closed" && existing.status !== "Closed" && !admin) {

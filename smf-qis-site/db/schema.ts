@@ -27,6 +27,12 @@ export const records = pgTable(
     evidence: text("evidence").notNull().default(""),
     photos: jsonb("photos").$type<any[]>().notNull().default([]),
     selfAssigned: boolean("self_assigned").notNull().default(false),
+    // Links a finding back to the audit session it was raised against. Used by
+    // the audits function to refuse closing a session while linked findings
+    // remain open. Empty when the record is not tied to an audit session.
+    auditId: text("audit_id").notNull().default(""),
+    // Electronic sign-offs. Each entry: { role, name, title, signedAt }.
+    signatures: jsonb("signatures").$type<any[]>().notNull().default([]),
     // Audit-trail columns.
     createdBy: text("created_by").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -35,6 +41,45 @@ export const records = pgTable(
   },
   (t) => ({
     siteIdx: index("records_site_idx").on(t.site),
+  })
+);
+
+// ── AUDIT SESSIONS (Internal Audit Program — Form SOP-22) ───────────────────
+// One row per scheduled internal-audit session. A session is created in the
+// "Scheduled" state, moves to "In Progress" when an auditor starts it (which
+// stamps start_time and started_by), and finally to "Closed" once every linked
+// NCR / CAPA finding raised against it has been closed. The per-clause working
+// state lives in the `sections` jsonb array, and electronic sign-offs live in
+// the `signatures` jsonb array (one entry per required role).
+export const auditSessions = pgTable(
+  "audit_sessions",
+  {
+    // Human-readable identifier (e.g. "AUDIT-LDN-2026-001-S1").
+    id: text("id").primaryKey(),
+    site: text("site").notNull().default("Lindon"),
+    scheduledDate: text("scheduled_date").notNull().default(""),
+    status: text("status").notNull().default("Scheduled"), // Scheduled | In Progress | Closed
+    // Stamped server-side from the signed-in identity when the session starts.
+    startTime: timestamp("start_time", { withTimezone: true }),
+    startedBy: text("started_by").notNull().default(""),
+    building: text("building").notNull().default(""),
+    facilityAddress: text("facility_address").notNull().default(""),
+    facilityName: text("facility_name").notNull().default(""),
+    clausesLabel: text("clauses_label").notNull().default(""),
+    // Per-clause working state: [{ id, title, status, notes, photos, ... }].
+    sections: jsonb("sections").$type<any[]>().notNull().default([]),
+    // Auditor's transient execution / walk-through state (current step, UI
+    // cursor, scratch values) persisted so an in-progress audit can be resumed.
+    execState: jsonb("exec_state").$type<Record<string, any>>().notNull().default({}),
+    // Electronic sign-offs. Each entry: { role, name, title, signedAt }.
+    signatures: jsonb("signatures").$type<any[]>().notNull().default([]),
+    createdBy: text("created_by").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    modifiedBy: text("modified_by").notNull().default(""),
+    modifiedAt: timestamp("modified_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    siteIdx: index("audit_sessions_site_idx").on(t.site),
   })
 );
 
@@ -66,6 +111,8 @@ export const crisisExercises = pgTable(
     lessonsLearned: jsonb("lessons_learned").$type<any[]>().notNull().default([]),
     // [{ name, title, qualifications, role, signoffAt }]
     attendees: jsonb("attendees").$type<any[]>().notNull().default([]),
+    // Electronic sign-offs. Each entry: { role, name, title, signedAt }.
+    signatures: jsonb("signatures").$type<any[]>().notNull().default([]),
     // Overall assessment.
     outcome: text("outcome").notNull().default(""),
     responseAdequate: text("response_adequate").notNull().default(""),
@@ -166,6 +213,8 @@ export const oosRecords = pgTable(
     closedDate: text("closed_date").notNull().default(""),
     // [{ key, filename, contentType, size, description, uploadedBy, uploadedAt }]
     attachments: jsonb("attachments").$type<any[]>().notNull().default([]),
+    // Electronic sign-offs. Each entry: { role, name, title, signedAt }.
+    signatures: jsonb("signatures").$type<any[]>().notNull().default([]),
     createdBy: text("created_by").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     modifiedBy: text("modified_by").notNull().default(""),
