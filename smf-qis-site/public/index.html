@@ -556,6 +556,17 @@ main{padding:24px 32px 80px;}
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;font-weight:600;color:#1F3864;padding:6px 4px;border-bottom:1px solid var(--border2);margin-bottom:4px"><input type="checkbox" id="ai-capa-all" style="accent-color:var(--accent)" onchange="aiToggleAll('capa',this.checked)"> Select All / Deselect All</label>
         <div id="ai-capa-list" style="max-height:340px;overflow-y:auto"></div>
       </div>
+      <!-- Signatories builder — assembles the ad-hoc list of people who sign the
+           report. Names suggest registered users (Netlify Identity) but accept
+           free text for external signatories. The list drives both the AI prompt
+           and the PDF signature block, and persists to localStorage. -->
+      <div class="chart-card" style="margin-bottom:12px" id="ai-signatories-card">
+        <div class="chart-title" style="margin-bottom:8px">Signatories</div>
+        <div style="font-size:11px;color:#4a5568;margin-bottom:9px">These appear in the report's signature block. Pick a registered user or type a name for an external signatory.</div>
+        <datalist id="ai-sig-names"></datalist>
+        <div id="ai-sig-rows"></div>
+        <button class="btn-ghost" style="margin-top:6px;font-size:11px;width:100%" onclick="sigBuilderAddRow()">+ Add Signatory</button>
+      </div>
       <button class="btn" style="width:100%;padding:11px;font-size:13px" onclick="generateAIReport()">&#129302; Generate with Claude</button>
     </div>
     <div class="chart-card">
@@ -580,7 +591,7 @@ main{padding:24px 32px 80px;}
     <div class="modal-title" style="color:#1F3864">My Profile</div>
     <div style="background:#DEEAF1;border:1px solid #2E75B6;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#1F3864">Your full name and title appear on every QIS report and in the audit trail in place of your email address.</div>
     <div class="form-grid">
-      <div class="form-group form-full"><label class="form-label">Full Name</label><input class="form-input" id="pf-name" type="text" placeholder="e.g. Jesse Kolstad"></div>
+      <div class="form-group form-full"><label class="form-label">Full Name</label><input class="form-input" id="pf-name" type="text" placeholder="Your full name"></div>
       <div class="form-group form-full"><label class="form-label">Title</label><input class="form-input" id="pf-title" type="text" placeholder="e.g. Director of Quality"></div>
       <div class="form-group form-full"><label class="form-label">Email</label><input class="form-input" id="pf-email" type="text" disabled style="opacity:0.65"></div>
     </div>
@@ -688,11 +699,11 @@ main{padding:24px 32px 80px;}
       </div>
       <div class="form-group">
         <label class="form-label">Lead Auditor</label>
-        <input class="form-input" id="na-lead" value="Jesse Kolstad" type="text">
+        <input class="form-input" id="na-lead" value="" placeholder="Lead auditor name" type="text">
       </div>
       <div class="form-group">
         <label class="form-label">Co-Auditor</label>
-        <input class="form-input" id="na-co" value="Jennifer Hall" type="text">
+        <input class="form-input" id="na-co" value="" placeholder="Co-auditor name (optional)" type="text">
       </div>
       <div class="form-group form-full">
         <label class="form-label">Appendix B Reference</label>
@@ -3837,7 +3848,100 @@ function onReportTypeChange(){
   if(t==="audit-report")populateAuditReportPicker();
   if(t==="sqfi-submission")populateNCRReportPicker();
   if(t==="capa-summary")populateCAPAReportPicker();
+  sigBuilderEnsureInit();
 }
+// ── SIGNATORIES BUILDER (AI Report Generator) ──────────────────────────────
+// An ad-hoc list of report signatories the user assembles before generating.
+// Each row is {name, role}. The list is fed into every AI prompt and drives the
+// PDF signature block, replacing the former hardcoded signatory names. The most
+// recently used list is persisted to localStorage (qis-last-signatories) so it
+// pre-fills on the user's next visit.
+const SIGNATORY_ROLES=["Prepared By","Reviewed By","Approved By","Quality Manager","VP Quality","VP Quality and Regulatory","Director of Quality","SQF Practitioner","Lead Auditor","Co-Auditor"];
+const SIG_LS_KEY="qis-last-signatories";
+let _sigBuilderInit=false;
+
+function sigLoadSaved(){
+  try{
+    const raw=localStorage.getItem(SIG_LS_KEY);if(!raw)return null;
+    const arr=JSON.parse(raw);
+    return Array.isArray(arr)?arr.filter(s=>s&&typeof s==="object").map(s=>({name:String(s.name||""),role:String(s.role||"")})):null;
+  }catch(e){return null;}
+}
+function sigSaveLast(list){try{localStorage.setItem(SIG_LS_KEY,JSON.stringify(list||[]));}catch(e){}}
+
+// Distinct people known to the app — the frontend-visible set of registered
+// Netlify Identity users: the signed-in user plus everyone already recorded as a
+// signatory, attendee, auditor, or initiator across the loaded data. Used to
+// populate the name datalist.
+function sigCollectKnownNames(){
+  const set=new Set();
+  const add=v=>{const s=(v==null?"":String(v)).trim();if(s&&!/^\(?pending/i.test(s)&&!/^unknown$/i.test(s))set.add(s);};
+  add(typeof currentUser!=="undefined"?currentUser:"");
+  try{(records||[]).forEach(r=>{(r.signatures||[]).forEach(s=>add(s.name));});}catch(e){}
+  try{(oosRecords||[]).forEach(o=>{(o.signatures||[]).forEach(s=>add(s.name));add(o.initiatedBy);add(o.closedBy);});}catch(e){}
+  try{(auditSessions||[]).forEach(a=>{(a.signatures||[]).forEach(s=>add(s.name));const ex=a.execState||{};add(ex._lead);add(ex._co);add(ex._auditee);});}catch(e){}
+  try{(crisisList||[]).forEach(e=>{(e.signatures||[]).forEach(s=>add(s.name));(e.attendees||[]).forEach(at=>add(at.name));add(e.facilitator);});}catch(e){}
+  try{(sigLoadSaved()||[]).forEach(s=>add(s.name));}catch(e){}
+  return Array.from(set).sort((a,b)=>a.localeCompare(b));
+}
+
+// Initialise the builder once per session — pre-fill the last-used signatories,
+// or two blank rows when none were saved.
+function sigBuilderEnsureInit(){
+  if(_sigBuilderInit)return;
+  if(!document.getElementById("ai-sig-rows"))return;
+  _sigBuilderInit=true;
+  const saved=sigLoadSaved();
+  let rows=(saved&&saved.length)?saved:[{name:"",role:""},{name:"",role:""}];
+  sigBuilderRenderRows(rows);
+}
+
+function sigBuilderReadRows(){
+  const host=document.getElementById("ai-sig-rows");if(!host)return [];
+  return Array.from(host.querySelectorAll(".ai-sig-row")).map(row=>({
+    name:(row.querySelector(".ai-sig-name")?.value||"").trim(),
+    role:(row.querySelector(".ai-sig-role")?.value||"").trim()
+  }));
+}
+
+// Signatories the user has actually filled in (a name is required).
+function getReportSignatories(){
+  return sigBuilderReadRows().filter(s=>s.name).map(s=>({name:s.name,role:s.role||"Signatory"}));
+}
+
+function sigBuilderRenderRows(rows){
+  const host=document.getElementById("ai-sig-rows");if(!host)return;
+  const names=sigCollectKnownNames();
+  const dl=document.getElementById("ai-sig-names");
+  if(dl)dl.innerHTML=names.map(n=>`<option value="${cesc(n)}"></option>`).join("");
+  host.innerHTML=rows.map((r,i)=>{
+    const opts=`<option value="">— role —</option>`+SIGNATORY_ROLES.map(role=>`<option value="${cesc(role)}"${r.role===role?" selected":""}>${cesc(role)}</option>`).join("");
+    return `<div class="ai-sig-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+      <input class="form-input ai-sig-name" list="ai-sig-names" placeholder="Signatory name" value="${cesc(r.name||"")}" style="flex:1.6;min-width:0">
+      <select class="form-select ai-sig-role" style="flex:1.3;min-width:0">${opts}</select>
+      <button class="btn-ghost ai-sig-remove" title="Remove signatory" onclick="sigBuilderRemoveRow(${i})" style="padding:5px 9px;flex:0 0 auto">&#10005;</button>
+    </div>`;
+  }).join("")||`<div style="color:#4a5568;font-size:11px">No signatories yet — click "Add Signatory".</div>`;
+}
+
+function sigBuilderAddRow(){const rows=sigBuilderReadRows();rows.push({name:"",role:""});sigBuilderRenderRows(rows);}
+function sigBuilderRemoveRow(i){const rows=sigBuilderReadRows();rows.splice(i,1);if(!rows.length)rows.push({name:"",role:""});sigBuilderRenderRows(rows);}
+function sigBuilderPersist(){sigSaveLast(sigBuilderReadRows().filter(s=>s.name||s.role));}
+
+// Directive injected into every AI report prompt so Claude renders the exact
+// signature block the user assembled — no added, removed, or altered names.
+function signatoriesPromptSection(){
+  const sigs=getReportSignatories();
+  if(!sigs.length){
+    return "## SIGNATURE BLOCK\nProvide a signature block as a table with columns Name, Role, Signature, and Date for the report's approving signatories.";
+  }
+  const list=sigs.map(s=>`- ${s.name} — ${s.role}`).join("\n");
+  return `## SIGNATURE BLOCK
+The following signatories must appear in the signature block of this report exactly as listed — do not add, remove, or change any signatory names or roles:
+${list}
+Generate the signature block at the end of the report using exactly these signatories. Render it as a table with columns Name, Role, Signature, and Date — one row per signatory listed above, leaving the Signature and Date cells blank for sign-off.`;
+}
+
 // Check/uncheck every record in a report checklist via its Select All toggle.
 function aiToggleAll(group,checked){
   document.querySelectorAll(".ai-"+group+"-check").forEach(cb=>{cb.checked=checked;});
@@ -4001,8 +4105,7 @@ ${linkedNcrs.length?linkedNcrs.map(c=>"- "+c).join("\n"):"(none)"}
 ## NEXT EXERCISE DATE
 State the next exercise date clearly: ${fld(ex.nextExerciseDate)}.
 
-## SIGNATURE BLOCK
-Provide signature lines for the Facilitator, the SQF Practitioner / Director of Quality, and each required CMT signatory listed above (show their electronic sign-off timestamp where present).
+${signatoriesPromptSection()}
 
 Close the document with the reference form's footer line exactly: "SOP #20 | Form SOP-20-EX-001 Rev 01 April 2026 | Retain minimum 2 years per SOP #02 | SOMAFINA UST — CONFIDENTIAL".
 
@@ -4115,8 +4218,7 @@ Corrective Action: ${fld(o.correctiveAction)}. Linked CAPA Record: ${o.capaId&&o
 ## DISPOSITION DECISION
 Disposition: ${fld(o.disposition)}. State the authorization basis for this disposition and reference the closure record (Closed By: ${fld(o.closedBy)}; Closed Date: ${fld(o.closedDate)}).
 
-## SIGNATURE BLOCK
-Provide signature lines (Name, Title, Signature, Date) for the Director of Quality and the VP of Quality.
+${signatoriesPromptSection()}
 
 ## APPENDICES
 List each attached file as a numbered appendix exactly as below. State that PDF appendices are appended as pages following this report and image appendices are embedded inline:
@@ -4196,8 +4298,7 @@ Render a table summarising the count of records by Disposition value across the 
 Analyse the distribution of root cause categories below and note any concentration that warrants systemic CAPA:
 ${catSummary}
 
-## SIGNATURE BLOCK
-Provide signature lines (Name, Title, Signature, Date) for the Director of Quality and the VP of Quality.
+${signatoriesPromptSection()}
 
 ${context?"ADDITIONAL CONTEXT:\n"+context+"\n":""}
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | OOS Summary per 21 CFR Part 111 & SQF Edition 9 | Living document — retain per SOP #02".`;
@@ -4206,6 +4307,8 @@ Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | OOS Summary
 
 async function generateAIReport(){
   const rptType=document.querySelector("input[name='rpt-type']:checked").value;
+  // Persist the assembled signatories so they pre-fill on the next visit.
+  sigBuilderPersist();
   const wrap=document.getElementById("ai-output-wrap");
   wrap.innerHTML='<div class="ai-thinking"><div class="dot-pulse"><span></span><span></span><span></span></div>&nbsp; Claude is generating your report...</div>';
   document.getElementById("copy-rpt-btn").style.display="none";
@@ -4324,8 +4427,7 @@ ${findingBlocks}
 ## OVERALL AUDIT STATISTICS
 Summarise the audit outcome using the statistics line above (clauses in scope, reviewed, conforming vs non-conforming, observations, findings raised and how many remain open). Overall Notes from the auditor: ${fld(ex._overall)}.
 
-## SIGNATURE BLOCK
-Provide signature lines (Name, Title, Signature, Date) for the Lead Auditor (${fld(ex._lead)}), the SQF Practitioner / Director of Quality, and the Auditee.
+${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | Internal Audit Report per SQF Edition 9 §2.5.5 | Retain minimum 2 years per SOP #02".`;
   await streamSingleReport(prompt,wrap,{type:"audit-report",auditId:a.id,site:a.site});
@@ -4376,8 +4478,7 @@ ${summaryTable}
 For each finding below, render a "### " detail block titled with the Record ID, containing labeled lines for: Clause, Clause Requirement, Observation, Root Cause Analysis, Corrective Action, Status, and Objective Evidence. Reproduce every field verbatim from the data provided; report blank/pending fields exactly as pending.
 ${blocks}
 
-## SIGNATURE BLOCK
-Provide signature lines (Name, Title, Signature, Date) for the Director of Quality and the VP of Quality.
+${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | NCR / Audit Finding Summary per SQF Edition 9 §2.5.4 | Retain minimum 2 years per SOP #02".`;
   await streamSingleReport(prompt,wrap,{type:"sqfi-submission",site:currentSite});
@@ -4421,8 +4522,7 @@ ${summaryTable}
 For each CAPA below, render a "### " detail block titled with the Record ID, containing labeled lines for: Description, Root Cause, Corrective Action, Status, Owner, Due Date, and Objective Evidence. Reproduce every field verbatim; report blank/pending fields exactly as pending.
 ${blocks}
 
-## SIGNATURE BLOCK
-Provide signature lines (Name, Title, Signature, Date) for the Director of Quality and the VP of Quality.
+${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | CAPA Status Summary per SQF Edition 9 §2.5.3 | Retain minimum 2 years per SOP #02".`;
   await streamSingleReport(prompt,wrap,{type:"capa-summary",site:currentSite});
@@ -4458,7 +4558,10 @@ async function downloadReportPDF(){
   const oosMeta=window._lastReportMeta&&(window._lastReportMeta.type==="oos-individual"||window._lastReportMeta.type==="oos-summary")?window._lastReportMeta:null;
   const isOOS=!!oosMeta;
   const isOOSIndividual=window._lastReportMeta&&window._lastReportMeta.type==="oos-individual";
-  const auditor=document.getElementById('ai-auditor')?.value||'Jesse Kolstad, Director of Quality';
+  // Cover-page "Prepared By / Lead Auditor / Facilitator" defaults to the first
+  // assembled signatory, else the signed-in user — no hardcoded names.
+  const _firstSig=getReportSignatories()[0];
+  const auditor=_firstSig?(_firstSig.name+(_firstSig.role?(', '+_firstSig.role):'')):((typeof userIdentityLabel==="function"?userIdentityLabel():"")||currentUser||'Quality Assurance');
   const auditSession=document.getElementById('ai-audit-date')?.value||'';
   const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
@@ -4659,13 +4762,18 @@ async function downloadReportPDF(){
     }
   }
 
-  // ── ELECTRONIC SIGNATURE BLOCK ────────────────────────────────────────────
-  // Append the captured electronic signatures for the record this report covers.
+  // ── SIGNATURE BLOCK ───────────────────────────────────────────────────────
+  // Primary block = the ad-hoc signatories the user assembled in the AI Report
+  // panel (replaces the former hardcoded names): name, role, signature & date.
+  y=pdfBuilderSignatureBlock(doc,getReportSignatories(),navy,white,black,margin,contentW,pageW,pageH,y+12);
+  // For reports tied to an individual record, also append the electronic
+  // signatures already captured on that record (name, title, role, timestamp,
+  // or a blank line while Pending), read straight from the record data.
   let _sigList=[];
   if(isOOSIndividual&&oosRec)_sigList=oosRec.signatures||[];
   else if(isCrisis&&typeof activeCrisis!=="undefined"&&activeCrisis)_sigList=activeCrisis.signatures||[];
   else if(!isOOS&&!isCrisis){const _raw=(typeof auditSessions!=="undefined")?auditSessions.find(x=>x.id===activeAuditId):null;_sigList=_raw?(_raw.signatures||[]):[];}
-  y=pdfSignatureBlock(doc,_sigList,navy,white,black,margin,contentW,pageW,pageH,y+12);
+  if(Array.isArray(_sigList)&&_sigList.length)y=pdfSignatureBlock(doc,_sigList,navy,white,black,margin,contentW,pageW,pageH,y+12);
 
   // ── OOS INDIVIDUAL EVENT REPORT — APPENDICES ──────────────────────────────
   // Image attachments are embedded inline on their own appendix pages; PDF
@@ -5151,6 +5259,51 @@ function pdfSignatureBlock(doc,sigList,navy,white,black,margin,contentW,pageW,pa
   });
   return y;
 }
+
+// Draw the ad-hoc signatories block assembled in the AI Report panel: one entry
+// per signatory showing the name, the role label, a signature line and a date
+// line. With more than three signatories the entries flow into a two-column grid.
+function pdfBuilderSignatureBlock(doc,sigs,navy,white,black,margin,contentW,pageW,pageH,startY){
+  let y=startY;
+  if(y>pageH-150){doc.addPage();y=50;}
+  doc.setFillColor(navy[0],navy[1],navy[2]);doc.rect(margin,y,contentW,20,'F');
+  doc.setFontSize(10.5);doc.setTextColor(white[0],white[1],white[2]);doc.setFont('helvetica','bold');
+  doc.text('SIGNATURE BLOCK',margin+8,y+14);
+  y+=34;
+  const list=Array.isArray(sigs)?sigs.filter(s=>s&&s.name):[];
+  if(!list.length){
+    doc.setFontSize(9);doc.setTextColor(120,120,140);doc.setFont('helvetica','italic');
+    doc.text('No signatories were specified for this report.',margin,y);
+    return y+16;
+  }
+  const ncol=list.length>3?2:1;            // two-column grid past three signatories
+  const gap=24;
+  const colW=(contentW-gap*(ncol-1))/ncol;
+  const lineW=ncol===1?Math.min(320,colW-6):colW-6;
+  const cellH=74;
+  const drawEntry=(s,x,yy)=>{
+    doc.setFontSize(9.5);doc.setTextColor(black[0],black[1],black[2]);doc.setFont('helvetica','bold');
+    doc.text(doc.splitTextToSize(String(s.name||'—'),lineW)[0],x,yy);
+    doc.setFontSize(8);doc.setTextColor(90,90,110);doc.setFont('helvetica','normal');
+    doc.text(doc.splitTextToSize(String(s.role||'Signatory'),lineW)[0],x,yy+12);
+    doc.setDrawColor(120,120,140);doc.setLineWidth(0.5);
+    doc.line(x,yy+32,x+lineW,yy+32);
+    doc.setFontSize(7.5);doc.setTextColor(120,120,140);doc.setFont('helvetica','normal');
+    doc.text('Signature',x,yy+41);
+    doc.line(x,yy+56,x+lineW,yy+56);
+    doc.text('Date',x,yy+65);
+  };
+  for(let i=0;i<list.length;i+=ncol){
+    if(y+cellH>pageH-46){doc.addPage();y=50;}
+    for(let c=0;c<ncol;c++){
+      const s=list[i+c];if(!s)continue;
+      drawEntry(s,margin+c*(colW+gap),y);
+    }
+    y+=cellH;
+  }
+  return y;
+}
+
 
 function renderCrisisEditor(){
   // (helper hoisted above; see pdfSignatureBlock)
@@ -5710,12 +5863,12 @@ async function deleteOOS(id){
 // (to /api/report-drafts), so a report can be resumed across sessions.
 // ════════════════════════════════════════════════════════════════════════════
 const REPORT_SIGNERS_MONTHLY=[
-  {name:"Jesse Kolstad",title:"Director of Quality"},
-  {name:"Chad Hinson",title:"VP of Quality"},
+  {name:"",title:"Director of Quality"},
+  {name:"",title:"VP of Quality"},
 ];
 const REPORT_SIGNERS_ANNUAL=[
-  {name:"Jesse Kolstad",title:"Director of Quality / SQF Practitioner"},
-  {name:"Chad Hinson",title:"VP of Quality"},
+  {name:"",title:"Director of Quality / SQF Practitioner"},
+  {name:"",title:"VP of Quality"},
   {name:"",title:"Plant Manager / Operations"},
   {name:"",title:"VP / General Manager"},
 ];
@@ -6288,7 +6441,7 @@ function annualPreviewHTML(m,d){
   return `
   <div class="rpt-section"><h3>Review Period &amp; Attendees</h3>
     <div class="rpt-note">This review covers calendar year <b>${m.period}</b> for <b>${cesc(m.siteLabel)}</b>, Somafina UST. It satisfies the SQF Edition 9 management-review input requirements.</div>
-    <div class="rpt-edit"><label>Attendees (one per line: Name, Title)</label>${_ed("attendees","Jesse Kolstad, Director of Quality\nChad Hinson, VP of Quality\n…",4)}</div>
+    <div class="rpt-edit"><label>Attendees (one per line: Name, Title)</label>${_ed("attendees","Name, Director of Quality\nName, VP of Quality\n…",4)}</div>
   </div>
   <div class="rpt-section rpt-edit"><h3>1 · Food Safety &amp; Quality Policy Review</h3>
     <label>Current Policy Statement</label>${_ed("policyStatement","Current policy statement…",4)}
@@ -6510,10 +6663,10 @@ renderUserBadge();
 let qisBooted=false;
 window.qisBoot=async function(user){
   setCurrentUser(user);
-  // Default the report "Lead Auditor / Prepared By" field to the signed-in
-  // user's full name and title (only while it still holds the shipped default).
+  // Default the optional report "Lead Auditor / Prepared By" field (if present)
+  // to the signed-in user's full name and title while it is still blank.
   const auditorEl=document.getElementById("ai-auditor");
-  if(auditorEl&&currentUserHasName&&(auditorEl.value===""||auditorEl.value==="Jesse Kolstad, Director of Quality")){
+  if(auditorEl&&currentUserHasName&&auditorEl.value===""){
     auditorEl.value=userIdentityLabel();
   }
   if(qisBooted){render();return;}
