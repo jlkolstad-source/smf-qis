@@ -310,6 +310,7 @@ main{padding:24px 32px 80px;}
         <div class="site-menu-item" onclick="globalCreate('CAPA')">CAPA</div>
         <div class="site-menu-item" onclick="globalCreate('NCR')">NCR</div>
         <div class="site-menu-item" onclick="globalCreate('AUDIT')">Audit Finding</div>
+        <div class="site-menu-item" onclick="globalCreate('AUDIT_SESSION')">Audit Session</div>
         <div class="site-menu-item" onclick="globalCreate('OOS')">OOS Event</div>
         <div class="site-menu-item" onclick="globalCreate('CRISIS')">Crisis Management Exercise</div>
       </div>
@@ -559,6 +560,7 @@ main{padding:24px 32px 80px;}
         <button class="btn-ghost" id="copy-rpt-btn" style="display:none" onclick="copyReport()">Copy</button>
         <button class="btn-ghost" id="dl-rpt-btn" style="display:none" onclick="downloadReport()">&#11015; Download .txt</button>
         <button class="btn" id="dl-pdf-btn" style="display:none" onclick="downloadReportPDF()">&#11015; Download PDF</button>
+        <button class="btn-ghost" id="send-sig-btn" style="display:none" onclick="sendForSignature()" title="Adobe Acrobat Sign integration (coming soon)">&#9997; Send for Signature</button>
       </div>
     </div>
   </div>
@@ -609,6 +611,7 @@ main{padding:24px 32px 80px;}
         <input type="hidden" id="f-photos" value="[]">
       </div>
       <div class="form-group form-full"><label class="form-label">Objective Evidence Notes</label><textarea class="form-textarea" id="f-evidence" placeholder="Record documents reviewed, what was observed, dates..."></textarea></div>
+      <div class="form-group form-full" id="sig-section-record" style="margin-top:4px"></div>
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">Cancel</button>
@@ -660,11 +663,15 @@ main{padding:24px 32px 80px;}
       </div>
       <div class="form-group">
         <label class="form-label">Facility</label>
-        <select class="form-select" id="na-facility">
-          <option value="Lindon">Lindon</option>
-          <option value="Layton">Layton</option>
-          <option value="Both">Both</option>
-        </select>
+        <select class="form-select" id="na-facility" onchange="onNaFacilityChange()"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Building Name / Number</label>
+        <input class="form-input" id="na-building" placeholder="e.g. Building C / Dock 4" type="text">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Facility Address</label>
+        <input class="form-input" id="na-address" type="text" placeholder="Pre-filled from facility">
       </div>
       <div class="form-group">
         <label class="form-label">Audit Date</label>
@@ -687,27 +694,8 @@ main{padding:24px 32px 80px;}
         <input class="form-input" id="na-appb" placeholder="e.g. Ad-hoc · Q2 2026 or Semi-Annual #1 · Session 3" type="text">
       </div>
       <div class="form-group form-full">
-        <label class="form-label">SQF Module — Select Clauses to Audit</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px" id="na-clause-options">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
-            <input type="checkbox" value="2.1-2.2" name="na-clauses" style="accent-color:#1F4E79"> §2.1 + §2.2 — Management Commitment · Document Control
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
-            <input type="checkbox" value="2.3-2.4" name="na-clauses" style="accent-color:#1F4E79"> §2.3 + §2.4 — Specifications · Food Safety / HACCP
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
-            <input type="checkbox" value="2.5-2.6" name="na-clauses" style="accent-color:#1F4E79"> §2.5 + §2.6 — Verification · Traceability / Recall
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
-            <input type="checkbox" value="2.7-2.9" name="na-clauses" style="accent-color:#1F4E79"> §2.7 + §2.8 + §2.9 — Food Defense · Allergen · Training
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:12px">
-            <input type="checkbox" value="mod17-gmp" name="na-clauses" style="accent-color:#1F4E79"> Module 17 — GMP (§17.1–17.7)
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:#FFF2CC;border:1px solid #7F6000;border-radius:4px;font-size:12px">
-            <input type="checkbox" value="full" name="na-clauses" style="accent-color:#1F4E79"> Full Module 2 + Module 17 (all clauses)
-          </label>
-        </div>
+        <label class="form-label">SQF Sections to Audit — check a module to select all of its sections, or pick individual sections</label>
+        <div id="na-section-picker" style="margin-top:4px"></div>
       </div>
       <div class="form-group form-full">
         <label class="form-label">Notes / Scope Context</label>
@@ -813,43 +801,2259 @@ const SEED_FINDINGS=[
   {type:"AUDIT",severity:"Minor",clause:"17.7.3.8",desc:"Unattended snap-off blade observed in warehouse during audit.",owner:"Warehouse",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
 ];
 
-const AUDITS=[
-  {id:"AUDIT-LDN-2026-001-S1",facility:"Lindon",clauses:"§2.1 + §2.2",desc:"Management Commitment · Document Control",appb:"Semi-Annual #1 · Q2 · Session 1",date:"2026-05-29",lead:"Jesse Kolstad",co:"Jennifer Hall",status:"Active",reportDue:"2026-06-12",execState:{}},
-  {id:"AUDIT-LAY-2026-001-S1",facility:"Layton",clauses:"§2.1 + §2.2",desc:"Management Commitment · Document Control",appb:"Semi-Annual #1 · Q2 · Session 1",date:"2026-06-05",lead:"Jesse Kolstad",co:"Jennifer Hall",status:"Scheduled",reportDue:"2026-06-19",execState:{}},
-  {id:"AUDIT-LDN-2026-001-S2",facility:"Lindon",clauses:"§2.3 + §2.4",desc:"Specifications · Food Safety System / HACCP",appb:"Semi-Annual #1 · Q2 · Session 2",date:"2026-06-12",lead:"Jesse Kolstad",co:"Jennifer Hall",status:"Scheduled",reportDue:"2026-06-26",execState:{}},
-  {id:"AUDIT-LDN-2026-002-S1",facility:"Lindon",clauses:"§2.5-2.9 + Mod.17",desc:"Verification · GMP · Full Facility",appb:"Semi-Annual #2 · Q4",date:"2026-10-15",lead:"Jesse Kolstad",co:"Jennifer Hall",status:"Scheduled",reportDue:"2026-10-29",execState:{}},
+// ── AUDIT SESSIONS (loaded from /api/audits, backed by Netlify Database) ─────
+// `auditSessions` holds the raw rows from the API. `AUDITS` is a view of the
+// same data shaped for the existing dashboard / Appendix-B / report code (which
+// reads .facility/.clauses/.date/.appb/.reportDue/.lead/.co/.execState).
+const AUDITS_API="/api/audits";
+let auditSessions=[];
+let AUDITS=[];
+
+// Each named facility maps to a fixed mailing address and a database `site`
+// (Lindon | Layton) used to scope the record/audit views. The audit creation
+// form pre-fills the address and derives the site from the chosen facility.
+const FACILITIES=[
+  {name:"Lindon",            site:"Lindon", address:"2642 W 400 N Suite 100 Lindon UT 84042"},
+  {name:"Layton Gordon Ave", site:"Layton", address:"1373 W Gordon Ave Layton UT 84041"},
+  {name:"Layton McCormick",  site:"Layton", address:"855 N McCormick Way Layton UT 84041"},
+  {name:"Layton Angel",      site:"Layton", address:"951 Angel St Layton UT 84041"},
+];
+function facilityByName(name){return FACILITIES.find(f=>f.name===name)||null;}
+
+// Map one backend audit-session row to the compatibility shape used across the
+// dashboard, Appendix B and report builders.
+function auditToCompat(a){
+  const ex=a.execState||{};
+  return Object.assign({},a,{
+    facility:a.site||"",                 // site scope (Lindon|Layton) for filters
+    facilityName:a.facilityName||a.site||"",
+    clauses:a.clausesLabel||"",
+    desc:a.clausesLabel||"",
+    date:a.scheduledDate||"",
+    appb:ex._appb||"",
+    reportDue:ex._reportDue||"",
+    lead:ex._lead||"",
+    co:ex._co||"",
+    sections:Array.isArray(a.sections)?a.sections:[],
+    execState:ex,
+  });
+}
+
+// The status shown to the auditor. "Past Due" is computed client-side when a
+// still-Scheduled session's date has passed; the stored status stays Scheduled.
+function auditDisplayStatus(a){
+  const st=a.status||"Scheduled";
+  if(st==="Scheduled"){
+    const d=a.scheduledDate||a.date;
+    if(d){const dt=new Date(d+"T23:59:59");if(!isNaN(dt)&&dt<new Date())return"Past Due";}
+    return"Scheduled";
+  }
+  return st; // In Progress | Closed
+}
+// CSS badge class + inline color for a display status.
+function auditBadge(disp){
+  switch(disp){
+    case"Scheduled":  return{cls:"badge",style:"background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6"};
+    case"Past Due":   return{cls:"badge",style:"background:#FCE4E4;color:#C00000;border:1px solid #C00000"};
+    case"In Progress":return{cls:"badge",style:"background:#FFF2CC;color:#7F6000;border:1px solid #BF9000"};
+    case"Closed":     return{cls:"badge",style:"background:#E2EFDA;color:#375623;border:1px solid #548235"};
+    default:          return{cls:"badge",style:"background:#eee;color:#444;border:1px solid #ccc"};
+  }
+}
+
+// Load the current site's audit sessions from the database and refresh the
+// dashboard view of them. Tolerant of failure so the rest of the app loads.
+async function loadAuditSessions(){
+  try{
+    const res=await fetch(AUDITS_API+"?site="+encodeURIComponent(currentSite));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    auditSessions=await res.json();
+  }catch(e){
+    auditSessions=[];
+  }
+  AUDITS=auditSessions.map(auditToCompat);
+}
+
+// ── SQF EDITION 9 CLAUSE LIBRARY (Dietary Supplements Manufacturing) ─────────
+// Full sub-sub-clause library covering Module 2 (System Elements, §2.1–§2.9)
+// and Module 17 (GMP for Dietary Supplements, §17.1–§17.8). Each section holds
+// its module, display title and ordered rows. Rows are either a {section} band
+// or a clause {id, req, evidence, mandatory}. §2.1/§2.2 retain the curated SMF
+// evidence mappings; §2.3–§17.8 are sourced from the SQF Edition 9 code text.
+const CLAUSE_LIB = {
+  "2.1": {
+    "module": "Module 2",
+    "title": "§2.1  Management Commitment",
+    "rows": [
+      {
+        "section": "§2.1  MANAGEMENT COMMITMENT"
+      },
+      {
+        "section": "§2.1.1  Management Responsibility  (ALL MANDATORY)"
+      },
+      {
+        "id": "§2.1.1.1(i-iv)",
+        "req": "Food safety and quality policy documented — all 4 commitments covered",
+        "evidence": "QM-001 §4.1-4.2",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.1.1(v-vi)",
+        "req": "Policy signed by senior manager; posted prominently; communicated to all staff",
+        "evidence": "Physical posting at Lindon; SOP #7 training records",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.1.2",
+        "req": "Senior management leads food safety culture — objectives documented, resources allocated, staff empowered",
+        "evidence": "QM-001 §4-6; SOP #30 §6",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.1.3",
+        "req": "Reporting structure documented; QC designee for regulations; job descriptions include backup coverage",
+        "evidence": "QM-001 §5 org chart; job descriptions",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.1.4",
+        "req": "SQF Practitioner designated with documented authority",
+        "evidence": "QM-001 §5.4",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.1.5",
+        "req": "SQF Practitioner: employed on site; min 2-day assessed HACCP training; qualified",
+        "evidence": "SOP #7; HACCP certification certificate",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.1.6",
+        "req": "Training needs identified, resourced, and implemented",
+        "evidence": "SOP #7 training matrix; training calendar",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.1.7",
+        "req": "Food safety system integrity maintained during organizational change",
+        "evidence": "SOP #6 (MOC); SOP #MR-001",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.1.8",
+        "req": "Blackout periods designated and submitted to CB",
+        "evidence": "Blackout period list; CB submission",
+        "mandatory": true
+      },
+      {
+        "section": "§2.1.2  Management Review  (MANDATORY)"
+      },
+      {
+        "id": "§2.1.2.1",
+        "req": "Annual SQF System review — all 6 inputs covered; within last 12 months; action items assigned",
+        "evidence": "SOP #MR-001 MR minutes (most recent)",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.2.2",
+        "req": "SQF Practitioner monthly updates to management documented",
+        "evidence": "Monthly update records",
+        "mandatory": true
+      },
+      {
+        "section": "§2.1.3  Complaint Management  (MANDATORY)"
+      },
+      {
+        "id": "§2.1.3.1",
+        "req": "Complaint procedure documented; qualified responsible person identified",
+        "evidence": "SOP #16 (Customer Complaints)",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.3.2",
+        "req": "Adverse complaint trends investigated and root cause established",
+        "evidence": "SOP #16 trend analysis; complaint log",
+        "mandatory": true
+      },
+      {
+        "id": "§2.1.3.3",
+        "req": "CAPA implemented per seriousness; records of complaints, investigations, resolutions maintained",
+        "evidence": "SOP #14 (CAPA); last 5 complaint records",
+        "mandatory": true
+      }
+    ]
+  },
+  "2.2": {
+    "module": "Module 2",
+    "title": "§2.2  Document Control and Records",
+    "rows": [
+      {
+        "section": "§2.2  DOCUMENT CONTROL AND RECORDS"
+      },
+      {
+        "section": "§2.2.1  FSMS Documentation  (MANDATORY)"
+      },
+      {
+        "id": "§2.2.1.1",
+        "req": "QMS documentation complete and available — all 8 categories present",
+        "evidence": "QM-001; SOP #2 library; HACCP-001/002; PRP-001-004",
+        "mandatory": true
+      },
+      {
+        "id": "§2.2.1.2",
+        "req": "Food safety plans updated when changes impact product safety; changes validated before implementation",
+        "evidence": "SOP #6 (MOC); HACCP-001 §9 annual reassessment",
+        "mandatory": true
+      },
+      {
+        "section": "§2.2.2  Document Control  (MANDATORY)"
+      },
+      {
+        "id": "§2.2.2.1",
+        "req": "Document control procedure implemented; current versions at point of use; staff have access",
+        "evidence": "SOP #2 §9-11; spot-check 3-5 SOPs vs ULIMS master",
+        "mandatory": true
+      },
+      {
+        "section": "§2.2.3  Records  (MANDATORY)"
+      },
+      {
+        "id": "§2.2.3.1",
+        "req": "Records retention methods, frequency, and responsibility documented",
+        "evidence": "SOP #2 §14 GMP Records Retention Schedule",
+        "mandatory": true
+      },
+      {
+        "id": "§2.2.3.2",
+        "req": "Records legible and confirmed/initialed by monitor",
+        "evidence": "SOP #4 (GDP); spot-check 3 record types",
+        "mandatory": true
+      },
+      {
+        "id": "§2.2.3.3",
+        "req": "Records accessible, retrievable, secure; electronic records backed up off-site",
+        "evidence": "SOP #2 §15; verify backup active; last backup date",
+        "mandatory": true
+      }
+    ]
+  },
+  "2.3": {
+    "module": "Module 2",
+    "title": "§2.3  Specifications, Formulations, Realization, and Supplier Approval",
+    "rows": [
+      {
+        "section": "§2.3  SPECIFICATIONS, FORMULATIONS, REALIZATION, AND SUPPLIER APPROVAL"
+      },
+      {
+        "section": "§2.3.1  Product Formulation and Realization"
+      },
+      {
+        "id": "§2.3.1.1",
+        "req": "The methods and responsibility for designing and developing new product formulations and converting product concepts to commercial realization shall be documented and implemented.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.1.2",
+        "req": "New product formulations, manufacturing processes, and the fulfillment of product requirements shall be established, validated, and verified by site trials and product testing as required to ensure: i. Product safety, regulatory limits (e.g., potency, strength, homogeneity, and purity), and claims are maintained to the end of the shelf life; ii. Manufacturing processes and instructions ensure product homogeneity, flushing sequences, special instructions, and cleanout procedures; iii. Product formulations are developed by authorized persons; iv. Shelf life studies account for pre-consumer handling and storage requirements including the establishment of “use by,” “best before dates,” or equivalent terminology; and v. Instructions for consumer preparation, where applicable, and storage and handling requirements.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.1.3",
+        "req": "A food safety plan shall be validated and verified by the site food safety team for each new product and its associated process through conversion to commercial production and distribution or where a change to ingredients, process, or packaging occurs that may impact food safety.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.1.4",
+        "req": "Product formulations and manufacturing processes for products included in the scope of certification shall be reviewed when there are changes in materials, ingredients, or equipment.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.1.5",
+        "req": "The process flows for all new and existing manufacturing processes shall be designed to ensure that product is manufactured according to approved product formulations and to prevent cross-contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.1.6",
+        "req": "Records of product design, formulations, label compliance, process flows, shelf life trials, and approvals for all new and existing products shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§2.3.2  Specifications (Raw Material, Packaging, Finished Product, and Services)"
+      },
+      {
+        "id": "§2.3.2.1",
+        "req": "The methods and responsibility for developing, managing, and approving raw material, finished product, and packaging specifications shall be documented.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.2",
+        "req": "Specifications for all raw materials and packaging, including, but not limited to, ingredients, additives, hazardous chemicals, processing aids, and packaging that impact finished product safety shall be documented and kept current.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.3",
+        "req": "All raw materials, packaging, and ingredients, including those received from other sites under the same corporate ownership, shall comply with specifications and with the relevant legislation, including licensing, in the country of manufacture and country of destination, if known. The specifications, where applicable, shall ensure that when raw materials are used according to formulation or recipe that the purity, strength, and composition of the finished product meet label declarations and regulatory requirements.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.4",
+        "req": "Raw materials, packaging, and finished products shall be validated to ensure product safety is not compromised and the material is fit for its intended purpose.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.5",
+        "req": "Site management shall require approved raw materials suppliers to notify the site of changes in product composition that could have an impact on product formulation (e.g., protein content, moisture, purity, strength, composition, amino acid profiles, contaminant levels, allergens, and/or other parameters that may be variable by season).",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.6",
+        "req": "Verification of packaging shall include certification that all packaging that comes into direct contact with dietary supplements meets either regulatory acceptance or approval criteria. Documentation shall either be in the form of a declaration of continued guarantee of compliance, a certificate of conformance, or a certificate from the applicable regulatory agency. In the absence of a certificate of conformance, certificate of analysis, or letter of guarantee, tests and analyses to confirm the absence of potential chemical migration from the packaging to the food contents shall be conducted and records maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.7",
+        "req": "Finished product labels shall be accurate, comply with the relevant legislation, and be approved by qualified company personnel.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.8",
+        "req": "Description of services for contract service providers that have an impact on product safety shall be documented, current, include a full description of the services to be provided, and detail relevant training requirements for all contract personnel.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.9",
+        "req": "Finished product specifications shall be documented, current, approved by the site and their customer, accessible to relevant staff, and shall include, where applicable: i. Microbiological, chemical, and physical limits; ii. Purity, strength, and composition supporting regulatory and quality label claims; iii. Limits or levels of possible adulterants; iv. Labeling and packaging requirements; and v. Storage conditions.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.2.10",
+        "req": "Specifications for raw materials and packaging, chemicals, processing aids, contract services, and finished products shall be reviewed as changes occur that impact product safety. Records of reviews shall be maintained. A list of all the above specifications shall be maintained and kept current.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§2.3.3  Contract Manufacturers"
+      },
+      {
+        "id": "§2.3.3.1",
+        "req": "The methods and responsibility for ensuring all agreements with contract manufacturers relating to food safety, customer product requirements, their realization, and delivery shall be documented and implemented.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.3.2",
+        "req": "The site shall establish a method to determine the food safety risk level of contract manufactured product and shall document the risk. The site shall ensure that: i. Products and processes of co-manufacturers that are considered high-risk have undergone an audit by the site or third-party agency to confirm compliance with the SQF Food Safety Code: Dietary Supplements Manufacturing and regulatory and customer requirements; ii. Products and processes of co-manufacturers that are considered low risk meet the requirements of the SQF Food Safety Code: Dietary Supplements Manufacturing, or other GFSI- benchmarked certification programs, and regulatory and customer requirements; and iii. Changes to contractual agreements are approved by both parties and communicated to relevant personnel.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.3.3",
+        "req": "Contractual agreements with third-party storage and distribution businesses shall include requirements relating to customer product requirements and compliance with clause 2.3.3.2 of the SQF Food Safety Code: Dietary Supplements Manufacturing. Contractual agreements shall be approved by both parties and communicated to relevant personnel. The site shall verify compliance with the SQF Code and ensure that customer and regulatory requirements are being met at all times.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.3.3.4",
+        "req": "Records of audits, contracts, and changes to contractual agreements and their approvals shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§2.3.4  Approved Supplier Program  (MANDATORY)"
+      },
+      {
+        "id": "§2.3.4.1",
+        "req": "The responsibility and procedure for selecting, evaluating, approving, and monitoring an approved supplier shall be documented and implemented. A current record of approved suppliers, receiving inspections, and supplier audits shall be maintained.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.3.4.2",
+        "req": "The approved supplier program shall be based on the past performance of a supplier and the risk level of the raw materials, ingredients, processing aids, packaging, and services supplied, and shall contain at a minimum: i. Agreed specifications (refer to 2.3.2); ii. Reference to the level of risk applied to raw materials, ingredients, packaging, and services from the approved supplier; iii. A summary of the food safety controls implemented by the approved supplier; iv. Methods for granting approved supplier status; v. Methods and frequency of monitoring approved suppliers; vi. Details of the certificates of conformance, if required; and vii. Methods and frequency of reviewing approved supplier performance and status.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.3.4.3",
+        "req": "Verification of raw materials shall include certificates of conformance, certificates of analysis, or sampling, and testing. The verification frequency shall be identified by the site.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.3.4.4",
+        "req": "The receipt of raw materials, ingredients, processing aids, and packaging from non- approved suppliers shall be acceptable only in an emergency situation and provided a receiving inspection or analysis is conducted and recorded before use.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.3.4.5",
+        "req": "Raw materials, ingredients, and packaging received from other sites under the same corporate ownership shall be subject to the same specification requirements (refer to 2.3.2), approved supplier requirements, and receiving inspections as all other material providers.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.3.4.6",
+        "req": "Supplier audits shall be based on risk (as determined in 2.3.4.2) and shall be conducted by individuals knowledgeable of applicable regulatory and food safety requirements and trained in auditing techniques.",
+        "evidence": "",
+        "mandatory": true
+      }
+    ]
+  },
+  "2.4": {
+    "module": "Module 2",
+    "title": "§2.4  Food Safety System",
+    "rows": [
+      {
+        "section": "§2.4  FOOD SAFETY SYSTEM"
+      },
+      {
+        "section": "§2.4.1  Dietary Supplement Legislation  (MANDATORY)"
+      },
+      {
+        "id": "§2.4.1.1",
+        "req": "The site shall ensure that, at the time of delivery to its customer, the dietary supplement supplied shall comply with the legislation that applies to the dietary supplement and its production in the country of manufacture, and the country of use or sale (if known). This includes: i. Compliance with federal or national legislative requirements applicable to maximum residue limits, food safety, packaging, product description, net weights, nutritional, allergen, and additive labeling; ii. Compliance with regulatory licensing requirements for the site and/or its suppliers and customers; iii. Labeling of identity preserved foods; iv. Purity, strength, and composition claims; and v. Any other criteria listed under dietary supplement legislation and relevant established industry codes of practice.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.1.2",
+        "req": "The methods and responsibility for ensuring the site is kept informed of changes to relevant legislation, scientific and technical developments, emerging food safety issues, and relevant industry codes of practice shall be documented and implemented.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.1.3",
+        "req": "SQFI and the certification body shall be notified in writing within twenty-four (24) hours as a result of a regulatory warning or event. Notification to SQFI shall be by email to foodsafetycrisis@sqfi.com.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.4.2  Good Manufacturing Practices  (MANDATORY)"
+      },
+      {
+        "id": "§2.4.2.1",
+        "req": "The site shall ensure the applicable Good Manufacturing Practices described in module 17 of this Food Safety Code are applied or exempted according to a written risk analysis outlining the justification for exemption or evidence of the effectiveness of alternative control measures that ensure food safety is not compromised.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.2.2",
+        "req": "The Good Manufacturing Practices applicable to the scope of certification outlining how food safety is controlled and assured shall be documented and implemented.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.4.3  Food Safety Plan  (MANDATORY)"
+      },
+      {
+        "id": "§2.4.3.1",
+        "req": "A food safety plan shall be prepared in accordance with the twelve steps identified in the Codex Alimentarius Commission HACCP guidelines. The food safety plan shall be effectively implemented and maintained and shall outline how the site controls and assures food safety of the products or product groups included in the scope of the SQF certification and their associated processes. More than one HACCP food safety plan may be required to cover all products included in the scope of certification.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.2",
+        "req": "The food safety plan or plans shall be developed and maintained by a multidisciplinary team that includes the SQF practitioner and those site personnel with technical, production, and engineering knowledge of the relevant raw materials, packaging materials, processing aids, products, and associated processes. Where the relevant expertise is not available on-site, advice may be obtained from other sources to assist the food safety team.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.3",
+        "req": "The scope of each food safety plan shall be developed and documented including the start and end points of the processes under consideration and all relevant inputs and outputs.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.4",
+        "req": "Product descriptions shall be developed and documented for all products included in the scope of the food safety plans. The descriptions shall reference the finished product specifications (refer to 2.3.2.9) plus any additional information relevant to product safety, such as pH, water activity, composition, and/or storage conditions.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.5",
+        "req": "The intended use of each product shall be determined and documented by the food safety team. This shall include target consumer groups, the potential for consumption by vulnerable groups of the population, requirements for further processing, if applicable, and potential alternative uses of the product.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.6",
+        "req": "The food safety team shall develop and document a flow diagram covering the scope of each food safety plan. The flow diagram shall include every step in the process, all raw materials, packaging materials, service inputs (e.g., water, steam, gasses as applicable), scheduled process delays, and all process outputs including waste and rework. Each flow diagram shall be confirmed by the food safety team to cover all stages and hours of operation.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.7",
+        "req": "The food safety team shall identify and document all food safety hazards that can reasonably be expected to occur at each step in the processes, including raw materials and other inputs.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.8",
+        "req": "The food safety team shall conduct a hazard analysis for every identified hazard to determine which hazards are significant, i.e., their elimination or reduction to an acceptable level is necessary to control food safety. The methodology for determining hazard significance shall be documented and used consistently to assess all potential hazards.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.9",
+        "req": "The food safety team shall determine and document the control measures that must be applied to all significant hazards. More than one control measure may be required to control an identified hazard, and more than one significant hazard may be controlled by a specific control measure.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.10",
+        "req": "Based on the results of the hazard analysis (refer to 2.4.3.8), the food safety team shall identify the steps in the process where control must be applied to eliminate a significant hazard or reduce it to an acceptable level (i.e., a critical control point or CCP). In instances where a significant hazard has been identified at a step in the process, but no control measure exists, the food safety team shall modify the process to include an appropriate control measure.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.11",
+        "req": "For each identified CCP, the food safety team shall identify and document the limits that separate safe from unsafe product (critical limits). The food safety team shall validate all of the critical limits to ensure the level of control of the identified food safety hazard (s) and that all critical limits and control measures individually or in combination effectively provide the level of control required (refer to 2.5.2.1).",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.12",
+        "req": "The food safety team shall develop and document procedures to monitor CCPs to ensure they remain within the established limits (refer to 2.4.3.11). Monitoring procedures shall identify the personnel assigned to conduct monitoring, the sampling and test methods, and the test frequency.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.13",
+        "req": "The food safety team shall develop and document deviation procedures that identify the disposition of affected product when monitoring indicates a loss of control at a CCP. The procedures shall also prescribe actions to correct the process step to prevent recurrence of the safety failure.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.14",
+        "req": "The documented and approved food safety plan(s) shall be implemented in full. The effective implementation shall be monitored by the food safety team, and a full review of the documented and implemented plans shall be conducted at least annually, or when changes to the process, equipment, inputs, or other changes affecting product safety occur.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.15",
+        "req": "Procedures shall be in place to verify that critical control points are effectively monitored, and appropriate corrective actions are applied. Implemented food safety plans shall be verified as part of SQF System verification (refer to 2.5).",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.16",
+        "req": "Critical control point monitoring, corrective action, and verification records shall be maintained and appropriately used.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.3.17",
+        "req": "Where food safety and/or dietary supplement regulations in the country of production and destination (if known) prescribe a food safety control methodology other than the Codex Alimentarius Commission HACCP guidelines, the food safety team shall implement food safety plans that meet both Codex and food regulatory requirements.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.4.4  Product Sampling, Inspection, and Analysis"
+      },
+      {
+        "id": "§2.4.4.1",
+        "req": "The methods, responsibility, and criteria for sampling, inspecting, and/or analysis shall be documented and implemented. The methods applied shall ensure: i. Inspections and analyses are completed at regular intervals as required and to agreed specification and legal requirements; ii. Inspections and/or testing are conducted to ensure raw materials, packaging, labels, work-in- progress, and finished products comply with the relevant specifications, formulation/recipes, and regulatory requirements, and are true to label; iii. Sampling and testing shall be statistically based, representative of the process/batch, and ensure production and process controls are maintained to meet specifications and formulation/recipe; and iv. Retention samples, if required by customers or regulations, are stored and maintained for the stated shelf-life of the product.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.4.2",
+        "req": "Product analyses shall be conducted to nationally recognized methods or alternative methods that are validated as equivalent to the nationally recognized methods. Where internal laboratories are used to conduct input, environmental, or product analysis, sampling and testing methods shall be in accordance with the applicable requirements of ISO/IEC 17025 and include annual proficiency testing for staff conducting analyses. External laboratories shall be accredited to ISO/IEC 17025, or an equivalent international standard, licensed or recognized by a regulatory authority if required, and included on the site’s contract service specifications list (refer 2.3.2.11).",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.4.3",
+        "req": "On-site laboratories conducting chemical and microbiological analyses that may pose a risk to product safety shall be located separate from any food processing or handling activity and designed to limit access only to authorized personnel. Signage shall be displayed identifying the laboratory area as a restricted area, accessible only by authorized personnel.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.4.4",
+        "req": "Provisions shall be made to isolate and contain all hazardous laboratory waste held on the premises and manage it separately from food waste. Laboratory waste outlets shall at a minimum be downstream of drains that service dietary supplement processing and handling areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.4.5",
+        "req": "Retention samples, if required by customers or regulations, shall be stored according to the typical storage conditions for the product and maintained for the stated shelf life of the product.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.4.6",
+        "req": "Records of all inspections and analyses shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§2.4.5  Non-conforming Materials and Product"
+      },
+      {
+        "id": "§2.4.5.1",
+        "req": "The responsibility and methods outlining how to handle non-conforming product, raw material, ingredient, work-in-progress, or packaging, which is detected during receipt, storage, processing, handling, or delivery, shall be documented and implemented. The methods applied shall ensure: i. Non-conforming product is quarantined, identified, handled, and/or disposed of in a manner that minimizes the risk of inadvertent use, improper use, or risk to the integrity of finished product; ii. Non-conforming product is reviewed for the nature of non-compliance, tested for conformance to specifications, and determination made by qualified personnel; and iii. All relevant personnel are aware of the organization’s quarantine and release requirements applicable to product placed under quarantine status.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.5.2",
+        "req": "Quarantine records and records of the handling, corrective action, or disposal of non- conforming materials or product shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.6",
+        "req": "Product Rework The responsibility and methods outlining how ingredients, packaging, or products are reworked shall be documented and implemented. The methods applied shall ensure: i. Reworking operations, including inspection, analysis, and approval for release, are overseen by qualified personnel; ii. Reworked product is clearly identified and traceable; iii. Reworked product is processed in accordance with the site’s food safety plan; iv. Each batch of reworked product, including any returned product, is inspected or analyzed as required before release; v. Inspections and analyses conform to the requirements outlined in element 2.4.4.1; vi. Release of reworked product conforms to element 2.4.7; and vii. Reworked product does not affect the safety or integrity of the finished product. Records of all reworking operations shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§2.4.7  Product Release  (MANDATORY)"
+      },
+      {
+        "id": "§2.4.7.1",
+        "req": "The methods and responsibility for releasing products shall be documented and implemented. The methods applied shall ensure the product is released: i. By authorized personnel; and ii. After all inspections and analyses are successfully completed and documented to verify legislative, process controls, formulation, and other established food safety controls have been met.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.7.2",
+        "req": "Product release shall include a procedure to confirm that product labels comply with the dietary supplement legislation that applies in the country of manufacture and the country(ies) of use or sale if known (refer to 2.4.1.1). If product is packaged and distributed in bulk or unlabeled, product information shall be made available to inform customers and/or consumers of the requirements for its safe use.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.4.7.3",
+        "req": "In the event that the site uses positive release based on product pathogen or chemical testing, a procedure shall be in place to ensure that product is not released until acceptable results have been received. In the event that off-site or contract warehouses are used, these requirements shall be effectively communicated and verified as being followed.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.4.8  Environmental Monitoring"
+      },
+      {
+        "id": "§2.4.8.1",
+        "req": "A risk-based environmental monitoring program shall be in place for all dietary supplement manufacturing processes and immediate surrounding areas, which impact manufacturing processes. The responsibility and methods for the environmental monitoring program shall be documented and implemented.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.8.2",
+        "req": "An environmental sampling and testing schedule shall be prepared. It shall at a minimum: i. Detail the applicable pathogens or indicator organisms to test for in that industry; ii. List the number of samples to be taken and the frequency of sampling; iii. Outline the locations in which samples are to be taken and the rotation of locations as needed; and iv. Describe the methods to handle elevated or undesirable results.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.4.8.3",
+        "req": "Environmental testing results shall be monitored, tracked, and trended, and preventative actions (refer to 2.5.3.1) shall be implemented where unsatisfactory results or trends are observed.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "2.5": {
+    "module": "Module 2",
+    "title": "§2.5  SQF System Verification",
+    "rows": [
+      {
+        "section": "§2.5  SQF SYSTEM VERIFICATION"
+      },
+      {
+        "section": "§2.5.1  Validation and Effectiveness  (MANDATORY)"
+      },
+      {
+        "id": "§2.5.1.1",
+        "req": "The methods, responsibility, and criteria for ensuring the effectiveness of all applicable elements of the SQF Program shall be documented and implemented. The methods applied shall ensure that: i. Good Manufacturing Practices are confirmed to ensure they achieve the required results; ii. Critical food safety limits are reviewed annually and re-validated or justified by regulatory standards when changes occur; and iii. Changes to the processes or procedures are assessed to ensure the controls are still effective. Records of all validation activities shall be maintained.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.5.2  Verification Activities  (MANDATORY)"
+      },
+      {
+        "id": "§2.5.2.1",
+        "req": "The methods, responsibility, and criteria for verifying monitoring of Good Manufacturing Practices, critical control points, process controls, formulations/recipes, other food safety controls, and the legality of certified products shall be documented and implemented. The methods applied shall ensure that personnel with responsibility for verifying monitoring activities authorize each verified record.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.5.2.2",
+        "req": "A schedule outlining the verification activities, their frequency of completion, and the person responsible for each activity shall be prepared and implemented. Records of verification of activities shall be maintained.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.5.3  Corrective and Preventative Action  (MANDATORY)"
+      },
+      {
+        "id": "§2.5.3.1",
+        "req": "The responsibility and methods outlining how corrective and preventative actions are determined, implemented, and verified, including the identification of the root cause and resolution of non-compliance of critical food safety limits and deviations from food safety requirements, shall be documented and implemented. Deviations from food safety requirements may include customer complaints, non- conformances raised at internal or external audits and inspections, non-conforming product and equipment, withdrawals and recalls, as appropriate.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.5.3.2",
+        "req": "Records of all investigation, root cause analysis, and resolution of non-conformities, their corrections, and the implementation of preventative actions shall be maintained.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.5.4  Internal Audits and Inspections  (MANDATORY)"
+      },
+      {
+        "id": "§2.5.4.1",
+        "req": "The methods and responsibility for scheduling and conducting internal audits to verify the effectiveness of the SQF System shall be documented and implemented. Internal audits shall be conducted in full and at least annually. The methods applied shall ensure: i. All applicable requirements of the SQF Food Safety Code: Dietary Supplements Manufacturing are audited per the SQF audit checklist or a similar tool; ii. Objective evidence is recorded to verify compliance and/or non-compliance; iii. Corrective and preventative actions of deficiencies identified during the internal audits are undertaken; and iv. Audit results are communicated to relevant management personnel and staff responsible for implementing and verifying corrective and preventative actions.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.5.4.2",
+        "req": "Staff conducting internal audits shall be trained and competent in internal audit procedures. Where practical, staff conducting internal audits shall be independent of the function being audited.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.5.4.3",
+        "req": "Regular inspections of the site and equipment shall be planned and carried out to verify Good Manufacturing Practices and facility and equipment maintenance are compliant to the SQF Food Safety Code: Dietary Supplements Manufacturing. The site shall: i. Take corrections or corrective and preventative action; and ii. Maintain records of inspections and any corrective actions taken.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.5.4.4",
+        "req": "Records of internal audits and inspections and any corrective and preventative actions taken as a result of internal audits shall be recorded as per 2.5.3. Changes implemented from internal audits that have an impact on the site’s ability to deliver safe dietary supplements shall require a review of applicable aspects of the SQF System (refer to 2.3.1.3).",
+        "evidence": "",
+        "mandatory": true
+      }
+    ]
+  },
+  "2.6": {
+    "module": "Module 2",
+    "title": "§2.6  Product Traceability and Crisis Management",
+    "rows": [
+      {
+        "section": "§2.6  PRODUCT TRACEABILITY AND CRISIS MANAGEMENT"
+      },
+      {
+        "section": "§2.6.1  Product Identification  (MANDATORY)"
+      },
+      {
+        "id": "§2.6.1.1",
+        "req": "The methods and responsibility for identifying raw materials, ingredients, packaging, work-in-progress, process inputs, and finished products during all stages of production and storage shall be documented and implemented to ensure: i. Raw materials, ingredients, packaging, work-in progress, process inputs, and finished products are clearly identified during all stages of receipt, production, storage, and dispatch, and are traceable to production batches, formulation/recipes, or lots; and ii. Finished product is labelled and packaged to the customer specification and/or regulatory requirements.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.6.1.2",
+        "req": "Product start-up, product changeover, and packaging changeover (including labels) procedures during packing shall be documented and implemented. Procedures shall ensure that: i. The correct product is in the correct package and with the correct label; ii. The changeover is inspected and approved by an authorized person; and iii. Label use is reconciled and any inconsistencies investigated and resolved. Product changeover and label reconciliation records shall be maintained.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.6.2  Product Trace  (MANDATORY)"
+      },
+      {
+        "id": "§2.6.2.1",
+        "req": "The responsibility and methods used to trace product shall be documented and implemented to ensure: i. Finished product is traceable at least one step forward to the customer and at least one step back from the process to the manufacturing supplier; ii. The receipt dates of raw materials, ingredients, food contact packaging and materials, and other inputs are recorded (refer to 2.8.1.8 for traceback of allergen containing food products); iii. Traceability is maintained where product is reworked (refer to 2.4.6); and iv. The effectiveness of the product trace system is reviewed at least annually as part of the product recall and withdrawal review (refer to 2.6.3.2). Records of raw and packaging material receipt and use and finished product dispatch and destination shall be maintained.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.6.3  Product Withdrawal and Recall  (MANDATORY)"
+      },
+      {
+        "id": "§2.6.3.1",
+        "req": "The responsibility and methods used to withdraw or recall product shall be documented and implemented. The procedure shall: i. Identify those responsible for initiating, managing, and investigating a product withdrawal or recall; ii. Describe the management procedures to be implemented, including sources of legal, regulatory, and expert advice, and essential traceability information; iii. Outline a communication plan to inform site personnel, customers, consumers, authorities, and other essential bodies in a timely manner appropriate to the nature of the incident; and iv. Ensure that SQFI, the certification body, and the appropriate regulatory authority are listed as essential organizations and notified in instances of a food safety incident of a public nature or product recall for any reason.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.6.3.2",
+        "req": "The product withdrawal and recall system shall be reviewed, tested, and verified as effective at least annually. Testing shall include incoming materials (minimum traceability one step back) and finished product (minimum traceability one step forward). Testing shall be carried out on products from different shifts and for materials (including bulk materials) that are used across a range of products and/or products that are shipped to a wide range of customers.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.6.3.3",
+        "req": "Records shall be maintained of withdrawal and recall tests, root cause investigations into actual withdrawals and recalls, and corrective and preventative actions applied.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.6.3.4",
+        "req": "SQFI and the certification body shall be notified in writing within twenty-four (24) hours upon identification of a food safety event that requires public notification. SQFI shall be notified at foodsafetycrisis@sqfi.com.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.6.4  Crisis Management Planning"
+      },
+      {
+        "id": "§2.6.4.1",
+        "req": "A crisis management plan based on the understanding of known potential dangers (e.g., flood, drought, fire, tsunami, or other severe weather events, warfare or civil unrest, computer outage, pandemic, loss of electricity or refrigeration, ammonia leak, labor strike) that can impact the site’s ability to deliver safe dietary supplements shall be documented by senior management, outlining the methods and responsibility the site shall implement to cope with such a business crisis. The crisis management plan shall include at a minimum: i. A senior manager responsible for decision making, oversight, and initiating actions arising from a crisis management incident; ii. The nomination and training of a crisis management team; iii. The controls implemented to ensure any responses do not compromise product safety; iv. The measures to isolate and identify product affected by a response to a crisis; v. The measures taken to verify the acceptability of food prior to release; vi. The preparation and maintenance of a current crisis alert contact list, including supply chain customers; vii. Sources of legal and expert advice; and viii. The responsibility for internal communications and communicating with authorities, external organizations, and media.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.6.4.2",
+        "req": "The crisis management plan shall be reviewed, tested, and verified at least annually with gaps and appropriate corrective actions documented. Records of reviews of the crisis management plan shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "2.7": {
+    "module": "Module 2",
+    "title": "§2.7  Food Defense and Food Fraud",
+    "rows": [
+      {
+        "section": "§2.7  FOOD DEFENSE AND FOOD FRAUD"
+      },
+      {
+        "section": "§2.7.1  Food Defense Plan  (MANDATORY)"
+      },
+      {
+        "id": "§2.7.1.1",
+        "req": "A food defense threat assessment shall be conducted to identify potential threats that can be caused by a deliberate act of sabotage or terrorist-like incident.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.7.1.2",
+        "req": "A food defense plan shall be documented, implemented, and maintained based on the threat assessment (refer to 2.7.1.1). The food defense plan shall meet legislative requirements as applicable and shall include at a minimum: i. The methods, responsibility, and criteria for preventing dietary supplement adulteration caused by a deliberate act of sabotage or terrorist-like incident; ii. The name of the senior site management person responsible for food defense; iii. The methods implemented to ensure only authorized personnel have access to production equipment and vehicles, manufacturing, and storage areas through designated access points; iv. The methods implemented to protect sensitive processing points from intentional adulteration Sites requiring licensing under regulations shall meet regulatory requirements for security; v. The measures taken to ensure the secure receipt and storage of raw materials, ingredients, packaging, equipment, and hazardous chemicals to protect them from deliberate acts of sabotage or terrorist-like incidents; vi. The measures implemented to ensure raw materials, ingredients, packaging (including labels), work-in-progress, process inputs, and finished products are held under secure storage and transportation conditions; and vii. The methods implemented to record and control access to the premises by site personnel, contractors, and visitors.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.7.1.3",
+        "req": "Instruction shall be provided to all relevant staff on the effective implementation of the food defense plan (refer to 2.9.2.1).",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.7.1.4",
+        "req": "The food defense threat assessment and prevention plan shall be reviewed and tested at least annually or when the threat level, as defined in the threat assessment, changes. Records of reviews and tests of the food defense plan shall be maintained.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "section": "§2.7.2  Food Fraud  (MANDATORY)"
+      },
+      {
+        "id": "§2.7.2.1",
+        "req": "The methods, responsibility, and criteria for identifying the site’s vulnerability to food fraud, including susceptibility to raw material or ingredient substitution, finished product mislabeling, dilution, or counterfeiting, shall be documented, implemented, and maintained.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.7.2.2",
+        "req": "A food fraud mitigation plan shall be developed and implemented, that specifies the methods by which the identified food fraud vulnerabilities shall be controlled, including identified food safety vulnerabilities of ingredients and materials.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.7.2.3",
+        "req": "Instruction shall be provided to all relevant staff on the effective implementation of the food fraud mitigation plan (refer to 2.9.2.1).",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.7.2.4",
+        "req": "The food fraud vulnerability assessment and mitigation plan shall be reviewed and verified at least annually with gaps and corrective actions documented. Records of reviews shall be maintained.",
+        "evidence": "",
+        "mandatory": true
+      }
+    ]
+  },
+  "2.8": {
+    "module": "Module 2",
+    "title": "§2.8  Allergen Management",
+    "rows": [
+      {
+        "section": "§2.8  ALLERGEN MANAGEMENT"
+      },
+      {
+        "section": "§2.8.1  Allergen Management  (MANDATORY)"
+      },
+      {
+        "id": "§2.8.1.1",
+        "req": "The responsibility and methods used to control allergens and to prevent sources of allergens from contaminating product shall be documented and implemented. The allergen management program shall include: i. A risk analysis of those raw materials, ingredients, and processing aids, including food grade lubricants, that contain food allergens; ii. An assessment of workplace-related food allergens that may originate from locker rooms, vending machines, lunchrooms, and visitors; iii. A list of allergens that is applicable in the country of manufacture and the country(ies) of destination, if known; iv. A list of allergens that is accessible to relevant staff; v. The control of hazards associated with allergens and incorporated into the food safety plan, and vi. Management plans for control of the identified allergens.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.2",
+        "req": "Instructions shall be provided to all relevant staff involved in the receipt or handling of raw materials, work-in-progress, rework, or finished product on how to identify, handle, store, and segregate raw materials and products containing allergens.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.3",
+        "req": "Provisions shall be made to clearly identify and segregate dietary supplements that contain allergens. Segregation procedures shall be implemented and continually monitored.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.4",
+        "req": "Where allergenic material may be intentionally or unintentionally present, cleaning and sanitation of product contact surfaces between line changeovers shall be effective, appropriate to the risk and legal requirements, and sufficient to remove all potential target allergens from product contact surfaces, including aerosols as appropriate, to prevent cross-contact. Separate handling and production equipment shall be provided, where satisfactory line hygiene and clean-up or segregation are not possible.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.5",
+        "req": "Based on risk assessment, procedures for validation and verification of the effectiveness of the cleaning and sanitation of areas and equipment in which allergens are used shall be documented and effectively implemented.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.6",
+        "req": "Where allergenic material may be present, product changeover procedures shall be documented and implemented to eliminate the risk of cross-contact.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.7",
+        "req": "The product identification system (refer to 2.6.1.1) shall make provision for clear identification and labeling, in accordance with the regulatory requirements, of those products produced on production lines and equipment on which dietary supplements containing allergens are manufactured.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.8",
+        "req": "The product trace system (refer to 2.6.2) shall take into consideration the conditions under which allergen- containing dietary supplements are manufactured and ensure full traceback of all ingredients and processing aids used.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.9",
+        "req": "The site shall document and implement methods to control the accuracy of finished product labels (or consumer information where applicable) and assure work-in- progress and finished product are true to label with regard to allergens. Measures may include label approvals at receipt, label reconciliations during production, destruction of obsolete labels, verification of labels on finished product as appropriate, and product changeover procedures.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.10",
+        "req": "Re-working of product (refer to 2.4.6) containing food allergens shall be conducted under conditions that ensure product safety and integrity are maintained. Re-worked product containing allergens shall be clearly identified and traceable.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.8.1.11",
+        "req": "Sites that do not handle allergenic materials or produce allergenic products shall document, implement, and maintain an allergen management program addressing at a minimum the mitigation of introduced or unintended allergens through supplier, contract manufacturer, site personnel, and visitor activities.",
+        "evidence": "",
+        "mandatory": true
+      }
+    ]
+  },
+  "2.9": {
+    "module": "Module 2",
+    "title": "§2.9  Training",
+    "rows": [
+      {
+        "section": "§2.9  TRAINING"
+      },
+      {
+        "section": "§2.9.1  Training Requirements"
+      },
+      {
+        "id": "§2.9.1.1",
+        "req": "The responsibility for establishing and implementing the training needs of the organization’s personnel to ensure they have the required competencies to carry out those functions affecting products, legality, and safety shall be defined and documented (refer to 2.1.1.6).",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§2.9.1.2",
+        "req": "Appropriate training shall be provided for personnel carrying out the tasks essential to the effective implementation of the SQF System and the maintenance of food safety and regulatory requirements.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§2.9.2  Training Program  (MANDATORY)"
+      },
+      {
+        "id": "§2.9.2.1",
+        "req": "A training program shall be documented and implemented that outlines the necessary competencies for specific duties and the training methods to be applied for personnel carrying our task associated with food safety. The training program shall include at a minimum: i. Implementing HACCP for personnel involved in developing and maintaining food safety plans; ii. Monitoring and corrective action procedures for all personnel engaged in monitoring critical control points (CCPs); iii. Personal hygiene for all personnel involved in handling dietary supplement products and food contact surfaces; iv. Good Manufacturing Practices and work instructions for all personnel engaged in dietary supplement handling, processes, and equipment; v. Sampling and test methods for all personnel involved in sampling and testing of raw materials, packaging, work-in-progress, and finished products; vi. Environmental monitoring for relevant personnel; vii. Allergen management, food defense, and food fraud for all relevant personnel; and viii. Tasks identified as critical to meeting effective implementation and maintenance of the SQF Code. The training program shall include provision for identifying and implementing the refresher training needs of the organization.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.9.2.2",
+        "req": "Training materials, the delivery of training, and procedures on all tasks critical to meeting regulatory compliance and the maintenance of food safety shall be provided in language(s) understood by staff.",
+        "evidence": "",
+        "mandatory": true
+      },
+      {
+        "id": "§2.9.2.3",
+        "req": "Training records shall be maintained and include: i. Participant name; ii. Skills description; iii. Description of the training provided; iv. Date training completed; v. Trainer or training provider; and vi. Verification that the trainee is competent to complete the required tasks.",
+        "evidence": "",
+        "mandatory": true
+      }
+    ]
+  },
+  "17.1": {
+    "module": "Module 17",
+    "title": "§17.1  Site Location and Premises",
+    "rows": [
+      {
+        "section": "§17.1  SITE LOCATION AND PREMISES"
+      },
+      {
+        "section": "§17.1.1  Premises Location and Approval"
+      },
+      {
+        "id": "§17.1.1.1",
+        "req": "The site shall assess local activities and the site environment to identify any risks that may have an adverse impact on product safety and implement controls for any identified risks. The assessment shall be reviewed in response to any changes in the local environment or activities. The construction and ongoing operation of the premises on the site shall be approved by the relevant authority.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.1.2  Building Materials"
+      },
+      {
+        "id": "§17.1.2.1",
+        "req": "Floors shall be constructed of smooth, dense, impact-resistant material that can be effectively graded, drained, impervious to liquid, and easily cleaned. Floors shall be sloped to floor drains at gradients suitable to allow the effective removal of all overflow or wastewater under normal working conditions. Where floor drainage is not available, plumbed options to handle overflow or wastewater shall be in place.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.2.2",
+        "req": "Drains shall be constructed and located so they can be easily cleaned and not present a hazard.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.2.3",
+        "req": "Waste trap system shall be located away from any dietary supplement handling areas or entrances to the premises.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.2.4",
+        "req": "Walls, partitions, ceilings, and doors shall be of durable construction. Internal surfaces shall have an even and regular surface and be impervious with a light-colored finish and shall be kept clean (refer to 17.2.5). Wall-to-wall and wall-to-floor junctions shall be designed to be easily cleaned and sealed to prevent the accumulation of food debris.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.2.5",
+        "req": "Ducting, conduit, and pipes that convey ingredients, products, or services such as steam or water, shall be designed and constructed to prevent the contamination of dietary supplements, ingredients, and food contact surfaces and allow ease of cleaning. A risk analysis shall be conducted to ensure product contamination risks are mitigated.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.2.6",
+        "req": "Pipes carrying sanitary waste or wastewater that are located directly over product lines or storage areas shall be designed and constructed to prevent the contamination of dietary supplements, materials, ingredients, and product contact surfaces and shall allow ease of cleaning. A risk analysis shall be conducted to ensure product contamination risks are mitigated.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.2.7",
+        "req": "Doors, hatches, and windows and their frames in product processing, handling, or storage areas shall be of a material and construction that meets the same functional requirements as for internal walls and partitions. Doors and hatches shall be of solid construction, and windows shall be made of shatterproof glass or similar material.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.2.8",
+        "req": "Product shall be processed and handled in areas that are fitted with a ceiling or other acceptable structure that is constructed and maintained to prevent the contamination of products. Drop ceilings, where present, shall be constructed to enable monitoring for pest activity, facilitate cleaning, and provide access to utilities.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.2.9",
+        "req": "Stairs, catwalks, and platforms in product processing and handling areas shall be designed and constructed so they do not present a product contamination risk and with no open grates directly above exposed food product surfaces. They shall be kept clean (refer to 17.2.5).",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.1.3  Lighting and Light Fittings"
+      },
+      {
+        "id": "§17.1.3.1",
+        "req": "Lighting in product processing and handling areas and at inspection stations shall be of appropriate intensity to enable the staff to carry out their tasks efficiently and effectively and shall comply with local light intensity regulations or industry standards.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.3.2",
+        "req": "Light fixtures in processing areas, inspection stations, ingredient and packaging storage areas, and all areas where the product is exposed shall be shatterproof, manufactured with a shatterproof covering or fitted with protective covers, and recessed into or fitted flush with the ceiling. Where fixtures cannot be recessed, structures must be protected from accidental breakage, manufactured from cleanable materials, and addressed in the cleaning and sanitation program.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.3.3",
+        "req": "Light fixtures in the warehouse or other areas where product is covered or otherwise protected shall be designed to prevent breakage and product contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.1.4  Inspection/Quality Control Area"
+      },
+      {
+        "id": "§17.1.4.1",
+        "req": "If online inspection is required, a suitable area close to the processing line shall be provided for the inspection of product (refer to 2.4.4). The inspection/quality control area shall be provided with facilities that are suitable for examination and testing of the type of product being handled/processed. The inspection area shall: i. Have easy access to handwashing facilities; ii. Have appropriate waste handling and removal; and iii. Be kept clean to prevent product contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.1.5  Dust, Insect, and Pest Proofing"
+      },
+      {
+        "id": "§17.1.5.1",
+        "req": "All external windows, ventilation openings, doors, and other openings shall be effectively sealed when closed and proofed against dust, vermin, and other pests. External personnel access doors shall be effectively insect-proofed and fitted with a self-closing device and proper seals to protect against entry of dust, vermin, and other pests.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.5.2",
+        "req": "External doors, including overhead dock doors in product handling areas used for product, pedestrian, or truck access, shall be designed and maintained to prevent pest ingress by at least one or a combination of the following methods: i. A self-closing device; ii. An effective air curtain; iii. A pest-proof screen; iv. A pest-proof annex; and v. Adequate sealing around trucks in docking areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.5.3",
+        "req": "Electric insect control devices, pheromone, or other traps and baits shall be located and operated so they do not present a contamination risk to the product, packaging, containers, or processing equipment. Poison rodenticide bait shall not be used inside ingredients or product storage areas or processing areas where ingredients, packaging, and products are handled, processed, or exposed.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.1.6  Ventilation"
+      },
+      {
+        "id": "§17.1.6.1",
+        "req": "Adequate ventilation shall be provided in enclosed processing and product handling areas. Where appropriate, positive air-pressure systems shall be installed to prevent airborne contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.6.2",
+        "req": "All ventilation equipment and devices in product storage and handling areas shall be adequately cleaned as per 17.2.5 to prevent unsanitary conditions.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.6.3",
+        "req": "Extractor fans and canopies shall be provided in areas where open cooking operations are carried out or a large amount of steam is generated. Capture velocities shall be sufficient to prevent condensation build-up and to evacuate all heat, fumes, and other aerosols to the exterior via an exhaust hood positioned over the cooker(s).",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.6.4",
+        "req": "Fans and exhaust vents shall be insect-proofed and located so they do not pose a contamination risk and be kept clean.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.1.7  Equipment and Utensils"
+      },
+      {
+        "id": "§17.1.7.1",
+        "req": "Specifications for equipment and utensils and procedures for purchasing equipment shall be documented and implemented. The specifications shall ensure that the equipment can consistently produce product that meets specifications and is capable of operating satisfactorily within the operating limits required by the process.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.7.2",
+        "req": "Equipment and utensils shall be designed, constructed, installed, operated, and maintained to meet any applicable regulatory requirements and so as not to pose a contamination threat to products. Equipment shall include those used in automated, mechanical, or electronic systems.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.7.3",
+        "req": "Equipment storage rooms shall be designed and constructed to allow for the hygienic and efficient storage of equipment and containers. Where possible, product contact equipment shall be segregated from non-contact equipment.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.7.4",
+        "req": "Product contact surfaces and those surfaces not in direct contact with dietary supplements in product handling areas, raw material storage, packaging material storage, and cold storage areas shall be constructed of materials that will not contribute to a food safety risk.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.7.5",
+        "req": "Benches, tables, conveyors, mixers, mincers, graders, and other mechanical processing equipment shall be hygienically designed and located for appropriate cleaning. Equipment surfaces shall be smooth, impervious, and free from cracks or crevices.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.7.6",
+        "req": "Product containers, tubs, and bins used for edible and inedible material shall be constructed of materials that are non-toxic, smooth, impervious, and readily cleaned as per 17.2.5.1. Bins used for inedible material shall be clearly identified.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.7.7",
+        "req": "All equipment and utensils shall be cleaned after use (refer to 17.2.5.1) or at a set and validated frequency to control contamination, and be stored in a clean and serviceable condition to prevent microbiological or cross-contact allergen contamination. Single-service articles (e.g., utensils intended for one-time use, paper cups, and paper towels) shall be stored in appropriate containers and handled, dispensed, used, and disposed of in a manner that protects against contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.7.8",
+        "req": "Vehicles used in product contact, handling, or processing zones or cold storage rooms shall be designed and operated so as not to present a food safety hazard.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.7.9",
+        "req": "Non-conforming equipment shall be identified, tagged, and/or segregated for repair or disposal in a manner that minimizes the risk of inadvertent use, improper use, or risk to the integrity of finished product. Records of the handling, corrective action, and/or disposal of non-conforming equipment shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.1.8  Grounds and Roadways"
+      },
+      {
+        "id": "§17.1.8.1",
+        "req": "A suitable external environment shall be established, and the effectiveness of the measures shall be monitored and periodically reviewed. The premises, its surrounding areas, storage facilities, machinery, and equipment shall be kept free of waste or accumulated debris, and vegetation shall be controlled so as not to attract pests and vermin or present a food safety hazard to the sanitary operation of the site.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.8.2",
+        "req": "Paths, roadways, and loading and unloading areas shall be maintained so as not to present a hazard to the food safety operations of the premises. They shall be adequately drained to prevent the pooling of water. Drains shall be separate from the site drainage system and regularly cleared of debris.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.1.8.3",
+        "req": "Paths from amenities leading to site entrances shall be effectively sealed.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "17.2": {
+    "module": "Module 17",
+    "title": "§17.2  Site Operation",
+    "rows": [
+      {
+        "section": "§17.2  SITE OPERATION"
+      },
+      {
+        "section": "§17.2.1  Repairs and Maintenance"
+      },
+      {
+        "id": "§17.2.1.1",
+        "req": "The methods and responsibility for the maintenance and repair of plant, equipment, and buildings shall be documented, planned, and implemented in a manner that minimizes the risk of product, packaging, or equipment contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.1.2",
+        "req": "Routine maintenance of plant and equipment in any dietary supplement processing, handling, or storage areas shall be performed according to a maintenance control schedule and recorded. The maintenance schedule shall be prepared to include buildings, equipment, and other areas of the premises critical to the maintenance of product safety.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.1.3",
+        "req": "Failures of plant and equipment in any dietary supplement processing, handling, or storage areas shall be documented and reviewed and their repair(s) incorporated into the maintenance control schedule.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.1.4",
+        "req": "Site supervisors shall be notified when maintenance or repairs are to be undertaken in any processing, handling, or storage areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.1.5",
+        "req": "The maintenance supervisor and the site supervisor shall be informed if any repairs or maintenance activities pose a potential threat to product safety (e.g., pieces of electrical wire, damaged light fittings, and loose overhead fittings). When possible, maintenance is to be conducted outside operating times.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.1.6",
+        "req": "Temporary repairs, where required, shall not pose a food safety risk and shall be included in routine inspections (refer to 2.5.4.3) and the cleaning program. There shall be a plan in place to address the completion of temporary repairs to ensure they do not become permanent solutions.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.1.7",
+        "req": "Product contact equipment and equipment located over product contact equipment shall be lubricated with food-grade lubricant, and its use shall be controlled to minimize the contamination of the product.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.1.8",
+        "req": "Paint used in a dietary supplement handling or processing area shall be suitable for use, in good condition, and not be used on any product contact surfaces.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.2.2  Maintenance Staff and Contractors"
+      },
+      {
+        "id": "§17.2.2.1",
+        "req": "Maintenance staff and contractors shall comply with the site’s personnel and process hygiene requirements (refer to 17.3).",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.2.2",
+        "req": "All maintenance and other engineering contractors required to work on-site shall be trained in the site’s food safety and hygiene procedures or shall be escorted at all times until their work is completed.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.2.3",
+        "req": "Maintenance staff and contractors shall remove all tools and debris from any maintenance activity once it has been completed, and inform the area supervisor and maintenance supervisor, so appropriate hygiene and sanitation can be conducted and a pre-operational inspection completed prior to restarting site operations.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.2.3  Calibration"
+      },
+      {
+        "id": "§17.2.3.1",
+        "req": "The methods and responsibility for calibration and re-calibration of measuring, test and inspection equipment used for monitoring activities outlined in pre-requisite program, food safety plans and other process controls, or to demonstrate compliance with customer specifications shall be documented and implemented. It shall ensure: i. Equipment is adequate in number for the designated uses; ii. Instruments or controls are repaired or replaced when they cannot be adjusted to agree with the reference standard; and iii. Appropriate controls for automated, mechanical, and electronic equipment (including software for a computer-controlled process) are validated as functioning for their intended use by authorized personnel.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.3.2",
+        "req": "Equipment shall be calibrated against national or international reference standards and methods or to an accuracy appropriate to its use. In cases where standards are not available, the site shall provide evidence to support the calibration reference method applied.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.3.3",
+        "req": "Calibration shall be performed: i. According to regulatory requirements and/or the equipment manufacturer’s recommended schedule; ii. Before first use; and iii. At routine intervals or as otherwise necessary to ensure the accuracy, precision, and control of the instrument.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.3.4",
+        "req": "Procedures shall be documented and implemented to address the resolution of potentially affected products when measuring, test, or inspection equipment is found to be out of calibration.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.3.5",
+        "req": "Calibrated measuring, testing, and inspection equipment shall be protected from damage and unauthorized adjustment or use.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.3.6",
+        "req": "A directory of measuring, test, and inspection equipment that require calibration and records of the calibration tests shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.2.4  Pest Prevention"
+      },
+      {
+        "id": "§17.2.4.1",
+        "req": "A documented pest prevention program shall be effectively implemented. It shall: i. Describe the methods and responsibility for the development, implementation, and maintenance of the pest prevention program; ii. Record pest sightings and trend the frequency of pest activity to target pesticide applications; iii. Outline the methods used to prevent pest problems; iv. Outline the pest elimination methods and the appropriate documentation for each inspection; v. Outline the frequency with which pest status is to be checked; vi. Include the identification, location, number, and type of applied pest control/monitoring devices on a site map; vii. List the chemicals used. The chemicals are required to be approved by the relevant authority, and their Safety Data Sheets (SDS) made available; viii. Outline the methods used to make staff aware of the bait control program and the measures to take when they come into contact with a bait station; ix. Outline the requirements for staff awareness and training in the use of pest and vermin control chemicals and baits; and x. Measure the effectiveness of the program to verify the elimination of applicable pests and to identify trends.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.4.2",
+        "req": "Pest contractors and/or internal pest controllers shall: i. Be licensed and approved by the local relevant authority; ii. Use only trained and qualified operators, who comply with regulatory requirements; iii. Use only approved chemicals; iv. Provide a pest prevention plan (refer to 2.3.2.8) that includes a site map, indicating the location of bait stations traps, and other applicable pest control/monitoring devices; v. Report to a responsible authorized person on entering the premises and after the completion of inspections or treatments; vi. Provide regular inspections for pest activity with appropriate action taken if pests are present, and vii. Provide a written report of their findings and the inspections and treatments applied.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.4.3",
+        "req": "Pest activity risks shall be analyzed and recorded. Inspections for pest activity shall be conducted on a regular basis by trained site personnel and the appropriate action taken if pests are present. Identified pest activity shall not present a risk of contamination to dietary supplement products, raw materials, or packaging. Records of all pest control inspections and applications shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.4.4",
+        "req": "Dietary supplement products, raw materials, or packaging that are found to be contaminated by pest activity shall be effectively disposed of, and the source of pest infestation shall be investigated and resolved. Records shall be kept of the disposal, investigation, and resolution.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.4.5",
+        "req": "Pesticides shall be clearly labeled and stored per 17.6.4 if kept on-site.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.4.6",
+        "req": "No domestic animals shall be permitted on-site in product handling or storage areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.2.5  Cleaning and Sanitation"
+      },
+      {
+        "id": "§17.2.5.1",
+        "req": "The methods and responsibility for the effective cleaning of the dietary supplement handling and processing equipment and environment and storage areas shall be documented and implemented. Consideration shall be given to: i. What is to be cleaned; ii. How it is to be cleaned; iii. When it is to be cleaned; iv. Who is responsible for the cleaning; v. Validation of the cleaning procedures for food contact surfaces (including CIP); vi. Methods used to confirm the correct concentrations of detergents and sanitizers; and vii. The responsibility and methods used to verify the effectiveness of the cleaning and sanitation program.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.5.2",
+        "req": "Detergents and sanitizers shall be suitable for use in a dietary supplement manufacturing environment, labeled according to regulatory requirements, and purchased in accordance with applicable legislation. The organization shall ensure that detergents and sanitizers are stored as outlined in element 17.6.4 and are handled only by trained staff.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.5.3",
+        "req": "Detergents and sanitizers that have been mixed for use shall be correctly mixed according to the manufacturers’ instructions, stored in containers that are suitable for use, and clearly identified. Mix concentrations shall be verified and records maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.5.4",
+        "req": "Cleaning-in-place (CIP) systems, where used, shall not pose a chemical contamination risk to raw materials, ingredients, or product. CIP parameters critical to assuring effective cleaning shall be defined, monitored, and recorded (e.g., chemical and concentration used, contact time, and temperature). CIP equipment, including spray balls, shall be maintained, and any modifications to CIP equipment shall be validated. Personnel engaged in CIP activities shall be effectively trained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.5.5",
+        "req": "Cleaning equipment, tools, racks, and other items used in support of the cleaning and sanitizing program shall be clearly identified, stored, and maintained in a manner that prevents contamination of processing areas, product handling equipment, and storage areas as well as the tools themselves.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.5.6",
+        "req": "Suitably equipped areas shall be designated for cleaning product containers, knives, cutting boards, and other utensils used by staff. The areas for these cleaning operations shall be controlled so they do not interfere with manufacturing operations, equipment, or product. Racks and containers for storing cleaned utensils shall be provided as required.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.5.7",
+        "req": "Pre-operational inspections shall be conducted following cleaning and sanitation operations to ensure dietary supplement processing areas, product contact surfaces, equipment, staff amenities, sanitary facilities, and other essential areas are clean before the start of production. If wet washing is in use, a sanitizer shall be applied and dried before the commencement of production. Pre-operational inspections shall be conducted by qualified personnel.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.5.8",
+        "req": "Staff amenities, sanitary facilities, and other essential areas shall be inspected by qualified personnel at a defined frequency to ensure the areas are clean.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.2.5.9",
+        "req": "The responsibility and methods used to verify the effectiveness of the cleaning procedures shall be documented and implemented. A verification schedule shall be prepared. A record of pre-operational hygiene inspections, cleaning and sanitation activities, and verification activities shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "17.3": {
+    "module": "Module 17",
+    "title": "§17.3  Personnel Hygiene and Welfare",
+    "rows": [
+      {
+        "section": "§17.3  PERSONNEL HYGIENE AND WELFARE"
+      },
+      {
+        "section": "§17.3.1  Personnel Welfare"
+      },
+      {
+        "id": "§17.3.1.1",
+        "req": "Personnel who are known to be carriers of infectious diseases that present a health risk to others through the packing or storage processes shall not engage in the processing or packing of dietary supplements or enter storage areas where dietary supplement is exposed. Staff shall be instructed to notify their supervisor(s) if they have, or if there is a reasonable possibility that they have, a health condition that could result in microbial contamination of any raw materials, contact surfaces, or products.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.1.2",
+        "req": "The site shall have measures in place to prevent contact of materials, ingredients, packaging, dietary supplement, or product contact surfaces from any bodily fluids, open wounds, coughing, sneezing, spitting, or any other means. In the event of an injury that causes the spillage of bodily fluid, a properly trained staff member shall ensure that all affected areas, including handling and processing areas, have been adequately cleaned, and that all materials and products have been quarantined and/or disposed of.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.1.3",
+        "req": "Personnel with exposed cuts, sores, or lesions shall engage in handling or processing exposed products or handling primary (food contact) packaging or touching food contact surfaces. Minor cuts or abrasions on exposed parts of the body shall be covered with a colored, metal-detectable bandage or an alternative suitable waterproof and colored dressing.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.3.2  Handwashing"
+      },
+      {
+        "id": "§17.3.2.1",
+        "req": "All personnel shall have clean hands, and hands shall be washed by all staff, contractors, and visitors: i. On entering product handling or processing areas; ii. After each visit to a toilet; iii. After using a handkerchief; iv. After smoking, eating, or drinking; and v. After handling wash down hoses, cleaning materials, dropped product, or contaminated material.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.2.2",
+        "req": "Handwashing stations shall be provided adjacent to all personnel access points and in accessible locations throughout product handling and processing areas as required.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.2.3",
+        "req": "Handwashing stations shall be constructed of stainless steel or similar non-corrosive material and at a minimum supplied with: i. A potable water supply at an appropriate temperature; ii. Liquid soap contained within a fixed dispenser; iii. Paper towels in a hands-free cleanable dispenser; and iv. A means of containing used paper towels to ensure they are handled, dispensed, used, and disposed of in a manner that protects against contamination of raw materials, contact surfaces, and products.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.2.4",
+        "req": "The following additional facilities shall be provided in high-risk areas: i. Hands-free operated taps; and ii. Hand sanitizers.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.2.5",
+        "req": "Signage in appropriate languages instructing people to wash their hands before entering the dietary supplement processing areas shall be provided in a prominent position in break rooms, at break room exits, toilet rooms, and in outside eating areas, as applicable.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.2.6",
+        "req": "When gloves are used, personnel shall maintain the handwashing practices outlined above.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.3.3  Clothing and Personal Effects"
+      },
+      {
+        "id": "§17.3.3.1",
+        "req": "The site shall undertake a risk analysis to ensure that the clothing and hair policy protects materials, dietary supplements, and product contact surfaces from unintentional microbiological or physical contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.3.2",
+        "req": "Clothing worn by staff engaged in handling food shall be maintained, stored, laundered, and worn so it does not present a contamination risk to products. Provision shall be made for the laundering and storage of clothing worn by personnel engaged in high-risk processes.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.3.3",
+        "req": "Clothing, including shoes, shall be clean at the start of each shift and maintained in a serviceable condition.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.3.4",
+        "req": "Excessively soiled uniforms shall be changed or replaced when they present a product contamination risk.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.3.5",
+        "req": "Disposable gloves and aprons shall be changed after each break, upon re-entry into the processing area, and when damaged. Non-disposable aprons and gloves shall be cleaned and sanitized as required and, when not in use, stored on racks provided in the processing area or in designated sealed containers in personnel lockers. They should not be placed or stored on packaging, ingredients, product, or equipment.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.3.6",
+        "req": "Protective clothing shall be manufactured from material that will not pose a food safety threat and is easily cleaned. All protective clothing shall be cleaned after use, or at a frequency to control contamination, and stored in a clean and serviceable condition to prevent microbiological or cross-contact allergen contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.3.7",
+        "req": "Racks shall be provided for the temporary storage of protective clothing when staff leave the processing area and shall be provided nearby or adjacent to the personnel access doorways and handwashing facilities.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.3.8",
+        "req": "Jewelry and other loose objects shall not be worn or taken into a product handling or processing operation or into any area where dietary supplement is exposed. The wearing of plain bands with no stones, prescribed medical alert bracelets, or jewelry accepted for religious or cultural reasons can be permitted. The site will need to confirm with their customer requirements and applicable legislation. If hand jewelry cannot be removed, it shall be covered by material that is maintained in an intact, clean, and sanitary condition.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.3.4  Visitors"
+      },
+      {
+        "id": "§17.3.4.1",
+        "req": "All visitors shall be trained in the site’s food safety and hygiene procedures before entering any product processing and handling areas or shall be escorted at all times in product processing, handling, and storage areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.4.2",
+        "req": "All visitors, including management staff, shall be required to remove jewelry and other loose objects in accordance with the facility’s Good Manufacturing Practices and 17.3.3.8. All visitors shall wear suitable clothing and footwear when entering any product processing and handling area.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.4.3",
+        "req": "Visitors exhibiting visible signs of illness shall be prevented from entering areas in which dietary supplement is handled and processed.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.4.4",
+        "req": "Visitors shall enter and exit product handling areas through the proper staff entrance points and comply with all handwashing and personnel practice requirements.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.3.5  Staff Amenities (change rooms, toilets, break rooms)"
+      },
+      {
+        "id": "§17.3.5.1",
+        "req": "Staff amenities shall have documented cleaning procedures, be supplied with appropriate lighting and ventilation, and shall be made available for use by all persons engaged in the handling and processing of product.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.2",
+        "req": "Change rooms shall be provided to enable staff and visitors to change into and out of protective clothing as required. Change rooms shall be kept clean.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.3",
+        "req": "High-risk change areas shall be provided for staff engaged in the processing of high- risk products or processing operations in which clothing can be soiled.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.4",
+        "req": "Provision shall be made for staff to store their street clothing and personal items separate from clean uniforms, product contact zones, product, and packaging storage areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.5",
+        "req": "Where required, a sufficient number of showers shall be provided for use by staff.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.6",
+        "req": "Toilet rooms shall be: i. Designed and constructed so that they are accessible to staff and separate from any processing and product handling operations; ii. Accessed from the processing area via an airlock vented to the exterior or through an adjoining room; iii. Sufficient in number for the maximum number of staff; iv. Constructed so that they can be easily cleaned and maintained; v. Located inside or nearby areas for storing protective clothing, outer garments, and other items while using the facilities; and vi. Kept clean and tidy. Tools/equipment used for cleaning toilet rooms shall not be used to clean processing areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.7",
+        "req": "Sanitary drainage shall not be connected to any other drains within the premises and shall be directed to a septic tank or a sewerage system in accordance with regulations.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.8",
+        "req": "Handwashing basins shall be provided immediately outside or inside the toilet room and designed as outlined in 17.3.2.3.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.9",
+        "req": "Separate break rooms shall be provided away from product contact/handling zones. Break rooms shall be: i. Ventilated and well lit; ii. Provided with adequate tables and seating to cater for the maximum number of staff at one sitting; iii. Equipped with a sink serviced with hot and cold potable water for washing utensils; iv. Equipped with refrigeration and heating facilities, enabling staff to store or heat food and to prepare non-alcoholic beverages if required; and v. Kept clean and free from waste materials and pests.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.3.5.10",
+        "req": "Where outside eating areas are provided, they should be kept clean and free from waste materials and maintained in a manner that minimizes the potential for the introduction of contamination, including pests, to the site.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "17.4": {
+    "module": "Module 17",
+    "title": "§17.4  Personnel Processing Practices",
+    "rows": [
+      {
+        "section": "§17.4  PERSONNEL PROCESSING PRACTICES"
+      },
+      {
+        "section": "§17.4.1  Staff Engaged in Food Handling and Processing Operations"
+      },
+      {
+        "id": "§17.4.1.1",
+        "req": "All personnel engaged in any product handling, preparation, or processing operations shall ensure that products and materials are handled and stored in such a way as to prevent damage or product contamination. They shall comply with the following processing practices: i. Personnel entry to processing areas shall be through the personnel access doors only; ii. All doors are to be kept closed. Doors shall not be open for extended periods when access is required for waste removal or receiving of product/ingredient/packaging; iii. Packaging material, product, and ingredients shall be kept in appropriate containers as required, and off the floor; iv. Waste shall be contained in the bins identified for this purpose and removed from the processing area on a regular basis and not left to accumulate; and v. All wash down and compressed air hoses shall be stored on hose racks after use and not left on the floor.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.4.1.2",
+        "req": "Personnel working in or visiting product handling or processing operations shall ensure that: i. Staff and/or visitors wear outer garments in a manner that protects against contamination; ii. Staff and/or visitors maintain personal cleanliness; iii. Staff do not eat or taste any product being processed in the food handling/contact zones, except as noted in element 17.4.1.4; iv. The wearing of false fingernails, false eyelashes, eyelash extensions, long nails, or fingernail polish is not permitted when handling exposed product; v. Hair restraints and beard covers, where applicable, are used in areas where product is exposed; vi. Smoking, chewing, eating, or spitting is not permitted in areas where product is produced, stored, or otherwise exposed; and vii. Drinking water is permissible only under conditions that prevent contamination or other food safety risks from occurring. Drinking water containers in production and storage areas shall be stored in clear, covered containers, and in designated areas away from raw materials, packaging, tools, or equipment storage.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.4.1.3",
+        "req": "The flow of personnel in processing and handling areas shall be managed such that the potential for contamination is minimized.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.4.1.4",
+        "req": "In circumstances where it is necessary to undertake sensory evaluations in a product handling/contact zone, the site shall implement controls and procedures to ensure: i. Food safety is not compromised; ii. Sensory evaluations are conducted by authorized personnel only; iii. A high standard of personal hygiene is practiced by personnel conducting sensory evaluations; iv. Sensory evaluations are conducted in areas equipped for the purpose; and v. Equipment used for sensory evaluations is sanitized, maintained, and stored separately from processing equipment.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "17.5": {
+    "module": "Module 17",
+    "title": "§17.5  Water, Ice, and Air Supply",
+    "rows": [
+      {
+        "section": "§17.5  WATER, ICE, AND AIR SUPPLY"
+      },
+      {
+        "section": "§17.5.1  Water Supply"
+      },
+      {
+        "id": "§17.5.1.1",
+        "req": "Adequate supplies of potable water drawn from a known clean source shall be provided for water used as an ingredient during processing operations and for cleaning the premises and equipment. The source of potable water shall be identified as well as on-site storage (if applicable) and reticulation within the facility.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.1.2",
+        "req": "Contingency plans shall be in place for instances when the potable water supply is deemed to be contaminated or otherwise inappropriate for use.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.1.3",
+        "req": "Supplies of hot and cold water shall be provided, as required, to enable the effective cleaning of the premises and equipment.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.1.4",
+        "req": "The delivery of water within the premises shall ensure potable water is not contaminated. Testing of the backflow system, where possible, shall be conducted at least annually and records shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.1.5",
+        "req": "The use of non-potable water shall be controlled such that: i. There is no cross-contamination between potable and non-potable water lines; ii. Non-potable water piping and outlets are clearly identified; and iii. Hoses, taps, and other similar sources of possible contamination are designed to prevent backflow or back-siphonage.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.1.6",
+        "req": "Where water is stored on-site, storage facilities shall be adequately designed, constructed, and routinely cleaned to prevent contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.5.2  Water Treatment"
+      },
+      {
+        "id": "§17.5.2.1",
+        "req": "Water treatment methods, equipment, and materials, if required, shall be designed, installed, and operated to ensure water receives effective treatment. Water treatment equipment shall be monitored regularly to ensure it remains serviceable.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.2.2",
+        "req": "Water used as an ingredient in processing or for cleaning and sanitizing equipment shall be tested and, if required, treated to maintain potability (refer to 17.5.2.1).",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.2.3",
+        "req": "Treated water shall be regularly monitored to ensure it meets the specified indicators. Water treatment chemicals usage shall be monitored to ensure chemical residues are within acceptable limits. Records of testing results shall be kept.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.5.3  Water Quality"
+      },
+      {
+        "id": "§17.5.3.1",
+        "req": "Water shall comply with local, national, or internationally recognized potable water microbiological and quality standards, as required when used for: i. Washing, thawing, and treating dietary supplements; ii. Handwashing; iii. Conveying dietary supplements; iv. An ingredient or processing aid; v. Cleaning product contact surfaces and equipment; vi. The manufacture of ice; or vii. The manufacture of steam that will come into contact with product or be used to heat water that will come into contact with product.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.3.2",
+        "req": "Microbiological analysis of the water and ice supply shall be conducted to verify the cleanliness of the supply, the monitoring activities, and the effectiveness of the treatment measures implemented. Samples for analysis shall be taken at sources supplying water for the process or cleaning or from within the site. The frequency of analysis shall be risk-based and at a minimum annually.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.3.3",
+        "req": "Water and ice shall be analyzed using reference standards and methods. Records of analyses shall be maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.5.4  Ice Supply"
+      },
+      {
+        "id": "§17.5.4.1",
+        "req": "Ice provided for use during processing operations, as a processing aid, or an ingredient shall comply with 17.5.3.1.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.4.2",
+        "req": "Ice that is purchased shall be from an approved supplier and included in the site’s food safety risk assessment. Ice shall be supplied in containers that are appropriate for use, cleanable if reused, and be tested as appropriate.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.4.3",
+        "req": "Ice rooms and receptacles shall be constructed of materials as outlined in element 17.1.2 and designed to minimize contamination of the ice during storage, retrieval, and distribution.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.5.5  Air and Other Gases"
+      },
+      {
+        "id": "§17.5.5.1",
+        "req": "Compressed air or other gases (e.g., nitrogen or carbon dioxide) that contact dietary supplements or product contact surfaces shall be clean and present no risk to food safety.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.5.5.2",
+        "req": "Compressed air systems and systems used to store or dispense other gases used in the manufacturing process that come into contact with dietary supplements or product contact surfaces shall be maintained and regularly monitored for quality and applicable food safety hazards.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "17.6": {
+    "module": "Module 17",
+    "title": "§17.6  Receipt, Storage, and Transport",
+    "rows": [
+      {
+        "section": "§17.6  RECEIPT, STORAGE, AND TRANSPORT"
+      },
+      {
+        "section": "§17.6.1  Receipt, Storage, and Handling of Goods"
+      },
+      {
+        "id": "§17.6.1.1",
+        "req": "The site shall document and implement an effective storage plan that allows for the safe, hygienic receipt and storage of raw materials (i.e. frozen, chilled, and ambient), ingredients, retention samples, packaging, equipment, and chemicals.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.1.2",
+        "req": "Controls shall be in place to ensure all ingredients, raw materials, processing aids, and packaging are received and stored properly to prevent cross-contamination risks and in a manner that does not affect the purity, strength, homogeneity, and composition of final products. Unprocessed raw materials shall be received and stored separately from processed raw materials to avoid cross-contamination risk.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.1.3",
+        "req": "The responsibility and methods for ensuring effective stock rotation principles shall be documented and implemented.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.1.4",
+        "req": "Procedures shall be in place to ensure that all ingredients, materials, work-in- progress, rework, and finished product are utilized within their designated shelf life.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.1.5",
+        "req": "Where raw materials, ingredients, packaging, equipment, and chemicals are held under temporary or overflow conditions that are not designed for the safe storage of goods, a risk analysis shall be undertaken to ensure there are no risks to the integrity of those goods, no potential for contamination, or adverse effect on food safety.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.1.6",
+        "req": "Records shall be available to verify the effectiveness of alternate or temporary control measures for the storage of raw materials, ingredients, packaging, equipment, chemicals, or finished products.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.6.2  Cold Storage, Freezing, and Chilling of Dietary Supplements"
+      },
+      {
+        "id": "§17.6.2.1",
+        "req": "The site shall provide confirmation of the effective operational performance of freezing, chilling, and cold storage facilities. Chillers, blast freezers, and cold storage rooms shall be designed and constructed to allow for the hygienic and efficient refrigeration of dietary supplements and be easily accessible for inspection and cleaning.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.2.2",
+        "req": "Sufficient refrigeration capacity shall be available to chill, freeze, store chilled, or store frozen the maximum anticipated throughput of product with allowance for periodic cleaning of refrigerated areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.2.3",
+        "req": "The site shall have a written procedure for monitoring temperatures, including the frequency of checks, and corrective actions if the temperature is out of specification. Freezing, chilling, and cold storage rooms shall be fitted with temperature monitoring equipment and located to monitor the warmest part of the room and be fitted with a temperature measurement device that is easily readable and accessible. They shall be fitted with an automated device for regulating temperature or an automated alarm system to indicate a significant temperature change when temperature adjustments are a manual operation. Records shall be kept of frozen, cold, and chilled storage room temperatures.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.2.4",
+        "req": "Discharge from defrost and condensate lines shall be controlled and discharged into the drainage system.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.6.3  Storage of Dry Ingredients, Packaging, and Shelf Stable Packaged Goods"
+      },
+      {
+        "id": "§17.6.3.1",
+        "req": "Rooms used for the storage of product ingredients, packaging, finished products, and other dry goods shall be located away from wet areas and constructed to protect the product from contamination and deterioration and to prevent packaging from becoming a harborage for pests or vermin. Practices shall also ensure adequate separation and identification of the different materials being stored.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.3.2",
+        "req": "Racks provided for the storage of packaging shall be constructed of impervious materials and designed to enable cleaning and inspection of the floors and behind the racks. Storage areas shall be cleaned at a pre-determined frequency.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.6.4  Storage of Hazardous Chemicals and Toxic Substances"
+      },
+      {
+        "id": "§17.6.4.1",
+        "req": "Hazardous chemicals and toxic substances with the potential for product contamination shall be: i. Clearly labeled, identifying and matching the contents of their containers; ii. Included in a current register of all hazardous chemicals and toxic substances that are approved for use and stored on-site; and iii. Supported by current Safety Data Sheets (SDS) made available to all staff.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.4.2",
+        "req": "Storage of hazardous chemicals and toxic substances shall be: i. Located in an area with appropriate signage indicating that area is for hazardous storage; ii. Controlled, lockable, and accessible only by personnel trained in the storage and use of chemicals; iii. Adequately ventilated; iv. Stored where intended and not comingled (e.g., food versus non-food grade); v. Designed such that pesticides, rodenticides, fumigants, and insecticides are stored separately from sanitizers and detergents; and vi. Stored in a manner that prevents a hazard to finished product or product contact surfaces. Processing utensils and packaging shall not be stored in areas used to store hazardous chemicals and toxic substances.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.4.3",
+        "req": "Hazardous chemicals and toxic substances shall be correctly labeled and: i. Used only according to manufacturers’ instructions; ii. Controlled to prevent contamination or a hazard to raw and packaging material, work-in- progress, finished product, or product contact surfaces; iii. Returned to the appropriate storage areas after use; and iv. Be compliant with national and local legislation.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.4.4",
+        "req": "Daily supplies of chemicals used for continuous sanitizing of water, as a processing aid, or for emergency cleaning of processing equipment and surfaces in product contact zones may be stored within or in close proximity to a processing area, provided that access to the chemical storage facility is restricted to only authorized personnel.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.4.5",
+        "req": "Personnel who handle hazardous chemicals and toxic substances including pesticides and cleaning chemicals: i. Shall be fully trained in the purpose of the hazardous chemicals and toxic substances, their storage, handling, and use; ii. Be provided with first aid equipment and personnel protective equipment (PPE); and iii. Ensure compliance with the proper identification, storage, usage, disposal, and clean-up requirements.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.4.6",
+        "req": "The site shall dispose of empty, obsolete, and unused chemicals, pesticides, toxic substances, and containers in accordance with requirements and ensure that primary containers are: i. Not reused; ii. Segregated and securely stored prior to collection; and iii. Disposed through an approved vendor.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.4.7",
+        "req": "In the event of a hazardous spill, the site shall: i. Have spillage clean-up instructions to ensure that the spill is properly contained; and ii. Be equipped with PPE, spillage kits, and cleaning equipment.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.6.5  Loading, Transport, and Unloading Practices"
+      },
+      {
+        "id": "§17.6.5.1",
+        "req": "The practices applied during loading, transport, and unloading of dietary supplements shall be documented, implemented, and designed to maintain appropriate storage conditions and product integrity. Dietary supplements shall be loaded, transported, and unloaded under conditions suitable to prevent cross-contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.5.2",
+        "req": "Vehicles (e.g., trucks/vans/containers) used for transporting product within the site and from the site shall be inspected prior to loading to ensure they are clean, in good repair, suitable for the purpose, and free from odors or other conditions that may negatively impact the product.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.5.3",
+        "req": "Vehicles (e.g., trucks/vans/containers) shall be secured from tampering using seals or other agreed-upon and acceptable devices or systems.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.5.4",
+        "req": "Loading and unloading docks shall be designed to protect the product during loading and unloading. Loading practices shall be designed to minimize unnecessary exposure of the product to conditions detrimental to maintaining product and package integrity during loading and transport.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.5.5",
+        "req": "Refrigerated units shall maintain the product at the required temperature. The unit’s temperature settings shall be set, checked, and recorded before loading, and the product temperature shall be recorded at regular intervals during loading, as applicable.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.5.6",
+        "req": "The refrigeration unit shall be operational at all times and checks completed of the unit’s operation, the door seals, and the storage temperature at regular intervals during transit.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.5.7",
+        "req": "On arrival, prior to opening the doors, the product transport vehicle’s refrigeration unit’s storage temperature settings and operating temperature shall be checked and recorded. Unloading shall be completed efficiently, and product temperatures shall be recorded at the start of unloading and regular intervals during unloading.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.6.5.8",
+        "req": "Unloading practices shall be designed to minimize unnecessary exposure of the product to conditions detrimental to maintaining product and package integrity. Practices shall include a visual examination of each container or delivery designated as a shipment that the site receives for appropriate content, label, container/vehicle damage, or broken seals.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "17.7": {
+    "module": "Module 17",
+    "title": "§17.7  Separation of Functions",
+    "rows": [
+      {
+        "section": "§17.7  SEPARATION OF FUNCTIONS"
+      },
+      {
+        "section": "§17.7.1  High-risk Processes"
+      },
+      {
+        "id": "§17.7.1.1",
+        "req": "The processing of high-risk product shall be conducted under controlled conditions such that sensitive areas in which the high-risk product has undergone a “kill” step, a “food safety intervention,” or is subject to post-process handling, are protected/ segregated from other processes, raw materials, or staff who handle raw materials to ensure cross-contamination is minimized. Controlled conditions shall ensure that: i. Equipment is placed in an orderly manner to facilitate maintenance, cleaning, and operational efficiency; ii. Adequate spacing between works areas, equipment, and walls is maintained; iii. The flow of personnel is managed (refer to 17.7.1.3), and iv. Where required by regulation, separate facilities, areas, or rooms are maintained.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.1.2",
+        "req": "Ambient air in high-risk areas shall be tested at least annually to confirm that it does not pose a risk to food safety.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.1.3",
+        "req": "Areas in which high-risk processes are conducted shall only be serviced by staff dedicated to that function.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.1.4",
+        "req": "Staff engaged in high-risk areas shall change into clean clothing and footwear or temporary protective outerwear when entering high-risk areas. Staff access points shall be located, designed, and equipped to enable staff to change into the distinctive protective clothing and practice a high standard of personal hygiene to prevent product contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.1.5",
+        "req": "Product transfer points shall be located and designed, so they do not compromise high-risk segregation and minimize the risk of cross-contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.7.2  Thawing Operations"
+      },
+      {
+        "id": "§17.7.2.1",
+        "req": "Thawing of product shall be undertaken in equipment and rooms appropriate for the purpose. Equipment for water thawing shall be continuous flow to ensure the water exchange rate and temperature do not contribute to product deterioration or contamination. Water overflow shall be directed into the floor drainage system and not onto the floor or shall be appropriately plumbed.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.2.2",
+        "req": "Air thawing facilities shall be designed to thaw product under controlled conditions at a rate and temperature that does not contribute to product deterioration or contamination.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.2.3",
+        "req": "Provision shall be made for the containment and regular disposal of used cartons and packaging from thawed product so that there is no risk to the product.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.7.3  Control of Foreign Matter Contamination"
+      },
+      {
+        "id": "§17.7.3.1",
+        "req": "The responsibility and methods used to prevent foreign matter contamination of the product shall be documented, implemented, and communicated to all staff. Inspections shall be performed (refer to 2.5.4.3) to ensure plant and equipment remain in good condition, and equipment has not become detached or deteriorated and is free from potential contaminants.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.3.2",
+        "req": "Containers, equipment, and other utensils made of glass, porcelain, ceramics, laboratory glassware, or other similar materials shall not be permitted in processing /contact zones (except where the product is contained in packaging made from these materials, or measurement instruments with glass dial covers are used, or MIG thermometers are required under regulation). Where glass objects or similar material are required in product handling/contact zones, they shall be listed in a glass inventory, including details of their location and condition.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.3.3",
+        "req": "Regular inspections of product handling/contact zones shall be conducted (refer to 2.5.4.3) to ensure they are free of glass or other like material and to establish changes to the condition of the objects listed in the glass inventory.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.3.4",
+        "req": "Glass instrument dial covers on processing equipment and MIG thermometers shall be inspected at the start of each shift to confirm they have not been damaged.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.3.5",
+        "req": "In circumstances where glass or similar material breakage occurs, the affected area shall be isolated, cleaned, thoroughly inspected (including cleaning equipment and footwear), and cleared by a suitably responsible person prior to the start of operations.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.3.6",
+        "req": "Wooden pallets and other wooden utensils used in product processing and handling areas shall be dedicated for that purpose, clean, and maintained in good order. Their condition shall be subject to regular inspection.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.3.7",
+        "req": "Loose metal objects on equipment, equipment covers, and overhead structures shall be removed or tightly fixed so as not to present a hazard.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.3.8",
+        "req": "Knives and cutting instruments used in processing and packaging operations shall be controlled, kept clean, and well maintained. Snap-off blades shall not be used in manufacturing or storage areas.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.3.9",
+        "req": "Gaskets, rubber impellers, and other equipment made of materials that can wear or deteriorate over time shall be inspected on a regular frequency (refer to 2.5.4.3).",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "section": "§17.7.4  Detection of Foreign Objects"
+      },
+      {
+        "id": "§17.7.4.1",
+        "req": "The responsibility, methods, and frequency for monitoring, maintaining, calibrating, and using screens, sieves, filters, or other technologies to remove or detect foreign matter shall be documented and implemented.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.4.2",
+        "req": "Where detection and/or removal systems are used, the site shall establish limits for detection based on a risk assessment of the product and its packaging, and identify the location(s) of the detector(s) in the process.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.4.3",
+        "req": "Metal detectors or other physical contaminant detection technologies shall be routinely monitored, validated, and verified for operational effectiveness. The equipment shall be designed to isolate defective product and indicate when it is rejected.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.4.4",
+        "req": "Records shall be maintained of the inspection of foreign object detection devices, of any products rejected or removed by them, and of corrective and preventative actions resulting from the inspections.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.7.4.5",
+        "req": "In all cases of foreign matter contamination, the affected batch or item shall be isolated, inspected, reworked, or disposed of. Records shall be maintained of the disposition.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  },
+  "17.8": {
+    "module": "Module 17",
+    "title": "§17.8  Waste Disposal",
+    "rows": [
+      {
+        "section": "§17.8  WASTE DISPOSAL"
+      },
+      {
+        "id": "§17.8.1.1",
+        "req": "The responsibility and methods used to collect and handle dry, wet, and liquid waste and store it prior to removal from the premises shall be documented and implemented. Methods shall include: i. Practices to minimize the development of odors, and the potential for waste to attract, harbor, or become a breeding place for pests; ii. Protection against contamination of raw materials, packaging materials, in-process materials, finished products, water supplies, and grounds surrounding the site; and iii. Control of hazardous waste.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.2",
+        "req": "Waste shall be removed on a regular basis and not allowed to build up in product handling or processing areas. Designated waste accumulation areas shall be maintained in a clean and tidy condition until external waste collection is undertaken.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.3",
+        "req": "Waste and overflow water from tubs, tanks, and other equipment shall be discharged directly to the floor drainage system or by an alternative method that meets local regulatory requirements.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.4",
+        "req": "Trolleys, vehicle waste disposal equipment, collection bins, and storage areas shall be maintained in a serviceable condition, cleaned, and sanitized regularly to prevent the attraction of pests and other vermin.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.5",
+        "req": "Adequate provision shall be made for the disposal of all solid processing waste, including trimmings, inedible material, and used packaging.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.6",
+        "req": "Where applicable, a documented procedure shall be in place for the controlled disposal of trademarked materials or waste considered high-risk for handling or other reasons. Where a contracted disposal service is used, the disposal process shall be reviewed regularly to confirm compliance.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.7",
+        "req": "Inedible waste designated for animal feed shall be stored and handled so that it will not cause a risk to the animal or further processing. If denaturant is used to identify inedible waste, it shall be demonstrated that it does not pose a risk to animal health.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.8",
+        "req": "Waste held on-site prior to disposal shall be stored in a separate storage facility that is suitably insect proofed and located where it does not present any hazards.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.9",
+        "req": "Adequate provision shall be made for the disposal of all liquid waste from processing and product handling areas and sanitary waste. Liquid waste shall be either removed from the processing environment continuously or held in a designated storage area in lidded containers prior to disposal so as not to present a hazard. Sewage shall be disposed of through a sewage system or other adequate means.",
+        "evidence": "",
+        "mandatory": false
+      },
+      {
+        "id": "§17.8.1.10",
+        "req": "Reviews of the effectiveness of waste management shall form part of regular site inspections (refer to 2.5.4.3), and the results of these inspections shall be included in the relevant inspection reports.",
+        "evidence": "",
+        "mandatory": false
+      }
+    ]
+  }
+};
+
+// All section keys grouped by module, for the audit section picker.
+const CLAUSE_MODULES = [
+  {module:'Module 2 — System Elements', sections:['2.1','2.2','2.3','2.4','2.5','2.6','2.7','2.8','2.9']},
+  {module:'Module 17 — GMP (Dietary Supplements)', sections:['17.1','17.2','17.3','17.4','17.5','17.6','17.7','17.8']},
 ];
 
-const CLAUSES=[
-  {section:"§2.1  MANAGEMENT COMMITMENT"},
-  {section:"§2.1.1  Management Responsibility  (ALL MANDATORY)"},
-  {id:"§2.1.1.1(i-iv)",req:"Food safety and quality policy documented — all 4 commitments covered",evidence:"QM-001 §4.1-4.2",mandatory:true},
-  {id:"§2.1.1.1(v-vi)",req:"Policy signed by senior manager; posted prominently; communicated to all staff",evidence:"Physical posting at Lindon; SOP #7 training records",mandatory:true},
-  {id:"§2.1.1.2",req:"Senior management leads food safety culture — objectives documented, resources allocated, staff empowered",evidence:"QM-001 §4-6; SOP #30 §6",mandatory:true},
-  {id:"§2.1.1.3",req:"Reporting structure documented; QC designee for regulations; job descriptions include backup coverage",evidence:"QM-001 §5 org chart; job descriptions",mandatory:true},
-  {id:"§2.1.1.4",req:"SQF Practitioner designated with documented authority",evidence:"QM-001 §5.4",mandatory:true},
-  {id:"§2.1.1.5",req:"SQF Practitioner: employed on site; min 2-day assessed HACCP training; qualified",evidence:"SOP #7; HACCP certification certificate",mandatory:true},
-  {id:"§2.1.1.6",req:"Training needs identified, resourced, and implemented",evidence:"SOP #7 training matrix; training calendar",mandatory:true},
-  {id:"§2.1.1.7",req:"Food safety system integrity maintained during organizational change",evidence:"SOP #6 (MOC); SOP #MR-001",mandatory:true},
-  {id:"§2.1.1.8",req:"Blackout periods designated and submitted to CB",evidence:"Blackout period list; CB submission",mandatory:true},
-  {section:"§2.1.2  Management Review  (MANDATORY)"},
-  {id:"§2.1.2.1",req:"Annual SQF System review — all 6 inputs covered; within last 12 months; action items assigned",evidence:"SOP #MR-001 MR minutes (most recent)",mandatory:true},
-  {id:"§2.1.2.2",req:"SQF Practitioner monthly updates to management documented",evidence:"Monthly update records",mandatory:true},
-  {section:"§2.1.3  Complaint Management  (MANDATORY)"},
-  {id:"§2.1.3.1",req:"Complaint procedure documented; qualified responsible person identified",evidence:"SOP #16 (Customer Complaints)",mandatory:true},
-  {id:"§2.1.3.2",req:"Adverse complaint trends investigated and root cause established",evidence:"SOP #16 trend analysis; complaint log",mandatory:true},
-  {id:"§2.1.3.3",req:"CAPA implemented per seriousness; records of complaints, investigations, resolutions maintained",evidence:"SOP #14 (CAPA); last 5 complaint records",mandatory:true},
-  {section:"§2.2  DOCUMENT CONTROL AND RECORDS"},
-  {section:"§2.2.1  FSMS Documentation  (MANDATORY)"},
-  {id:"§2.2.1.1",req:"QMS documentation complete and available — all 8 categories present",evidence:"QM-001; SOP #2 library; HACCP-001/002; PRP-001-004",mandatory:true},
-  {id:"§2.2.1.2",req:"Food safety plans updated when changes impact product safety; changes validated before implementation",evidence:"SOP #6 (MOC); HACCP-001 §9 annual reassessment",mandatory:true},
-  {section:"§2.2.2  Document Control  (MANDATORY)"},
-  {id:"§2.2.2.1",req:"Document control procedure implemented; current versions at point of use; staff have access",evidence:"SOP #2 §9-11; spot-check 3-5 SOPs vs ULIMS master",mandatory:true},
-  {section:"§2.2.3  Records  (MANDATORY)"},
-  {id:"§2.2.3.1",req:"Records retention methods, frequency, and responsibility documented",evidence:"SOP #2 §14 GMP Records Retention Schedule",mandatory:true},
-  {id:"§2.2.3.2",req:"Records legible and confirmed/initialed by monitor",evidence:"SOP #4 (GDP); spot-check 3 record types",mandatory:true},
-  {id:"§2.2.3.3",req:"Records accessible, retrievable, secure; electronic records backed up off-site",evidence:"SOP #2 §15; verify backup active; last backup date",mandatory:true},
-];
+// Return the ordered clause rows (section bands + clause rows) for the given
+// section keys, e.g. clausesForSections(["2.1","17.4"]). Unknown keys ignored.
+function clausesForSections(sections){
+  const out=[];
+  (sections||[]).forEach(function(s){
+    const key=String(s).replace(/^§/,"").trim();
+    const entry=CLAUSE_LIB[key];
+    if(entry&&Array.isArray(entry.rows))entry.rows.forEach(function(r){out.push(r);});
+  });
+  return out;
+}
+
+// Human label for a section key (used by the audit creation form / headers).
+function clauseSectionLabel(key){const e=CLAUSE_LIB[String(key).replace(/^§/,"").trim()];return e?e.title:("§"+key);}
+
+// Backward-compatible default checklist (§2.1 + §2.2) for existing call sites.
+const CLAUSES = clausesForSections(["2.1","2.2"]);
 
 // Available facility sites. Add more sites here to expand the switcher.
 const SITES=["Lindon","Layton"];
@@ -859,6 +3063,10 @@ let currentSite="Lindon";
 const API="/api/records";
 
 let records=[], editingId=null, currentFilter="all", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
+// Clause rows currently rendered in the audit checklist (for the active session).
+let CLAUSES_FOR_ACTIVE_AUDIT=[];
+// Debounce handle for persisting in-progress audit session edits to the API.
+let auditSaveTimer=null;
 
 // ── USER IDENTITY (for the audit trail) ────────────────────────────────────
 // The signed-in Netlify Identity user is the source of truth. The server stamps
@@ -993,6 +3201,10 @@ async function globalCreate(kind){
     // The new-exercise modal is independent of the list content, so no race.
     gotoTab("crisis");openNewCrisisModal();return;
   }
+  if(kind==="AUDIT_SESSION"){
+    // Open the audit program and start the schedule-new-audit flow.
+    gotoTab("audit-program");openNewAuditModal();return;
+  }
   // CAPA / NCR / Audit Finding all use the shared record modal; jump to the
   // tracker so the new row is visible immediately after saving.
   gotoTab("tracker");
@@ -1013,6 +3225,7 @@ async function loadData(){
     toast("Could not load records: "+e.message,"red");
   }
   await loadOOS();
+  await loadAuditSessions();
 }
 
 // Reload from the database and re-render. Called after every mutation and on
@@ -1093,15 +3306,18 @@ function renderDashCharts(){
     `<div class="bar-row"><div class="bar-label">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxV*100)}%;background:${colors[i]||colors[5]}"></div></div><div class="bar-val">${v}</div></div>`
   ).join("")||`<div style="color:#4a5568;font-size:11px;padding:16px 0;text-align:center">No open findings</div>`;
 
-  document.getElementById("dash-schedule").innerHTML=AUDITS.map(a=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f4f6f8;border-radius:6px;border-left:3px solid ${a.status==="Active"?"#7F6000":a.status==="Complete"?"#375623":"#d0d6de"};margin-bottom:6px">
+  document.getElementById("dash-schedule").innerHTML=AUDITS.map(a=>{
+    const disp=auditDisplayStatus(a);const b=auditBadge(disp);
+    const edge=disp==="In Progress"?"#7F6000":disp==="Closed"?"#375623":disp==="Past Due"?"#C00000":"#2E75B6";
+    return `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f4f6f8;border-radius:6px;border-left:3px solid ${edge};margin-bottom:6px">
       <div>
-        <div style="font-size:10px;font-family:'DM Mono',monospace;color:#1F4E79">${a.id}</div>
-        <div style="font-size:12px;font-weight:500">${a.clauses}</div>
-        <div style="font-size:10px;color:#4a5568">${a.date} · ${a.facility}</div>
+        <div style="font-size:10px;font-family:'DM Mono',monospace;color:#1F4E79">${cesc(a.id)}</div>
+        <div style="font-size:12px;font-weight:500">${cesc(a.clauses||a.facilityName||"")}</div>
+        <div style="font-size:10px;color:#4a5568">${cesc(a.date||"—")} · ${cesc(a.facilityName||a.facility||"")}</div>
       </div>
-      <span class="badge ${a.status==="Active"?"badge-open":a.status==="Complete"?"badge-closed":"badge-minor"}">${a.status}</span>
-    </div>`).join("");
+      <span class="${b.cls}" style="${b.style}">${disp}</span>
+    </div>`;}).join("")||`<div style="color:#4a5568;font-size:11px;padding:12px 0;text-align:center">No audit sessions scheduled</div>`;
 
   const items=[
     {label:"SOP #22 Rev 05",status:"Complete",pct:100},
@@ -1213,6 +3429,7 @@ function openModal(presetType){
   document.getElementById("f-photos").value="[]";
   document.getElementById("photo-preview-grid").innerHTML="";
   applyCloseGate("Open");
+  initSignatureSection("record","record",null,"sig-section-record",[],null);
   document.getElementById("modal").classList.add("open");
 }
 
@@ -1241,6 +3458,7 @@ function editRecord(id){
   document.getElementById("f-photos").value=JSON.stringify(currentPhotos);
   renderPhotoPreview("photo-preview-grid",currentPhotos);
   applyCloseGate(r.status||"Open");
+  initSignatureSection("record","record",id,"sig-section-record",r.signatures||[],function(updated){const rr=records.find(x=>x.id===(updated&&updated.id));if(rr&&updated)rr.signatures=updated.signatures;});
   document.getElementById("modal").classList.add("open");
 }
 
@@ -1317,30 +3535,93 @@ function viewPhotos(id){const r=records.find(x=>x.id===id);if(!r||!r.photos||!r.
 function openLightbox(src,cap){document.getElementById("lightbox-img").src=src;document.getElementById("lightbox-cap").textContent=cap||"";document.getElementById("lightbox").classList.add("open");}
 function closeLightbox(){document.getElementById("lightbox").classList.remove("open");}
 
-function showAuditList(){
+async function showAuditList(){
   activeAuditId=null;
-  document.getElementById("audit-program-content").innerHTML=`
+  const host=document.getElementById("audit-program-content");
+  if(host)host.innerHTML=`<div style="padding:24px;text-align:center;color:#4a5568;font-size:12px">Loading audit sessions…</div>`;
+  await loadAuditSessions();
+  renderAuditList();
+}
+
+function renderAuditList(){
+  const host=document.getElementById("audit-program-content");if(!host)return;
+  const list=auditSessions.slice();
+  const cards=list.map(a=>{
+    const disp=auditDisplayStatus(a);
+    const b=auditBadge(disp);
+    const fac=a.facilityName||a.site||"";
+    const bld=a.building?(" · "+a.building):"";
+    const sectionCount=(Array.isArray(a.sections)?a.sections.length:0);
+    const canStart=(disp==="Scheduled"||disp==="Past Due");
+    const canComplete=(disp==="In Progress");
+    const canDelete=(disp==="Scheduled"||disp==="Past Due");
+    const aid=a.id.replace(/'/g,"\\'");
+    const openLinked=records.filter(r=>r.auditId===a.id&&(r.type==="NCR"||r.type==="CAPA")&&r.status!=="Closed").length;
+    let actions="";
+    if(canStart)actions+=`<button class="btn" style="background:#1F4E79;padding:5px 10px;font-size:11px" onclick="event.stopPropagation();startAudit('${aid}')">▶ Start Audit</button>`;
+    if(canComplete)actions+=`<button class="btn" style="background:#548235;padding:5px 10px;font-size:11px" title="${openLinked?(openLinked+' linked finding(s) still open — close them before completing'):'All linked findings clear — ready to close'}" onclick="event.stopPropagation();completeAudit('${aid}')">✓ Complete Audit${openLinked?(" ("+openLinked+" open)"):""}</button>`;
+    if(canDelete)actions+=`<button class="btn-ghost" style="padding:5px 10px;font-size:11px;color:#C00000;border-color:#C00000" onclick="event.stopPropagation();deleteAudit('${aid}')">🗑 Delete</button>`;
+    return `
+      <div class="audit-card ${disp==="In Progress"?"active-audit":""}" onclick="loadAuditExec('${aid}')">
+        <div class="audit-card-id">${cesc(a.id)}</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:3px">${cesc(a.clausesLabel||(sectionCount+" section(s)"))} — ${cesc(fac)}${cesc(bld)}</div>
+        <div style="font-size:11px;color:#4a5568">${cesc(a.facilityAddress||"")}</div>
+        <div style="font-size:11px;color:#4a5568;margin-top:3px">${cesc(a.scheduledDate||"—")}${a.startedBy?(" · started by "+cesc(a.startedBy)):""}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;flex-wrap:wrap">
+          <span class="${b.cls}" style="${b.style}">${disp}</span>
+          <span style="display:flex;gap:6px;flex-wrap:wrap">${actions}</span>
+        </div>
+      </div>`;
+  }).join("");
+  host.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
-      ${AUDITS.map(a=>`
-        <div class="audit-card ${a.status==="Active"?"active-audit":""}" onclick="loadAuditExec('${a.id}')">
-          <div class="audit-card-id">${a.id}</div>
-          <div style="font-weight:600;font-size:13px;margin-bottom:3px">${a.clauses} — ${a.facility}</div>
-          <div style="font-size:11px;color:#4a5568">${a.desc}</div>
-          <div style="font-size:11px;color:#4a5568;margin-top:3px">${a.appb} · ${a.date}</div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-            <span class="badge ${a.status==="Active"?"badge-open":a.status==="Complete"?"badge-closed":"badge-minor"}">${a.status}</span>
-            <span style="font-size:10px;color:#4a5568">Report due: ${a.reportDue}</span>
-          </div>
-        </div>`).join("")}
+      ${cards||`<div style="grid-column:1/-1;padding:20px;text-align:center;color:#4a5568;font-size:12px;background:#fff;border-radius:8px;border:1px solid var(--border2)">No audit sessions for ${cesc(currentSite)}. Click <b>+ New Audit</b> to schedule one.</div>`}
     </div>
-    <div style="padding:16px;background:#ffffff;border-radius:8px;border:1px solid var(--border2);font-size:11px;color:#2d3748;font-family:'DM Mono',monospace;text-align:center">Click an audit to begin clause-by-clause execution · §2.1 + §2.2 available for AUDIT-LDN-2026-001-S1</div>`;
+    <div style="padding:16px;background:#ffffff;border-radius:8px;border:1px solid var(--border2);font-size:11px;color:#2d3748;font-family:'DM Mono',monospace;text-align:center">Click an audit to begin clause-by-clause execution · Start an audit to mark it In Progress</div>`;
+}
+
+// ── Audit lifecycle actions (start / complete / delete) ─────────────────────
+async function startAudit(id){
+  try{
+    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=start",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    await loadAuditSessions();renderAuditList();renderDashCharts();
+    toast("Audit "+id+" started — now In Progress.","green");
+  }catch(e){toast("Could not start audit: "+e.message,"red");}
+}
+
+async function completeAudit(id){
+  try{
+    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=complete",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const data=await res.json().catch(()=>({}));
+    if(res.status===409&&data.openCount){
+      toast("Cannot close — "+data.openCount+" linked finding(s) still open. Close them first.","yellow");
+      return;
+    }
+    if(!res.ok)throw new Error(data.error||("HTTP "+res.status));
+    await loadAuditSessions();renderAuditList();renderDashCharts();
+    toast("Audit "+id+" completed and closed.","green");
+  }catch(e){toast("Could not complete audit: "+e.message,"red");}
+}
+
+async function deleteAudit(id){
+  if(!confirm("Delete scheduled audit "+id+"? This cannot be undone."))return;
+  try{
+    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=delete",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    await loadAuditSessions();renderAuditList();renderDashCharts();
+    toast("Audit "+id+" deleted.","green");
+  }catch(e){toast("Could not delete audit: "+e.message,"red");}
 }
 
 function loadAuditExec(auditId){
   activeAuditId=auditId;
   const audit=AUDITS.find(a=>a.id===auditId);if(!audit)return;
   const state=audit.execState||{};
-  const clauseIds=CLAUSES.filter(c=>c.id).map(c=>c.id);
+  // Populate the checklist with only the clauses for this session's selected
+  // sections; fall back to §2.1 + §2.2 for legacy sessions with none recorded.
+  const auditClauses=clausesForSections(audit.sections&&audit.sections.length?audit.sections:["2.1","2.2"]);
+  const clauseIds=auditClauses.filter(c=>c.id).map(c=>c.id);
   const done=clauseIds.filter(id=>state[id]&&state[id].status).length;
   const cC=clauseIds.filter(id=>state[id]&&state[id].status==="C").length;
   const ncC=clauseIds.filter(id=>state[id]&&state[id].status==="NC").length;
@@ -1372,7 +3653,8 @@ function loadAuditExec(auditId){
         <th style="width:110px">SOP Rev</th><th style="width:100px">Status</th><th>Notes / Evidence</th><th style="width:72px">NCR</th>
       </tr></thead><tbody>`;
 
-  CLAUSES.forEach(c=>{
+  CLAUSES_FOR_ACTIVE_AUDIT=auditClauses;
+  auditClauses.forEach(c=>{
     if(c.section){
       const major=c.section.startsWith("§2.");
       html+=`<tr><td colspan="7" class="section-band" style="background:${major?"#1F4E79":"#D6DCE4"};border-left-color:${major?"#ffffff":"#1F3864"};color:${major?"#ffffff":"#1F3864"}">${c.section}</td></tr>`;
@@ -1420,13 +3702,51 @@ function loadAuditExec(auditId){
     </div>
     <div style="margin-top:12px;padding:10px 14px;background:#DEEAF1;border:1px solid #2E75B6;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace;color:#1F3864">
       💾 SAVE → saves to browser &nbsp;·&nbsp; ⬇ EXPORT FOR REPORT → downloads JSON · Upload in Claude to generate polished Word submission report
-    </div>`;
+    </div>
+    <div style="margin-top:14px" id="sig-section-audit"></div>`;
 
   document.getElementById("audit-program-content").innerHTML=html;
+  initSignatureSection("audit","audit",audit.id,"sig-section-audit",(auditSessions.find(x=>x.id===audit.id)||{}).signatures||[],function(updated){const raw=auditSessions.find(x=>x.id===(updated&&updated.id));if(raw&&updated)raw.signatures=updated.signatures;});
 }
 
-function updateExecState(clauseId,field,value){const a=AUDITS.find(a=>a.id===activeAuditId);if(!a)return;if(!a.execState[clauseId])a.execState[clauseId]={};a.execState[clauseId][field]=value;}
-function updateExecMeta(field,value){const a=AUDITS.find(a=>a.id===activeAuditId);if(!a)return;a.execState[field]=value;}
+// Mirror an exec-state change into both the compat view and the raw session
+// row, then schedule a debounced save so the auditor's work is persisted.
+function updateExecState(clauseId,field,value){
+  const a=AUDITS.find(a=>a.id===activeAuditId);if(!a)return;
+  if(!a.execState[clauseId])a.execState[clauseId]={};
+  a.execState[clauseId][field]=value;
+  const raw=auditSessions.find(x=>x.id===activeAuditId);
+  if(raw){if(!raw.execState||typeof raw.execState!=="object")raw.execState={};if(!raw.execState[clauseId])raw.execState[clauseId]={};raw.execState[clauseId][field]=value;}
+  scheduleAuditSave();
+}
+function updateExecMeta(field,value){
+  const a=AUDITS.find(a=>a.id===activeAuditId);if(!a)return;
+  a.execState[field]=value;
+  const raw=auditSessions.find(x=>x.id===activeAuditId);
+  if(raw){if(!raw.execState||typeof raw.execState!=="object")raw.execState={};raw.execState[field]=value;}
+  scheduleAuditSave();
+}
+
+// Persist the active audit session (header fields, section progress, exec
+// state) to the database. Debounced from the per-keystroke change handlers.
+function scheduleAuditSave(){
+  if(auditSaveTimer)clearTimeout(auditSaveTimer);
+  auditSaveTimer=setTimeout(()=>{auditSaveTimer=null;saveActiveAuditSession();},1200);
+}
+async function saveActiveAuditSession(showToast){
+  const raw=auditSessions.find(x=>x.id===activeAuditId);if(!raw)return;
+  const body={
+    id:raw.id,site:raw.site,scheduledDate:raw.scheduledDate,
+    building:raw.building,facilityAddress:raw.facilityAddress,facilityName:raw.facilityName,
+    clausesLabel:raw.clausesLabel,sections:raw.sections,execState:raw.execState,
+  };
+  try{
+    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(raw.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    setSaveStatus("Audit "+raw.id+" saved "+new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"}));
+    if(showToast)toast("Audit progress saved.","green");
+  }catch(e){if(showToast)toast("Could not save audit: "+e.message,"red");}
+}
 
 function updateExecStatus(clauseId,sel){
   const v=sel.value;
@@ -1445,7 +3765,11 @@ function addExecPhoto(clauseId,event){
   let done=0;
   files.forEach(f=>{
     const r=new FileReader();
-    r.onload=ev=>{audit.execState[clauseId].photos.push({name:f.name,data:ev.target.result});done++;if(done===files.length){toast(files.length+" photo(s) added to "+clauseId,"green");loadAuditExec(activeAuditId);}};
+    r.onload=ev=>{audit.execState[clauseId].photos.push({name:f.name,data:ev.target.result});done++;if(done===files.length){
+      const raw=auditSessions.find(x=>x.id===activeAuditId);if(raw)raw.execState=audit.execState;
+      scheduleAuditSave();
+      toast(files.length+" photo(s) added to "+clauseId,"green");loadAuditExec(activeAuditId);
+    }};
     r.readAsDataURL(f);
   });
   event.target.value="";
@@ -1453,12 +3777,14 @@ function addExecPhoto(clauseId,event){
 
 function saveAuditExec(){
   const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
-  loadAuditExec(activeAuditId);toast("Audit progress saved.","green");
+  if(auditSaveTimer){clearTimeout(auditSaveTimer);auditSaveTimer=null;}
+  saveActiveAuditSession(true);
+  loadAuditExec(activeAuditId);
 }
 
 function exportAuditExec(){
   const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
-  const obj={exportType:"SMF_AUDIT_EXEC",exportDate:new Date().toISOString(),audit:{...audit},findings:records.filter(r=>r.type==="NCR"),allRecords:records,clauseData:CLAUSES};
+  const obj={exportType:"SMF_AUDIT_EXEC",exportDate:new Date().toISOString(),audit:{...audit},findings:records.filter(r=>r.type==="NCR"),allRecords:records,clauseData:CLAUSES_FOR_ACTIVE_AUDIT};
   const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download=activeAuditId+"_AuditExec_"+new Date().toISOString().slice(0,10)+".json";a.click();
@@ -1487,12 +3813,11 @@ async function saveQuickNCR(){
   if(!num){toast("NCR number required.","red");return;}
   const user=ensureUser();
   let photos=[];try{photos=JSON.parse(document.getElementById("qncr-photos").value||"[]");}catch(e){}
-  const data={user,id:num,type:"NCR",severity:document.getElementById("qncr-class").value,clause:qncrClause,desc:document.getElementById("qncr-desc").value,rca:document.getElementById("qncr-root").value,ca:document.getElementById("qncr-ca").value,owner:document.getElementById("qncr-owner").value,due:document.getElementById("qncr-due").value,status:"Open",photos,evidence:"",site:currentSite,selfAssigned:true};
+  const data={user,id:num,type:"NCR",severity:document.getElementById("qncr-class").value,clause:qncrClause,desc:document.getElementById("qncr-desc").value,rca:document.getElementById("qncr-root").value,ca:document.getElementById("qncr-ca").value,owner:document.getElementById("qncr-owner").value,due:document.getElementById("qncr-due").value,status:"Open",photos,evidence:"",site:currentSite,selfAssigned:true,auditId:activeAuditId||""};
   try{
     const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
-    const audit=AUDITS.find(a=>a.id===activeAuditId);
-    if(audit){if(!audit.execState[qncrClause])audit.execState[qncrClause]={};audit.execState[qncrClause].status="NC";}
+    if(activeAuditId){updateExecState(qncrClause,"status","NC");if(auditSaveTimer){clearTimeout(auditSaveTimer);auditSaveTimer=null;}await saveActiveAuditSession();}
     closeNCRModal();
     await loadData();
     if(activeAuditId)loadAuditExec(activeAuditId);
@@ -1641,6 +3966,7 @@ Use formal SQF-compliant regulatory language throughout, matching the measured, 
     document.getElementById("copy-rpt-btn").style.display="";
     document.getElementById("dl-rpt-btn").style.display="";
     document.getElementById("dl-pdf-btn").style.display="";
+    {const _ss=document.getElementById("send-sig-btn");if(_ss)_ss.style.display="";}
     window._lastReport=full;
     window._lastReportMeta={type:"crisis-exercise",exerciseId:ex.id,site:ex.site,nextExerciseDate:ex.nextExerciseDate};
     toast("After-action report generated.","green");
@@ -1666,6 +3992,7 @@ async function streamSingleReport(prompt,wrap,meta){
     document.getElementById("copy-rpt-btn").style.display="";
     document.getElementById("dl-rpt-btn").style.display="";
     document.getElementById("dl-pdf-btn").style.display="";
+    {const _ss=document.getElementById("send-sig-btn");if(_ss)_ss.style.display="";}
     window._lastReport=full;
     window._lastReportMeta=meta||null;
     toast("Report generated.","green");
@@ -1948,6 +4275,7 @@ BE CONCISE. Do NOT write full narrative paragraphs for each finding. Use abbrevi
     document.getElementById("copy-rpt-btn").style.display="";
     document.getElementById("dl-rpt-btn").style.display="";
     document.getElementById("dl-pdf-btn").style.display="";
+    {const _ss=document.getElementById("send-sig-btn");if(_ss)_ss.style.display="";}
     window._lastReport=full;
     window._lastReportMeta=null;
     toast("Report generated.","green");
@@ -2188,6 +4516,14 @@ async function downloadReportPDF(){
     }
   }
 
+  // ── ELECTRONIC SIGNATURE BLOCK ────────────────────────────────────────────
+  // Append the captured electronic signatures for the record this report covers.
+  let _sigList=[];
+  if(isOOSIndividual&&oosRec)_sigList=oosRec.signatures||[];
+  else if(isCrisis&&typeof activeCrisis!=="undefined"&&activeCrisis)_sigList=activeCrisis.signatures||[];
+  else if(!isOOS&&!isCrisis){const _raw=(typeof auditSessions!=="undefined")?auditSessions.find(x=>x.id===activeAuditId):null;_sigList=_raw?(_raw.signatures||[]):[];}
+  y=pdfSignatureBlock(doc,_sigList,navy,white,black,margin,contentW,pageW,pageH,y+12);
+
   // ── OOS INDIVIDUAL EVENT REPORT — APPENDICES ──────────────────────────────
   // Image attachments are embedded inline on their own appendix pages; PDF
   // attachments are stitched in as appended pages after the signature block;
@@ -2333,27 +4669,62 @@ function toast(msg,type="green"){
 
 
 // ── AD-HOC AUDIT CREATION ─────────────────────────────────────────────────
-const CLAUSE_LABELS = {
-  '2.1-2.2': '§2.1 + §2.2 — Management Commitment · Document Control & Records',
-  '2.3-2.4': '§2.3 + §2.4 — Specifications · Food Safety System / HACCP',
-  '2.5-2.6': '§2.5 + §2.6 — Verification · Traceability and Recall',
-  '2.7-2.9': '§2.7 + §2.8 + §2.9 — Food Defense · Allergen Management · Training',
-  'mod17-gmp': 'Module 17 — GMP §17.1–17.7',
-  'full': 'Full Module 2 (§2.1–2.9) + Module 17 (§17.1–17.7)',
-};
+// Build the module/section picker. A module checkbox toggles all of its
+// sections; ticking/unticking individual sections updates its module checkbox.
+function renderNaSectionPicker(){
+  const host=document.getElementById('na-section-picker');if(!host)return;
+  host.innerHTML=CLAUSE_MODULES.map((m,mi)=>{
+    const secs=m.sections.map(s=>`
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:6px 9px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:11px">
+        <input type="checkbox" class="na-sec" data-mod="${mi}" value="${s}" style="accent-color:#1F4E79" onchange="onNaSectionToggle(${mi})"> ${cesc(clauseSectionLabel(s))}
+      </label>`).join('');
+    return `
+      <div style="margin-bottom:12px;border:1px solid #BDD7EE;border-radius:6px;padding:10px;background:#fff">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:12px;color:#1F3864;margin-bottom:8px">
+          <input type="checkbox" class="na-mod" data-mod="${mi}" style="accent-color:#1F4E79" onchange="onNaModuleToggle(${mi})"> ${cesc(m.module)} <span style="font-weight:400;color:#4a5568">— select all</span>
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${secs}</div>
+      </div>`;
+  }).join('');
+}
+function onNaModuleToggle(mi){
+  const on=document.querySelector('.na-mod[data-mod="'+mi+'"]').checked;
+  document.querySelectorAll('.na-sec[data-mod="'+mi+'"]').forEach(cb=>cb.checked=on);
+}
+function onNaSectionToggle(mi){
+  const secs=Array.from(document.querySelectorAll('.na-sec[data-mod="'+mi+'"]'));
+  const all=secs.every(cb=>cb.checked);
+  const modCb=document.querySelector('.na-mod[data-mod="'+mi+'"]');if(modCb)modCb.checked=all;
+}
+function naSelectedSections(){
+  return Array.from(document.querySelectorAll('.na-sec:checked')).map(cb=>cb.value);
+}
+// Pre-fill facility address (and derive the database site) from the chosen facility.
+function onNaFacilityChange(){
+  const f=facilityByName(document.getElementById('na-facility').value);
+  if(f)document.getElementById('na-address').value=f.address;
+}
 
 function openNewAuditModal() {
+  // Facility dropdown defaults to a facility matching the current site.
+  const facSel=document.getElementById('na-facility');
+  facSel.innerHTML=FACILITIES.map(f=>`<option value="${f.name}">${f.name} — ${f.site}</option>`).join('');
+  const def=FACILITIES.find(f=>f.site===currentSite)||FACILITIES[0];
+  facSel.value=def.name;
+  document.getElementById('na-address').value=def.address;
+  document.getElementById('na-building').value='';
   // Auto-fill date fields
   const today = new Date().toISOString().split('T')[0];
   const twoWeeks = new Date(); twoWeeks.setDate(twoWeeks.getDate()+14);
   document.getElementById('na-date').value = today;
   document.getElementById('na-report-due').value = twoWeeks.toISOString().split('T')[0];
-  // Auto-generate audit number
-  const count = AUDITS.length + 1;
-  document.getElementById('na-id').value = 'AUDIT-LDN-2026-' + String(count).padStart(3,'0') + '-S1';
+  // Auto-generate audit number scoped to the chosen site.
+  const prefix=def.site==='Lindon'?'LDN':'LAY';
+  const count = auditSessions.length + 1;
+  document.getElementById('na-id').value = 'AUDIT-' + prefix + '-2026-' + String(count).padStart(3,'0') + '-S1';
   document.getElementById('na-appb').value = '';
   document.getElementById('na-notes').value = '';
-  document.querySelectorAll('input[name="na-clauses"]').forEach(cb => cb.checked = false);
+  renderNaSectionPicker();
   document.getElementById('new-audit-modal').classList.add('open');
 }
 
@@ -2361,31 +4732,38 @@ function closeNewAuditModal() {
   document.getElementById('new-audit-modal').classList.remove('open');
 }
 
-function saveNewAudit() {
+async function saveNewAudit() {
   const id = document.getElementById('na-id').value.trim();
   if (!id) { toast('Audit number is required.', 'red'); return; }
-  const selected = Array.from(document.querySelectorAll('input[name="na-clauses"]:checked')).map(cb => cb.value);
-  if (!selected.length) { toast('Select at least one SQF module to audit.', 'red'); return; }
-  const clauseStr = selected.map(v => CLAUSE_LABELS[v] || v).join(' · ');
-  const newAudit = {
+  const sections = naSelectedSections();
+  if (!sections.length) { toast('Select at least one SQF section (or a whole module) to audit.', 'red'); return; }
+  const fac = facilityByName(document.getElementById('na-facility').value) || FACILITIES[0];
+  const clausesLabel = sections.map(s => clauseSectionLabel(s)).join(' · ');
+  const body = {
     id,
-    facility: document.getElementById('na-facility').value,
-    clauses: clauseStr,
-    desc: selected.map(v => CLAUSE_LABELS[v]||v).join(' | '),
-    appb: document.getElementById('na-appb').value || 'Ad-hoc',
-    date: document.getElementById('na-date').value,
-    lead: document.getElementById('na-lead').value,
-    co: document.getElementById('na-co').value,
-    status: 'Scheduled',
-    reportDue: document.getElementById('na-report-due').value,
-    execState: {},
-    selectedModules: selected,
-    notes: document.getElementById('na-notes').value,
+    site: fac.site,
+    facilityName: fac.name,
+    facilityAddress: document.getElementById('na-address').value.trim(),
+    building: document.getElementById('na-building').value.trim(),
+    scheduledDate: document.getElementById('na-date').value,
+    clausesLabel,
+    sections,
+    execState: {
+      _appb: document.getElementById('na-appb').value || 'Ad-hoc',
+      _reportDue: document.getElementById('na-report-due').value,
+      _lead: document.getElementById('na-lead').value,
+      _co: document.getElementById('na-co').value,
+      _notes: document.getElementById('na-notes').value,
+    },
   };
-  AUDITS.push(newAudit);
-  closeNewAuditModal();
-  showAuditList();
-  toast('Audit ' + id + ' scheduled.', 'green');
+  try{
+    const res=await fetch(AUDITS_API+"?action=create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    closeNewAuditModal();
+    await showAuditList();
+    renderDashCharts();
+    toast('Audit ' + id + ' scheduled.', 'green');
+  }catch(e){toast('Could not schedule audit: '+e.message,'red');}
 }
 
 document.getElementById('new-audit-modal').addEventListener('click', e => {
@@ -2522,7 +4900,116 @@ async function refreshCrisisActive(){
   toast("Timeline refreshed.","green");
 }
 
+// ── REUSABLE ELECTRONIC SIGNATURE SECTION ───────────────────────────────────
+// Renders a Signatures block for any record type (CAPA/NCR/Audit Finding, OOS,
+// Crisis Exercise). Existing signature rows come from the record; the user may
+// add a row, pick a role, and click Sign — which calls the appropriate API's
+// `sign` action. The server stamps the signer's name, title and timestamp from
+// the signed-in identity, so a user can only ever sign as themselves.
+const SIG_ROLES=["Prepared By","Reviewed By","Approved By","Quality Manager","VP Quality","SQF Practitioner"];
+const SIG_ENDPOINTS={record:"/api/records",oos:"/api/oos",crisis:"/api/crisis",audit:"/api/audits"};
+const sigState={}; // ctxKey -> {kind,id,hostId,signatures:[],pending:[],onChange}
+
+function initSignatureSection(ctxKey,kind,id,hostId,signatures,onChange){
+  sigState[ctxKey]={kind,id:id||"",hostId,signatures:Array.isArray(signatures)?signatures.slice():[],pending:[],onChange:onChange||null};
+  renderSignatureSection(ctxKey);
+}
+function renderSignatureSection(ctxKey){
+  const st=sigState[ctxKey];if(!st)return;
+  const host=document.getElementById(st.hostId);if(!host)return;
+  const signedBadge='background:#E2EFDA;color:#375623;border:1px solid #548235';
+  const pendBadge='background:#FFF2CC;color:#7F6000;border:1px solid #BF9000';
+  const usedRoles=st.signatures.map(s=>(s.role||"").toLowerCase());
+  let rows=st.signatures.map(s=>{
+    const signed=!!s.signedAt;
+    return `<tr>
+      <td>${cesc(s.role||"")}</td><td>${cesc(s.name||"—")}</td><td>${cesc(s.title||"—")}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:10px">${signed?cfmtTs(s.signedAt):"—"}</td>
+      <td><span class="badge" style="${signed?signedBadge:pendBadge}">${signed?"Signed":"Pending"}</span></td><td></td>
+    </tr>`;
+  });
+  st.pending.forEach((p,i)=>{
+    rows.push(`<tr>
+      <td><select class="form-select" id="sigrole-${ctxKey}-${i}" style="min-width:150px;font-size:11px">${SIG_ROLES.map(r=>`<option ${r===p.role?'selected':''} ${usedRoles.includes(r.toLowerCase())?'disabled':''}>${r}</option>`).join("")}</select></td>
+      <td>${cesc(currentUser||"—")}</td><td>${cesc(currentUserTitle||"—")}</td><td>—</td>
+      <td><span class="badge" style="${pendBadge}">Pending</span></td>
+      <td style="white-space:nowrap"><button class="btn" style="padding:4px 10px;font-size:11px;background:#385723" onclick="sigSign('${ctxKey}',${i})">✍ Sign</button> <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="sigRemovePending('${ctxKey}',${i})">✕</button></td>
+    </tr>`);
+  });
+  const note=st.id?"You can only sign as yourself — your name, title and timestamp are captured automatically when you click Sign.":"Save this record first, then add and apply signatures.";
+  host.innerHTML=`
+    <div class="form-label" style="margin-bottom:6px;font-weight:700">Signatures</div>
+    <div style="overflow-x:auto"><table class="crisis-tbl" style="width:100%;font-size:11px">
+      <thead><tr><th>Role</th><th>Name</th><th>Title</th><th>Timestamp</th><th>Status</th><th style="width:120px"></th></tr></thead>
+      <tbody>${rows.join("")||`<tr><td colspan="6" style="color:#4a5568">No signatures yet.</td></tr>`}</tbody>
+    </table></div>
+    <button class="btn-ghost" style="margin-top:8px;font-size:11px" onclick="sigAddRow('${ctxKey}')">+ Add Signature</button>
+    <div style="font-size:10px;color:#4a5568;margin-top:4px">${note}</div>`;
+}
+function sigAddRow(ctxKey){
+  const st=sigState[ctxKey];if(!st)return;
+  if(!st.id){toast("Save this record first, then add signatures.","yellow");return;}
+  const used=st.signatures.map(s=>(s.role||"").toLowerCase());
+  const role=SIG_ROLES.find(r=>!used.includes(r.toLowerCase()))||SIG_ROLES[0];
+  st.pending.push({role});renderSignatureSection(ctxKey);
+}
+function sigRemovePending(ctxKey,i){const st=sigState[ctxKey];if(!st)return;st.pending.splice(i,1);renderSignatureSection(ctxKey);}
+async function sigSign(ctxKey,i){
+  const st=sigState[ctxKey];if(!st||!st.pending[i])return;
+  if(!st.id){toast("Save this record first.","yellow");return;}
+  const sel=document.getElementById("sigrole-"+ctxKey+"-"+i);
+  const role=(sel?sel.value:st.pending[i].role)||"";
+  if(!role){toast("Choose a signature role.","red");return;}
+  try{
+    const res=await fetch(SIG_ENDPOINTS[st.kind]+"?id="+encodeURIComponent(st.id)+"&action=sign",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const updated=await res.json();
+    if(updated&&Array.isArray(updated.signatures))st.signatures=updated.signatures;
+    st.pending.splice(i,1);
+    renderSignatureSection(ctxKey);
+    if(typeof st.onChange==="function")st.onChange(updated);
+    toast("Signed as "+role+".","green");
+  }catch(e){toast("Could not sign: "+e.message,"red");}
+}
+
+// Draw an electronic-signature block into a jsPDF document: one row per
+// signatory with role, name, title, captured timestamp and a signature line.
+function pdfSignatureBlock(doc,sigList,navy,white,black,margin,contentW,pageW,pageH,startY){
+  let y=startY;
+  if(y>pageH-150){doc.addPage();y=50;}
+  doc.setFillColor(navy[0],navy[1],navy[2]);doc.rect(margin,y,contentW,20,'F');
+  doc.setFontSize(10.5);doc.setTextColor(white[0],white[1],white[2]);doc.setFont('helvetica','bold');
+  doc.text('ELECTRONIC SIGNATURES',margin+8,y+14);
+  y+=32;
+  const sigs=Array.isArray(sigList)?sigList:[];
+  if(!sigs.length){
+    doc.setFontSize(9);doc.setTextColor(120,120,140);doc.setFont('helvetica','italic');
+    doc.text('No electronic signatures have been applied to this record.',margin,y);
+    return y+16;
+  }
+  sigs.forEach(s=>{
+    if(y>pageH-70){doc.addPage();y=50;}
+    const signed=!!s.signedAt;
+    doc.setFontSize(9.5);doc.setTextColor(black[0],black[1],black[2]);doc.setFont('helvetica','bold');
+    doc.text(String(s.role||'Signatory'),margin,y);
+    doc.setFont('helvetica','normal');
+    const who=signed?((s.name||'—')+(s.title?(', '+s.title):'')):'— pending —';
+    doc.text(doc.splitTextToSize(who,contentW-160)[0],margin+150,y);
+    y+=12;
+    doc.setDrawColor(120,120,140);doc.setLineWidth(0.5);
+    doc.line(margin,y+8,margin+250,y+8);
+    doc.setFontSize(7.5);doc.setTextColor(120,120,140);doc.setFont('helvetica','normal');
+    doc.text('Signature',margin,y+18);
+    let stamp='Date: ____________________';
+    if(signed){try{stamp='Signed electronically: '+new Date(s.signedAt).toLocaleString('en-US');}catch(e){stamp='Signed: '+s.signedAt;}}
+    doc.text(stamp,margin+270,y+8);
+    y+=30;
+  });
+  return y;
+}
+
 function renderCrisisEditor(){
+  // (helper hoisted above; see pdfSignatureBlock)
   const e=activeCrisis;if(!e)return;
   document.getElementById("crisis-back-btn").style.display="";
   document.getElementById("crisis-refresh-btn").style.display="";
@@ -2615,6 +5102,11 @@ function renderCrisisEditor(){
       <div style="overflow-x:auto"><table class="crisis-tbl" id="crisis-attendees"></table></div>
     </div>
 
+    <div class="crisis-block">
+      <div class="crisis-block-title">9 · Signatures</div>
+      <div id="sig-section-crisis"></div>
+    </div>
+
     <div style="position:sticky;bottom:0;background:linear-gradient(transparent,#eef2f6 30%);padding:14px 0;text-align:right;display:flex;gap:10px;justify-content:flex-end">
       <button class="btn-ghost" onclick="showCrisisList()">Close</button>
       <button class="btn" style="background:#C00000;padding:10px 22px" onclick="saveCrisis()">&#128190; Save Exercise</button>
@@ -2624,6 +5116,7 @@ function renderCrisisEditor(){
   renderCrisisDiscussion();
   renderCrisisLessons();
   renderCrisisAttendees();
+  initSignatureSection("crisis","crisis",e.id,"sig-section-crisis",e.signatures||[],function(updated){if(activeCrisis&&updated)activeCrisis.signatures=updated.signatures;});
   startCrisisPoll();
 }
 
@@ -2970,11 +5463,17 @@ function renderOOSEditor(){
       <div id="oos-attachments"></div>
     </div>
 
+    <div class="crisis-block">
+      <div class="crisis-block-title">6 · Signatures</div>
+      <div id="sig-section-oos"></div>
+    </div>
+
     <div style="position:sticky;bottom:0;background:linear-gradient(transparent,#eef2f6 30%);padding:14px 0;text-align:right;display:flex;gap:10px;justify-content:flex-end">
       <button class="btn-ghost" onclick="showOOSList()">Close</button>
       <button class="btn" style="background:#C00000;padding:10px 22px" onclick="saveOOS()">&#128190; Save OOS Record</button>
     </div>`;
   renderOOSAttachments();
+  initSignatureSection("oos","oos",o.id,"sig-section-oos",o.signatures||[],function(updated){if(activeOOS&&updated)activeOOS.signatures=updated.signatures;});
 }
 
 function renderOOSAttachments(){
