@@ -1,0 +1,1 @@
+ALTER TABLE "records" ADD COLUMN "source_body" text DEFAULT '' NOT NULL;
