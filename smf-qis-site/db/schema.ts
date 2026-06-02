@@ -31,6 +31,11 @@ export const records = pgTable(
     // the audits function to refuse closing a session while linked findings
     // remain open. Empty when the record is not tied to an audit session.
     auditId: text("audit_id").notNull().default(""),
+    // Source / certification body for Audit Finding records (e.g. "NSF", "SQF"
+    // or a custom 1-3 letter code). Drives the prefix of the auto-generated
+    // record id (e.g. "NSF-LDN-2026-001") and is shown on the detail view and
+    // in reports. Empty for record types that carry no certification-body source.
+    sourceBody: text("source_body").notNull().default(""),
     // Direct single-CAPA linkage for NCR / Audit Finding records (the source
     // record points at the CAPA that addresses it). Empty when not linked.
     capaId: text("capa_id").notNull().default(""),

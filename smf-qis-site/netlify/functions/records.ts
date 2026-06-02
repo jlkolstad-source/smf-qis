@@ -13,7 +13,7 @@ import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { eq, asc, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { records, auditLog, effectivenessChecks } from "../../db/schema.js";
+import { records, auditLog, effectivenessChecks, capaLinks } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -88,6 +88,7 @@ function toClient(r: typeof records.$inferSelect) {
     photos: r.photos || [],
     selfAssigned: !!r.selfAssigned,
     auditId: r.auditId || "",
+    sourceBody: r.sourceBody || "",
     capaId: r.capaId || "",
     effectivenessCheckDueDate: r.effectivenessCheckDueDate || "",
     effectivenessCheckOwner: r.effectivenessCheckOwner || "",
@@ -149,6 +150,29 @@ async function nextQisId() {
   return "QIS-" + String(max + 1).padStart(4, "0");
 }
 
+// Three-letter site abbreviation used in prefixed Audit-Finding ids.
+function siteAbbr(site: string): string {
+  const s = (site || "").trim().toLowerCase();
+  if (s === "lindon") return "LDN";
+  if (s === "layton") return "LAY";
+  return (site || "SMF").replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "SMF";
+}
+
+// Next prefixed Audit-Finding id for a given certification-body prefix, site and
+// year, e.g. "NSF-LDN-2026-001". The sequence is tracked independently per
+// (prefix, site, year) so NSF / SQF / custom-code findings each number from 001.
+async function nextAuditId(prefix: string, site: string, year: string): Promise<string> {
+  const base = `${prefix}-${siteAbbr(site)}-${year}`;
+  const rows = await db.select({ id: records.id }).from(records);
+  let max = 0;
+  const re = new RegExp("^" + base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-(\\d+)$");
+  for (const { id } of rows) {
+    const m = re.exec(id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `${base}-${String(max + 1).padStart(3, "0")}`;
+}
+
 // Normalise an incoming record payload into DB column values.
 function toRow(r: any) {
   return {
@@ -166,6 +190,7 @@ function toRow(r: any) {
     photos: Array.isArray(r.photos) ? r.photos : [],
     selfAssigned: !!r.selfAssigned,
     auditId: (r.auditId || "").toString(),
+    sourceBody: (r.sourceBody ?? r.source_body ?? "").toString().trim().toUpperCase(),
     capaId: (r.capaId ?? r.capa_id ?? "").toString(),
     effectivenessCheckDueDate: (r.effectivenessCheckDueDate ?? r.effectiveness_check_due_date ?? "").toString(),
     effectivenessCheckOwner: (r.effectivenessCheckOwner ?? r.effectiveness_check_owner ?? "").toString(),
@@ -471,9 +496,19 @@ export default async (req: Request) => {
       }
 
       // Single create.
-      const id = body.id && String(body.id).trim() ? String(body.id).trim() : await nextQisId();
-      const now = new Date();
       const row = toRow(body);
+      // Auto-generate the id when the client did not supply one. Audit Findings
+      // with a certification-body source are numbered per prefix/site/year
+      // (e.g. "NSF-LDN-2026-001"); everything else falls back to "QIS-####".
+      let id: string;
+      if (body.id && String(body.id).trim()) {
+        id = String(body.id).trim();
+      } else if (row.type === "AUDIT" && row.sourceBody) {
+        id = await nextAuditId(row.sourceBody, row.site, String(new Date().getFullYear()));
+      } else {
+        id = await nextQisId();
+      }
+      const now = new Date();
       const [created] = await db
         .insert(records)
         .values({ id, ...row, createdBy: actor, createdAt: now, modifiedBy: actor, modifiedAt: now })
@@ -506,6 +541,21 @@ export default async (req: Request) => {
         row.effectivenessCheckOwner = existing.effectivenessCheckOwner;
       if (!bodyHas(body, "effectivenessStatus", "effectiveness_status"))
         row.effectivenessStatus = existing.effectivenessStatus;
+      // Preserve the certification-body source unless explicitly supplied.
+      if (!bodyHas(body, "sourceBody", "source_body")) row.sourceBody = existing.sourceBody;
+
+      // ── Record ID rename ──────────────────────────────────────────────────
+      // The id is editable from the edit form. When a different id is supplied,
+      // validate it is free, then rename the record and cascade the change to
+      // every linkage (capa_links capa_id / source_id) and to the audit-log
+      // history so all references survive the rename.
+      const newIdRaw = (body.newId ?? body.new_id ?? "").toString().trim();
+      const renaming = !!newIdRaw && newIdRaw !== id;
+      const targetId = renaming ? newIdRaw : id;
+      if (renaming) {
+        const [clash] = await db.select().from(records).where(eq(records.id, newIdRaw));
+        if (clash) return json(409, { error: "A record with id " + newIdRaw + " already exists." });
+      }
 
       // Only admins may close a finding.
       if (row.status === "Closed" && existing.status !== "Closed" && !admin) {
@@ -530,9 +580,18 @@ export default async (req: Request) => {
 
       const [updated] = await db
         .update(records)
-        .set({ ...row, modifiedBy: actor, modifiedAt: now })
+        .set({ ...row, id: targetId, modifiedBy: actor, modifiedAt: now })
         .where(eq(records.id, id))
         .returning();
+
+      // Cascade the rename across linkages and audit history.
+      if (renaming) {
+        await db.update(capaLinks).set({ capaId: targetId }).where(eq(capaLinks.capaId, id));
+        await db.update(capaLinks).set({ sourceId: targetId }).where(eq(capaLinks.sourceId, id));
+        await db.update(effectivenessChecks).set({ capaId: targetId }).where(eq(effectivenessChecks.capaId, id));
+        await db.update(auditLog).set({ recordId: targetId }).where(eq(auditLog.recordId, id));
+        await logChange(targetId, "id_change", `Record ID changed: ${id} → ${targetId}`, actor);
+      }
 
       // Audit trail: log changed fields, and the status transition specifically.
       const tracked: [string, any, any][] = [
@@ -546,12 +605,13 @@ export default async (req: Request) => {
         ["rca", existing.rca, updated.rca],
         ["ca", existing.ca, updated.ca],
         ["evidence", existing.evidence, updated.evidence],
+        ["source_body", existing.sourceBody, updated.sourceBody],
       ];
       const changed = tracked.filter(([, a, b]) => a !== b).map(([f]) => f);
       if (existing.status !== updated.status) {
-        await logChange(id, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
+        await logChange(targetId, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
       }
-      await logChange(id, "update", changed.length ? `Updated: ${changed.join(", ")}` : "Saved (no field changes)", actor);
+      await logChange(targetId, "update", changed.length ? `Updated: ${changed.join(", ")}` : "Saved (no field changes)", actor);
       return json(200, toClient(updated));
     }
 

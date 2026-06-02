@@ -22,7 +22,7 @@ import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { eq, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { oosRecords, auditLog } from "../../db/schema.js";
+import { oosRecords, auditLog, capaLinks } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -342,6 +342,18 @@ export default async (req: Request) => {
       const row = toRow(body);
       if (!body.site) row.site = existing.site;
 
+      // ── OOS ID rename ─────────────────────────────────────────────────────
+      // The id is editable from the edit form. When a different id is supplied,
+      // validate it is free, then rename and cascade to capa_links (capa_id /
+      // source_id) and the audit-log history so every reference is preserved.
+      const newIdRaw = (body.newId ?? body.new_id ?? "").toString().trim();
+      const renaming = !!newIdRaw && newIdRaw !== id;
+      const targetId = renaming ? newIdRaw : id;
+      if (renaming) {
+        const [clash] = await db.select().from(oosRecords).where(eq(oosRecords.id, newIdRaw));
+        if (clash) return json(409, { error: "An OOS record with id " + newIdRaw + " already exists." });
+      }
+
       // Only admins may close out an OOS investigation.
       const closingNow = CLOSED_STATUSES.has(row.status) && !CLOSED_STATUSES.has(existing.status);
       if (closingNow && !admin) {
@@ -361,17 +373,24 @@ export default async (req: Request) => {
 
       const [updated] = await db
         .update(oosRecords)
-        .set({ ...row, closedBy, closedDate, modifiedBy: actor, modifiedAt: now })
+        .set({ ...row, id: targetId, closedBy, closedDate, modifiedBy: actor, modifiedAt: now })
         .where(eq(oosRecords.id, id))
         .returning();
 
+      if (renaming) {
+        await db.update(capaLinks).set({ capaId: targetId }).where(eq(capaLinks.capaId, id));
+        await db.update(capaLinks).set({ sourceId: targetId }).where(eq(capaLinks.sourceId, id));
+        await db.update(auditLog).set({ recordId: targetId }).where(eq(auditLog.recordId, id));
+        await logChange(targetId, "id_change", `Record ID changed: ${id} → ${targetId}`, actor);
+      }
+
       if (existing.status !== updated.status) {
-        await logChange(id, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
+        await logChange(targetId, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
       }
       if (existing.disposition !== updated.disposition) {
-        await logChange(id, "disposition", `Disposition ${existing.disposition} → ${updated.disposition}`, actor);
+        await logChange(targetId, "disposition", `Disposition ${existing.disposition} → ${updated.disposition}`, actor);
       }
-      await logChange(id, "update", "OOS record saved", actor);
+      await logChange(targetId, "update", "OOS record saved", actor);
       return json(200, toClient(updated));
     }
 

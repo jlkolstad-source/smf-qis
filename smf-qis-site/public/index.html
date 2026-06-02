@@ -647,8 +647,15 @@ main{padding:24px 32px 80px;}
   <div class="modal">
     <div class="modal-title" id="modal-title">New Record</div>
     <div class="form-grid">
-      <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="f-type"><option value="CAPA">CAPA</option><option value="NCR">NCR</option><option value="AUDIT">Audit Finding</option></select></div>
+      <div class="form-group form-full" id="f-id-group" style="display:none">
+        <label class="form-label">Record ID</label>
+        <input class="form-input" id="f-id" type="text" placeholder="e.g. NSF-LDN-2026-001">
+        <div style="font-size:10px;color:var(--warn);margin-top:4px">&#9888; Changing a record ID will update all linked references — use with care.</div>
+      </div>
+      <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="f-type" onchange="onRecordTypeChange()"><option value="CAPA">CAPA</option><option value="NCR">NCR</option><option value="AUDIT">Audit Finding</option></select></div>
       <div class="form-group"><label class="form-label">Severity</label><select class="form-select" id="f-severity"><option value="Minor">Minor</option><option value="Major">Major</option><option value="Critical">Critical</option><option value="Observation">Observation</option></select></div>
+      <div class="form-group" id="f-source-group" style="display:none"><label class="form-label">Source / Certification Body</label><select class="form-select" id="f-source-body" onchange="onSourceBodyChange()"><option value="NSF">NSF</option><option value="SQF">SQF</option><option value="Other">Other</option></select></div>
+      <div class="form-group" id="f-source-code-group" style="display:none"><label class="form-label">3-Letter Code</label><input class="form-input" id="f-source-code" type="text" maxlength="3" placeholder="e.g. ISO" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z]/g,'')"></div>
       <div class="form-group form-full"><label class="form-label">Description</label><textarea class="form-textarea" id="f-desc" placeholder="Describe the finding or non-conformance..."></textarea></div>
       <div class="form-group"><label class="form-label">SQF Clause</label><input class="form-input" id="f-clause" placeholder="e.g. 17.4.1.1" type="text"></div>
       <div class="form-group"><label class="form-label">Owner</label><input class="form-input" id="f-owner" placeholder="Name or role" type="text"></div>
@@ -3979,6 +3986,13 @@ function openModal(presetType){
   document.getElementById("f-status").value="Open";
   document.getElementById("f-photos").value="[]";
   document.getElementById("photo-preview-grid").innerHTML="";
+  // ID is auto-generated on create — hide the editable ID field.
+  document.getElementById("f-id-group").style.display="none";
+  document.getElementById("f-id").value="";
+  // Reset the Audit-Finding source selector (shown only when type === AUDIT).
+  document.getElementById("f-source-body").value="NSF";
+  document.getElementById("f-source-code").value="";
+  onRecordTypeChange();
   applyCloseGate("Open");
   initSignatureSection("record","record",null,"sig-section-record",[],null);
   renderRecordLinkage(null);
@@ -3993,10 +4007,37 @@ function applyCloseGate(currentStatus){
   opt.disabled=!isAdminUser&&currentStatus!=="Closed";
 }
 
+// Show the Source / Certification Body selector only for Audit Findings; it
+// drives the record-ID prefix on creation and is stored as source_body.
+function onRecordTypeChange(){
+  const isAudit=document.getElementById("f-type").value==="AUDIT";
+  const sg=document.getElementById("f-source-group");if(sg)sg.style.display=isAudit?"":"none";
+  onSourceBodyChange();
+}
+// Reveal the 3-letter custom-code input when the source is "Other".
+function onSourceBodyChange(){
+  const isAudit=document.getElementById("f-type").value==="AUDIT";
+  const isOther=document.getElementById("f-source-body").value==="Other";
+  const cg=document.getElementById("f-source-code-group");if(cg)cg.style.display=(isAudit&&isOther)?"":"none";
+}
+// Resolve the source_body value (the ID prefix) from the selector, validating
+// the custom 3-letter code when "Other" is chosen. Returns null on error.
+function resolveSourceBody(){
+  if(document.getElementById("f-type").value!=="AUDIT")return "";
+  const sel=document.getElementById("f-source-body").value;
+  if(sel==="NSF"||sel==="SQF")return sel;
+  const code=(document.getElementById("f-source-code").value||"").trim().toUpperCase();
+  if(!/^[A-Z]{1,3}$/.test(code)){toast("Enter a 1–3 letter code for the certification body.","red");return null;}
+  return code;
+}
+
 function editRecord(id){
   const r=records.find(x=>x.id===id);if(!r)return;
   editingId=id;currentPhotos=r.photos?[...r.photos]:[];
   document.getElementById("modal-title").textContent="Edit · "+id;
+  // The Record ID is editable when editing an existing record.
+  document.getElementById("f-id-group").style.display="";
+  document.getElementById("f-id").value=r.id||"";
   document.getElementById("f-type").value=r.type;
   document.getElementById("f-severity").value=r.severity;
   document.getElementById("f-desc").value=r.desc||"";
@@ -4010,6 +4051,14 @@ function editRecord(id){
   document.getElementById("f-photos").value=JSON.stringify(currentPhotos);
   renderPhotoPreview("photo-preview-grid",currentPhotos);
   applyCloseGate(r.status||"Open");
+  // Populate the Audit-Finding source selector from the stored source_body.
+  (function(){
+    const sb=(r.sourceBody||"").trim().toUpperCase();
+    if(sb==="NSF"||sb==="SQF"){document.getElementById("f-source-body").value=sb;document.getElementById("f-source-code").value="";}
+    else if(sb){document.getElementById("f-source-body").value="Other";document.getElementById("f-source-code").value=sb;}
+    else{document.getElementById("f-source-body").value="NSF";document.getElementById("f-source-code").value="";}
+    onRecordTypeChange();
+  })();
   initSignatureSection("record","record",id,"sig-section-record",r.signatures||[],function(updated){const rr=records.find(x=>x.id===(updated&&updated.id));if(rr&&updated)rr.signatures=updated.signatures;});
   renderRecordLinkage(r);
   document.getElementById("modal").classList.add("open");
@@ -4029,7 +4078,18 @@ async function saveRecord(){
   if(newStatus==="Closed"&&!isAdminUser&&(!existing||existing.status!=="Closed")){
     toast("Only an administrator can close a finding.","red");return;
   }
+  const isAudit=document.getElementById("f-type").value==="AUDIT";
+  const sourceBody=resolveSourceBody();
+  if(isAudit&&sourceBody===null)return; // invalid custom code; resolveSourceBody toasted
   const data={user,type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:newStatus,evidence:document.getElementById("f-evidence").value.trim(),photos,site:existing?existing.site:currentSite};
+  // Only send source_body for Audit Findings (drives the ID prefix on create).
+  if(isAudit)data.sourceBody=sourceBody;
+  // When editing, allow the Record ID to be renamed.
+  if(wasEditing){
+    const newId=document.getElementById("f-id").value.trim();
+    if(!newId){toast("Record ID cannot be empty.","red");return;}
+    if(newId!==editId)data.newId=newId;
+  }
   try{
     let res;
     if(wasEditing){
@@ -5077,6 +5137,7 @@ function aiFmtRecordFull(r){
     `Record ID: ${fld(r.id)}`,
     `Type: ${fld(r.type)}`,
     `Severity: ${fld(r.severity)}`,
+    `Certification Body / Source: ${fld(r.sourceBody)}`,
     `Clause: ${fld(r.clause)}`,
     `Status: ${fld(r.status)}`,
     `Owner/Department: ${fld(r.owner)}`,
@@ -5253,6 +5314,7 @@ async function generateFindingSummaryReport(wrap){
     const links=await capaLinksGet("source_id="+encodeURIComponent(r.id));
     return `Record ID: ${fld(r.id)}
 Type: ${fld(r.type)}
+Certification Body / Source: ${fld(r.sourceBody)}
 Clause: ${fld(r.clause)}
 Clause Requirement: ${req?req:"(refer to SQF Edition 9 clause text)"}
 Severity: ${fld(r.severity)}
@@ -5286,7 +5348,7 @@ Render this table exactly (header row then the data rows):
 ${summaryTable}
 
 ## FINDING DETAIL
-For each finding below, render a "### " detail block titled with the Record ID, containing labeled lines for: Clause, Clause Requirement, Observation, Root Cause Analysis, Corrective Action, Status, and Objective Evidence. Reproduce every field verbatim from the data provided; report blank/pending fields exactly as pending. Then, within each detail block, render a "**Linked CAPAs**" subsection reproducing the linked-CAPA lines provided for that finding exactly (CAPA ID, status, owner, due date, closure date) — or the line "None linked at time of report" when that is what is provided.
+For each finding below, render a "### " detail block titled with the Record ID, containing labeled lines for: Certification Body / Source, Clause, Clause Requirement, Observation, Root Cause Analysis, Corrective Action, Status, and Objective Evidence. Reproduce every field verbatim from the data provided; report blank/pending fields exactly as pending. Then, within each detail block, render a "**Linked CAPAs**" subsection reproducing the linked-CAPA lines provided for that finding exactly (CAPA ID, status, owner, due date, closure date) — or the line "None linked at time of report" when that is what is provided.
 ${blocks}
 
 ${AI_RECORD_SIGNOFFS_INSTR}
@@ -6454,7 +6516,7 @@ function renderCrisisEditor(){
     <div class="crisis-block">
       <div class="crisis-block-title">1 · Exercise Header <span style="color:#4a5568;font-weight:400">${cesc(e.id)}</span>${isAdminUser?`<button class="btn-danger" title="Delete exercise (admin)" onclick="deleteCrisisExercise('${e.id}')" style="margin-left:auto;padding:3px 10px">✕ Delete Exercise</button>`:""}</div>
       <div class="crisis-meta-grid">
-        <div><label class="form-label">Exercise ID</label><input class="crisis-input" value="${cesc(e.id)}" disabled style="opacity:0.7"></div>
+        <div><label class="form-label">Exercise ID</label><input class="crisis-input" id="ce-id" value="${cesc(e.id)}"><div style="font-size:10px;color:var(--warn);margin-top:4px">&#9888; Changing a record ID will update all linked references — use with care.</div></div>
         <div><label class="form-label">Facilitator</label><input class="crisis-input" id="ce-facilitator" value="${cesc(e.facilitator)}"></div>
         <div><label class="form-label">Exercise Type</label><select class="crisis-input" id="ce-type">${optList(CRISIS_EX_TYPES,e.exerciseType)}</select></div>
         <div><label class="form-label">Exercise Format</label><select class="crisis-input" id="ce-format">${optList(CRISIS_FORMATS,e.exerciseFormat)}</select></div>
@@ -6733,10 +6795,22 @@ async function saveCrisis(quiet){
     nextExerciseDate:val("ce-next-date"),summaryNotes:val("ce-summary"),
   };
   function val(id){const el=document.getElementById(id);return el?el.value:"";}
+  // Allow renaming the exercise ID.
+  const newId=val("ce-id").trim();
+  if(!newId){toast("Exercise ID cannot be empty.","red");return;}
+  const renaming=newId!==e.id;
+  if(renaming)body.newId=newId;
   try{
     const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(e.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     const fresh=await res.json();
+    if(renaming&&fresh.id&&fresh.id!==e.id){
+      // The ID changed — reload the editor under the new id so all references
+      // (live log, signatures, polling) bind to the renamed exercise.
+      activeCrisis=fresh;renderCrisisEditor();
+      if(!quiet)toast("Exercise saved as "+fresh.id+".","green");
+      return;
+    }
     // Keep live arrays/log from the authoritative response.
     activeCrisis.discussion=fresh.discussion;activeCrisis.attendees=fresh.attendees;activeCrisis.responseLog=fresh.responseLog;
     activeCrisis.status=fresh.status;activeCrisis.modifiedAt=fresh.modifiedAt;
@@ -6838,7 +6912,7 @@ function renderOOSEditor(){
     <div class="crisis-block">
       <div class="crisis-block-title">1 · Identification <span style="color:#4a5568;font-weight:400">${cesc(o.id)}</span>${isAdminUser?`<button class="btn-danger" title="Delete OOS (admin)" onclick="deleteOOS('${o.id}')" style="margin-left:auto;padding:3px 10px">✕ Delete</button>`:""}</div>
       <div class="crisis-meta-grid">
-        <div><label class="form-label">OOS ID</label><input class="crisis-input" value="${cesc(o.id)}" disabled style="opacity:0.7"></div>
+        <div><label class="form-label">OOS ID</label><input class="crisis-input" id="oo-id" value="${cesc(o.id)}"><div style="font-size:10px;color:var(--warn);margin-top:4px">&#9888; Changing a record ID will update all linked references — use with care.</div></div>
         <div><label class="form-label">Date Initiated</label><input class="crisis-input" value="${cesc(o.dateInitiated)}" disabled style="opacity:0.7"></div>
         <div><label class="form-label">Initiated By</label><input class="crisis-input" value="${cesc(o.initiatedBy)}" disabled style="opacity:0.7"></div>
         <div><label class="form-label">Site</label><select class="crisis-input" id="oo-site">${optList(SITES,o.site)}</select></div>
@@ -6978,12 +7052,16 @@ async function saveOOS(){
     rootCause:val("oo-rootCause"),rootCauseCategory:val("oo-rootCauseCategory"),correctiveAction:val("oo-correctiveAction"),
     disposition:val("oo-disposition"),capaId:val("oo-capaId"),status:val("oo-status"),
   };
+  // Allow renaming the OOS record ID.
+  const newId=val("oo-id").trim();
+  if(!newId){toast("OOS ID cannot be empty.","red");return;}
+  if(newId!==o.id)body.newId=newId;
   try{
     const res=await fetch(OOS_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     activeOOS=await res.json();
     renderOOSEditor();
-    toast("OOS "+o.id+" saved.","green");
+    toast("OOS "+activeOOS.id+" saved.","green");
   }catch(e){toast("Could not save OOS: "+e.message,"red");}
 }
 
