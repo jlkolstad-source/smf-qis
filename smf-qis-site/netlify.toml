@@ -25,3 +25,8 @@
   from = "/api/audits"
   to = "/.netlify/functions/audits"
   status = 200
+
+[[redirects]]
+  from = "/api/capa-links"
+  to = "/.netlify/functions/capa-links"
+  status = 200
