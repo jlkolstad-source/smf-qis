@@ -22,7 +22,7 @@ import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { eq, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { oosRecords, auditLog, capaLinks } from "../../db/schema.js";
+import { oosRecords, auditLog } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -127,16 +127,27 @@ function toClient(r: typeof oosRecords.$inferSelect) {
   };
 }
 
-// Next "OOS-YYYY-NNN" id. NNN is sequential within the given year.
+// Next "OOS-YYYY-NNN" id. The running number is shared across EVERY OOS record
+// for the given year and always continues from the highest number found, no
+// matter what prefix format an existing id uses: the trailing numeric run is
+// extracted from the end of each id whose year segment matches. (OOS ids carry
+// no site segment, so the sequence runs across all sites for the year.)
 async function nextOosId(year: string) {
   const rows = await db.select({ id: oosRecords.id }).from(oosRecords);
+  const re = new RegExp("-" + year + "-(\\d+)$");
   let max = 0;
-  const re = new RegExp("^OOS-" + year + "-(\\d+)$");
+  let width = 3;
   for (const { id } of rows) {
     const m = re.exec(id);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > max) {
+        max = n;
+        width = m[1].length;
+      }
+    }
   }
-  return "OOS-" + year + "-" + String(max + 1).padStart(3, "0");
+  return "OOS-" + year + "-" + String(max + 1).padStart(Math.max(3, width), "0");
 }
 
 // Normalise an incoming OOS payload into column values. Only client-editable
@@ -342,17 +353,8 @@ export default async (req: Request) => {
       const row = toRow(body);
       if (!body.site) row.site = existing.site;
 
-      // ── OOS ID rename ─────────────────────────────────────────────────────
-      // The id is editable from the edit form. When a different id is supplied,
-      // validate it is free, then rename and cascade to capa_links (capa_id /
-      // source_id) and the audit-log history so every reference is preserved.
-      const newIdRaw = (body.newId ?? body.new_id ?? "").toString().trim();
-      const renaming = !!newIdRaw && newIdRaw !== id;
-      const targetId = renaming ? newIdRaw : id;
-      if (renaming) {
-        const [clash] = await db.select().from(oosRecords).where(eq(oosRecords.id, newIdRaw));
-        if (clash) return json(409, { error: "An OOS record with id " + newIdRaw + " already exists." });
-      }
+      // OOS record IDs are permanent and non-editable. Any id field in the
+      // request body is ignored — the id is never changed by an update.
 
       // Only admins may close out an OOS investigation.
       const closingNow = CLOSED_STATUSES.has(row.status) && !CLOSED_STATUSES.has(existing.status);
@@ -373,24 +375,17 @@ export default async (req: Request) => {
 
       const [updated] = await db
         .update(oosRecords)
-        .set({ ...row, id: targetId, closedBy, closedDate, modifiedBy: actor, modifiedAt: now })
+        .set({ ...row, closedBy, closedDate, modifiedBy: actor, modifiedAt: now })
         .where(eq(oosRecords.id, id))
         .returning();
 
-      if (renaming) {
-        await db.update(capaLinks).set({ capaId: targetId }).where(eq(capaLinks.capaId, id));
-        await db.update(capaLinks).set({ sourceId: targetId }).where(eq(capaLinks.sourceId, id));
-        await db.update(auditLog).set({ recordId: targetId }).where(eq(auditLog.recordId, id));
-        await logChange(targetId, "id_change", `Record ID changed: ${id} → ${targetId}`, actor);
-      }
-
       if (existing.status !== updated.status) {
-        await logChange(targetId, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
+        await logChange(id, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
       }
       if (existing.disposition !== updated.disposition) {
-        await logChange(targetId, "disposition", `Disposition ${existing.disposition} → ${updated.disposition}`, actor);
+        await logChange(id, "disposition", `Disposition ${existing.disposition} → ${updated.disposition}`, actor);
       }
-      await logChange(targetId, "update", "OOS record saved", actor);
+      await logChange(id, "update", "OOS record saved", actor);
       return json(200, toClient(updated));
     }
 

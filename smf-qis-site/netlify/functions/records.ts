@@ -13,7 +13,7 @@ import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { eq, asc, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { records, auditLog, effectivenessChecks, capaLinks } from "../../db/schema.js";
+import { records, auditLog, effectivenessChecks } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -159,18 +159,35 @@ function siteAbbr(site: string): string {
 }
 
 // Next prefixed Audit-Finding id for a given certification-body prefix, site and
-// year, e.g. "NSF-LDN-2026-001". The sequence is tracked independently per
-// (prefix, site, year) so NSF / SQF / custom-code findings each number from 001.
+// year, e.g. "NSF-LDN-2026-001". The running number is shared across EVERY
+// Audit Finding for the same site and year, regardless of which certification
+// body prefix or site-abbreviation format the existing ids happen to use: the
+// trailing numeric run is extracted from the end of each id and the new id
+// continues from the highest number found. So if Lindon's 2026 findings already
+// run SQF-LIN-2026-0001 … SQF-LIN-2026-0014 (and perhaps NSF-LDN-2026-0007), the
+// next finding becomes 0015 rather than restarting at 001 for a new prefix.
 async function nextAuditId(prefix: string, site: string, year: string): Promise<string> {
   const base = `${prefix}-${siteAbbr(site)}-${year}`;
-  const rows = await db.select({ id: records.id }).from(records);
+  const rows = await db
+    .select({ id: records.id, type: records.type, site: records.site })
+    .from(records);
+  // Match the year segment + trailing number at the end of the id, ignoring
+  // whatever prefix precedes it (e.g. "...-2026-0014" → 14).
+  const re = new RegExp("-" + year + "-(\\d+)$");
   let max = 0;
-  const re = new RegExp("^" + base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-(\\d+)$");
-  for (const { id } of rows) {
-    const m = re.exec(id);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+  let width = 3;
+  for (const r of rows) {
+    if (r.type !== "AUDIT" || r.site !== site) continue;
+    const m = re.exec(r.id);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > max) {
+        max = n;
+        width = m[1].length;
+      }
+    }
   }
-  return `${base}-${String(max + 1).padStart(3, "0")}`;
+  return `${base}-${String(max + 1).padStart(Math.max(3, width), "0")}`;
 }
 
 // Normalise an incoming record payload into DB column values.
@@ -544,18 +561,8 @@ export default async (req: Request) => {
       // Preserve the certification-body source unless explicitly supplied.
       if (!bodyHas(body, "sourceBody", "source_body")) row.sourceBody = existing.sourceBody;
 
-      // ── Record ID rename ──────────────────────────────────────────────────
-      // The id is editable from the edit form. When a different id is supplied,
-      // validate it is free, then rename the record and cascade the change to
-      // every linkage (capa_links capa_id / source_id) and to the audit-log
-      // history so all references survive the rename.
-      const newIdRaw = (body.newId ?? body.new_id ?? "").toString().trim();
-      const renaming = !!newIdRaw && newIdRaw !== id;
-      const targetId = renaming ? newIdRaw : id;
-      if (renaming) {
-        const [clash] = await db.select().from(records).where(eq(records.id, newIdRaw));
-        if (clash) return json(409, { error: "A record with id " + newIdRaw + " already exists." });
-      }
+      // Record IDs are permanent and non-editable. Any id field in the request
+      // body is ignored — the id is never changed by an update.
 
       // Only admins may close a finding.
       if (row.status === "Closed" && existing.status !== "Closed" && !admin) {
@@ -580,18 +587,9 @@ export default async (req: Request) => {
 
       const [updated] = await db
         .update(records)
-        .set({ ...row, id: targetId, modifiedBy: actor, modifiedAt: now })
+        .set({ ...row, modifiedBy: actor, modifiedAt: now })
         .where(eq(records.id, id))
         .returning();
-
-      // Cascade the rename across linkages and audit history.
-      if (renaming) {
-        await db.update(capaLinks).set({ capaId: targetId }).where(eq(capaLinks.capaId, id));
-        await db.update(capaLinks).set({ sourceId: targetId }).where(eq(capaLinks.sourceId, id));
-        await db.update(effectivenessChecks).set({ capaId: targetId }).where(eq(effectivenessChecks.capaId, id));
-        await db.update(auditLog).set({ recordId: targetId }).where(eq(auditLog.recordId, id));
-        await logChange(targetId, "id_change", `Record ID changed: ${id} → ${targetId}`, actor);
-      }
 
       // Audit trail: log changed fields, and the status transition specifically.
       const tracked: [string, any, any][] = [
@@ -609,9 +607,9 @@ export default async (req: Request) => {
       ];
       const changed = tracked.filter(([, a, b]) => a !== b).map(([f]) => f);
       if (existing.status !== updated.status) {
-        await logChange(targetId, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
+        await logChange(id, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
       }
-      await logChange(targetId, "update", changed.length ? `Updated: ${changed.join(", ")}` : "Saved (no field changes)", actor);
+      await logChange(id, "update", changed.length ? `Updated: ${changed.join(", ")}` : "Saved (no field changes)", actor);
       return json(200, toClient(updated));
     }
 
