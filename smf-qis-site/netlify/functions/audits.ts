@@ -63,6 +63,55 @@ function arr(v: unknown): any[] {
   return Array.isArray(v) ? v : [];
 }
 
+// ── File attachments ────────────────────────────────────────────────────────
+// Clause-row attachments are stored exactly like the OOS module: the file binary
+// lives in Netlify Blobs, while the metadata array for each clause row is kept
+// inside the session's exec_state ( execState[clauseId].attachments ), so it
+// persists when the audit is paused and resumed.
+const ATTACH_STORE = "audit-attachments";
+
+// Lazily import @netlify/blobs only when an attachment route actually needs it,
+// so a Blobs init problem cannot take down the create / list / save routes that
+// never touch Blobs (the same hardening used in the OOS function).
+let _getStore: typeof import("@netlify/blobs").getStore | undefined;
+async function blobStore(name: string) {
+  if (!_getStore) {
+    ({ getStore: _getStore } = await import("@netlify/blobs"));
+  }
+  return _getStore(name);
+}
+
+// Decode a base64 (optionally data-URL) string into a Uint8Array.
+function decodeBase64(data: string): Uint8Array {
+  const comma = data.indexOf(",");
+  const b64 = data.startsWith("data:") && comma >= 0 ? data.slice(comma + 1) : data;
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function safeName(name: string): string {
+  return (name || "file").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+}
+
+// Find the clause-row attachment metadata for a given blob key by scanning every
+// clause entry's attachments array in exec_state. Returns { clauseId, meta } or
+// null. ( exec_state also holds non-clause meta keys like _lead; those have no
+// attachments array and are simply skipped. )
+function findAttachment(
+  execState: Record<string, any>,
+  fileKey: string,
+): { clauseId: string; meta: any } | null {
+  for (const [clauseId, entry] of Object.entries(execState || {})) {
+    if (!entry || typeof entry !== "object") continue;
+    const list = arr((entry as any).attachments);
+    const meta = list.find((a: any) => a && a.key === fileKey);
+    if (meta) return { clauseId, meta };
+  }
+  return null;
+}
+
 // Shape an audit-session row for the client.
 function toClient(r: typeof auditSessions.$inferSelect) {
   return {
@@ -125,6 +174,27 @@ export default async (req: Request) => {
 
     if (req.method === "GET") {
       const id = url.searchParams.get("id");
+      const fileKey = url.searchParams.get("file");
+
+      // ── Download one clause-row attachment (binary) ───────────────────────
+      if (id && fileKey) {
+        const [rec] = await db.select().from(auditSessions).where(eq(auditSessions.id, id));
+        if (!rec) return json(404, { error: "Audit session not found." });
+        const found = findAttachment(rec.execState || {}, fileKey);
+        if (!found) return json(404, { error: "Attachment not found." });
+        const store = await blobStore(ATTACH_STORE);
+        const blob = await store.get(fileKey, { type: "arrayBuffer" });
+        if (!blob) return json(404, { error: "Attachment data missing." });
+        return new Response(blob, {
+          status: 200,
+          headers: {
+            "Content-Type": found.meta.contentType || "application/octet-stream",
+            "Content-Disposition": `inline; filename="${safeName(found.meta.filename || "attachment")}"`,
+            "Cache-Control": "private, max-age=300",
+          },
+        });
+      }
+
       if (id) {
         const [rec] = await db.select().from(auditSessions).where(eq(auditSessions.id, id));
         if (!rec) return json(404, { error: "Audit session not found." });
@@ -141,6 +211,54 @@ export default async (req: Request) => {
       const id = url.searchParams.get("id");
       const action = (url.searchParams.get("action") || "").toString();
       const body = await req.json().catch(() => ({}));
+
+      // ── Upload one clause-row file attachment to Netlify Blobs ────────────
+      // The binary is stored in Blobs; the metadata entry is appended to
+      // execState[clauseId].attachments so it is persisted with the session.
+      if (action === "attach") {
+        const sid = (id || body.id || "").toString();
+        if (!sid) return json(400, { error: "Missing audit session id." });
+        const clauseId = (body.clauseId || "").toString().trim();
+        if (!clauseId) return json(400, { error: "Missing clause id for attachment." });
+        const [rec] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
+        if (!rec) return json(404, { error: "Audit session not found." });
+        const filename = (body.filename || "attachment").toString();
+        const contentType = (body.contentType || "application/octet-stream").toString();
+        const description = (body.description || "").toString();
+        if (!body.data) return json(400, { error: "Missing file data." });
+        let bytes: Uint8Array;
+        try {
+          bytes = decodeBase64(body.data.toString());
+        } catch {
+          return json(400, { error: "File data is not valid base64." });
+        }
+        const key = `${sid}/${clauseId}/${Date.now()}-${safeName(filename)}`;
+        const store = await blobStore(ATTACH_STORE);
+        await store.set(key, bytes, { metadata: { contentType, filename, auditId: sid, clauseId } });
+        const entry = {
+          key,
+          filename,
+          contentType,
+          size: bytes.length,
+          description,
+          uploadedBy: actor,
+          uploadedAt: new Date().toISOString(),
+        };
+        const execState: Record<string, any> =
+          rec.execState && typeof rec.execState === "object" ? { ...rec.execState } : {};
+        const clauseEntry =
+          execState[clauseId] && typeof execState[clauseId] === "object"
+            ? { ...execState[clauseId] }
+            : {};
+        clauseEntry.attachments = [...arr(clauseEntry.attachments), entry];
+        execState[clauseId] = clauseEntry;
+        await db
+          .update(auditSessions)
+          .set({ execState, modifiedBy: actor, modifiedAt: new Date() })
+          .where(eq(auditSessions.id, sid));
+        await logChange(sid, "attachment", `Attached "${filename}" to clause ${clauseId} (${description || "no description"})`, actor);
+        return json(201, entry);
+      }
 
       // ── Start a scheduled session ─────────────────────────────────────────
       if (action === "start") {
@@ -279,9 +397,30 @@ export default async (req: Request) => {
       return json(200, toClient(updated));
     }
 
-    // The DELETE verb maps to the same Scheduled-only delete as action=delete.
+    // The DELETE verb removes a single clause-row attachment when a file key is
+    // given, otherwise it maps to the same Scheduled-only session delete.
     if (req.method === "DELETE") {
-      return deleteSession((url.searchParams.get("id") || "").toString(), actor);
+      const id = (url.searchParams.get("id") || "").toString();
+      const fileKey = url.searchParams.get("file");
+      if (id && fileKey) {
+        const [rec] = await db.select().from(auditSessions).where(eq(auditSessions.id, id));
+        if (!rec) return json(404, { error: "Audit session not found." });
+        const found = findAttachment(rec.execState || {}, fileKey);
+        if (!found) return json(404, { error: "Attachment not found." });
+        const store = await blobStore(ATTACH_STORE);
+        await store.delete(fileKey).catch(() => {});
+        const execState: Record<string, any> = { ...(rec.execState as Record<string, any>) };
+        const clauseEntry = { ...execState[found.clauseId] };
+        clauseEntry.attachments = arr(clauseEntry.attachments).filter((a: any) => a.key !== fileKey);
+        execState[found.clauseId] = clauseEntry;
+        await db
+          .update(auditSessions)
+          .set({ execState, modifiedBy: actor, modifiedAt: new Date() })
+          .where(eq(auditSessions.id, id));
+        await logChange(id, "attachment", `Removed attachment "${found.meta.filename || fileKey}" from clause ${found.clauseId}`, actor);
+        return json(200, { ok: true });
+      }
+      return deleteSession(id, actor);
     }
 
     return json(405, { error: "Method not allowed" });

@@ -155,6 +155,20 @@ main{padding:24px 32px 80px;}
 .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;}
 .photo-del{position:absolute;top:2px;right:2px;background:rgba(255,59,92,0.85);color:#fff;border:none;border-radius:3px;width:16px;height:16px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 .photo-count{display:inline-flex;align-items:center;gap:4px;background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6;padding:1px 6px;border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;}
+.att-count{display:inline-flex;align-items:center;gap:3px;background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6;padding:1px 6px;border-radius:4px;font-size:10px;font-family:'DM Mono',monospace;margin-top:4px;}
+.clause-att-list{display:flex;flex-direction:column;gap:5px;margin-top:6px;}
+.clause-att-item{display:flex;align-items:center;gap:7px;background:#ffffff;border:1px solid #c0c8d2;border-radius:5px;padding:5px 7px;}
+.clause-att-thumb{width:34px;height:34px;flex:0 0 auto;border-radius:3px;overflow:hidden;border:1px solid #c0c8d2;display:flex;align-items:center;justify-content:center;background:#f4f6f8;font-size:15px;cursor:pointer;}
+.clause-att-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.clause-att-info{flex:1;min-width:0;line-height:1.35;}
+.clause-att-desc{font-size:11px;color:#1F3864;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.clause-att-file{font-size:10px;color:#2E75B6;font-family:'DM Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.clause-att-file a{color:#2E75B6;text-decoration:underline;}
+.file-badge{display:inline-block;background:#1F4E79;color:#ffffff;border-radius:3px;padding:0 5px;font-size:8px;font-family:'DM Mono',monospace;letter-spacing:0.5px;vertical-align:middle;margin-right:5px;}
+.clause-att-act{flex:0 0 auto;display:flex;gap:4px;}
+.clause-att-act button{border:1px solid #c0c8d2;background:#f4f6f8;border-radius:3px;font-size:10px;font-family:'DM Mono',monospace;padding:2px 6px;cursor:pointer;color:#1F4E79;}
+.clause-att-act button.rm{color:#C00000;border-color:#e0a0a0;}
+.exec-att-desc{background:#ffffff;border:1px solid #2E75B6;border-radius:4px;padding:4px 7px;color:#1F3864;font-family:'DM Sans',sans-serif;font-size:10px;outline:none;min-width:120px;flex:1;}
 .audit-card{background:#ffffff;border:1px solid #d0d6de;border-left:4px solid #2E75B6;border-radius:4px;padding:16px;cursor:pointer;transition:all 0.2s;margin-bottom:0;}
 .audit-card:hover{border-left-color:#1F3864;background:#DEEAF1;}
 .audit-card.active-audit{border-left-color:#7F6000;background:#FFF9E6;}
@@ -4105,6 +4119,7 @@ function loadAuditExec(auditId){
       <div><label class="form-label">Opening Meeting Time</label><input type="time" style="background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif" value="${state._openTime||""}" oninput="updateExecMeta('_openTime',this.value)"></div>
     </div>
     <div style="overflow-x:auto">
+    <datalist id="exec-att-desc-list"><option value="Photo of non-conforming condition"></option><option value="Supporting document"></option><option value="Before remediation"></option><option value="After remediation"></option><option value="Reference SOP"></option></datalist>
     <table class="clause-exec-table">
       <thead><tr>
         <th style="width:105px">Clause</th><th>Requirement</th><th style="width:150px">SMF Evidence</th>
@@ -4124,7 +4139,7 @@ function loadAuditExec(auditId){
     const existNCR=records.find(r=>r.type==="NCR"&&r.clause===c.id);
     const sid=c.id.replace(/[^a-z0-9]/gi,"_");
     html+=`<tr class="${rc}" id="execrow_${sid}">
-      <td><div class="clause-id">${c.id}</div>${c.mandatory?`<span class="mand-tag">MANDATORY</span>`:""}</td>
+      <td><div class="clause-id">${c.id}</div>${c.mandatory?`<span class="mand-tag">MANDATORY</span>`:""}<div id="attcount_${sid}">${clauseAttCountBadge(s)}</div></td>
       <td style="font-size:12px;line-height:1.6;color:#1F3864;font-weight:500">${c.req}</td>
       <td style="font-size:11px;color:#2E75B6;font-family:'DM Mono',monospace;line-height:1.4;font-weight:600">${c.evidence}</td>
       <td><input class="exec-sop-input" placeholder="Rev __ / Mon YYYY" value="${s.sopRev||""}" onchange="updateExecState('${c.id}','sopRev',this.value)"></td>
@@ -4139,11 +4154,13 @@ function loadAuditExec(auditId){
       </td>
       <td>
         <textarea class="exec-notes" placeholder="Record objective evidence..." onchange="updateExecState('${c.id}','notes',this.value)">${s.notes||""}</textarea>
-        <div style="margin-top:3px">
-          <button type="button" style="background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6;border-radius:4px;padding:2px 7px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer" onclick="document.getElementById('execphoto_${sid}').click()">
-            📷 ${(s.photos||[]).length>0?(s.photos.length)+" photo(s)":"Add Photo"}
+        <div class="clause-att-list" id="execatt_${sid}">${clauseAttListHtml(c.id,s)}</div>
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input class="exec-att-desc" id="execattdesc_${sid}" list="exec-att-desc-list" placeholder="Description (optional)">
+          <button type="button" style="background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6;border-radius:4px;padding:3px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer" onclick="document.getElementById('execfile_${sid}').click()">
+            📎 Attach File
           </button>
-          <input type="file" id="execphoto_${sid}" accept="image/*" multiple style="display:none" onchange="addExecPhoto('${c.id}',event)">
+          <input type="file" id="execfile_${sid}" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,image/*,application/pdf" multiple style="display:none" onchange="addExecAttachment('${c.id}',event)">
         </div>
       </td>
       <td style="text-align:center">
@@ -4215,22 +4232,163 @@ function updateExecStatus(clauseId,sel){
   if(row)row.className=v==="C"?"clause-row-c":v==="NC"?"clause-row-nc":v==="OFI"?"clause-row-ofi":"";
 }
 
-function addExecPhoto(clauseId,event){
-  const files=Array.from(event.target.files);if(!files.length)return;
-  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
-  if(!audit.execState[clauseId])audit.execState[clauseId]={};
-  if(!audit.execState[clauseId].photos)audit.execState[clauseId].photos=[];
-  let done=0;
-  files.forEach(f=>{
-    const r=new FileReader();
-    r.onload=ev=>{audit.execState[clauseId].photos.push({name:f.name,data:ev.target.result});done++;if(done===files.length){
-      const raw=auditSessions.find(x=>x.id===activeAuditId);if(raw)raw.execState=audit.execState;
-      scheduleAuditSave();
-      toast(files.length+" photo(s) added to "+clauseId,"green");loadAuditExec(activeAuditId);
-    }};
-    r.readAsDataURL(f);
+// ── Clause-row file attachments ─────────────────────────────────────────────
+// Each clause row supports full file attachments (PDF / Word / Excel / image),
+// stored in Netlify Blobs via /api/audits and tracked in the session exec_state
+// as execState[clauseId].attachments, so they persist across pause/resume.
+
+// Short file-type badge derived from content-type or filename extension.
+function attFileBadge(a){
+  const ct=(a.contentType||"").toLowerCase();
+  const ext=((a.filename||a.name||"").split(".").pop()||"").toUpperCase();
+  if(ct.indexOf("pdf")>=0||ext==="PDF")return "PDF";
+  if(ct.indexOf("word")>=0||ext==="DOC"||ext==="DOCX")return "DOC";
+  if(ct.indexOf("sheet")>=0||ct.indexOf("excel")>=0||ext==="XLS"||ext==="XLSX"||ext==="CSV")return "XLS";
+  if(ct.indexOf("image/")===0||["JPG","JPEG","PNG","GIF","WEBP","HEIC","HEIF"].indexOf(ext)>=0)return ext||"IMG";
+  return ext||"FILE";
+}
+// True only for browser-renderable image formats (HEIC is shown as an icon).
+function attCanThumb(a){
+  const ct=(a.contentType||"").toLowerCase();
+  const name=(a.filename||a.name||"").toLowerCase();
+  if(/^image\/(jpeg|jpg|png|gif|webp)$/.test(ct))return true;
+  return /\.(jpe?g|png|gif|webp)$/i.test(name);
+}
+function attIcon(a){
+  const b=attFileBadge(a);
+  if(b==="PDF")return "📕";if(b==="DOC")return "📘";if(b==="XLS")return "📗";
+  if(["JPG","JPEG","PNG","GIF","WEBP","HEIC","HEIF","IMG"].indexOf(b)>=0)return "🖼";
+  return "📄";
+}
+function attUrl(key){return AUDITS_API+"?id="+encodeURIComponent(activeAuditId)+"&file="+encodeURIComponent(key);}
+
+// Paperclip + count badge shown in the clause column (attachments + legacy photos).
+function clauseAttCountBadge(s){
+  s=s||{};
+  const n=(Array.isArray(s.attachments)?s.attachments.length:0)+(Array.isArray(s.photos)?s.photos.length:0);
+  if(!n)return "";
+  return `<span class="att-count" title="${n} file(s) attached">&#128206; ${n}</span>`;
+}
+
+// The list of attachment cards rendered inside a clause's Notes / Evidence cell.
+function clauseAttListHtml(clauseId,s){
+  s=s||{};
+  const atts=Array.isArray(s.attachments)?s.attachments:[];
+  const photos=Array.isArray(s.photos)?s.photos:[];
+  let h="";
+  atts.forEach(a=>{
+    const url=attUrl(a.key);
+    const thumb=attCanThumb(a)
+      ? `<div class="clause-att-thumb"><img src="${url}" alt="" onclick="openLightbox('${url}','${cesc(a.filename)}')"></div>`
+      : `<div class="clause-att-thumb">${attIcon(a)}</div>`;
+    const descHtml=a.description?cesc(a.description):`<span style="color:#94a3b8;font-weight:400">No description</span>`;
+    h+=`<div class="clause-att-item">
+      ${thumb}
+      <div class="clause-att-info">
+        <div class="clause-att-desc"><span class="file-badge">${attFileBadge(a)}</span>${descHtml}</div>
+        <div class="clause-att-file"><a href="${url}" target="_blank" rel="noopener">${cesc(a.filename)}</a>${a.size?(" · "+oosFmtBytes(a.size)):""}</div>
+      </div>
+      <div class="clause-att-act">
+        <button onclick="editExecAttachment('${clauseId}','${cesc(a.key)}')">Edit</button>
+        <button class="rm" onclick="removeExecAttachment('${clauseId}','${cesc(a.key)}')">Remove</button>
+      </div>
+    </div>`;
   });
-  event.target.value="";
+  // Legacy photos captured before full-file attachments (kept for backward compat).
+  photos.forEach((p,i)=>{
+    h+=`<div class="clause-att-item">
+      <div class="clause-att-thumb"><img src="${p.data}" alt="" onclick="openLightbox('${p.data}','${cesc(p.name)}')"></div>
+      <div class="clause-att-info">
+        <div class="clause-att-desc"><span class="file-badge">IMG</span>Photo (legacy)</div>
+        <div class="clause-att-file">${cesc(p.name)}</div>
+      </div>
+      <div class="clause-att-act">
+        <button class="rm" onclick="removeExecLegacyPhoto('${clauseId}',${i})">Remove</button>
+      </div>
+    </div>`;
+  });
+  return h;
+}
+
+// Re-render just the one clause's attachment list and count badge, avoiding a
+// full table re-render (which would discard the description input and re-init
+// the signature section).
+function refreshClauseAtt(clauseId){
+  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
+  const s=audit.execState[clauseId]||{};
+  const sid=clauseId.replace(/[^a-z0-9]/gi,"_");
+  const listEl=document.getElementById("execatt_"+sid);if(listEl)listEl.innerHTML=clauseAttListHtml(clauseId,s);
+  const cntEl=document.getElementById("attcount_"+sid);if(cntEl)cntEl.innerHTML=clauseAttCountBadge(s);
+}
+
+async function addExecAttachment(clauseId,event){
+  const files=Array.from(event.target.files||[]);event.target.value="";if(!files.length)return;
+  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit){toast("Open an audit first.","red");return;}
+  const sid=clauseId.replace(/[^a-z0-9]/gi,"_");
+  const descEl=document.getElementById("execattdesc_"+sid);
+  const description=descEl?descEl.value.trim():"";
+  // Flush any pending debounced save so the server appends to current exec-state.
+  if(auditSaveTimer){clearTimeout(auditSaveTimer);auditSaveTimer=null;}
+  await saveActiveAuditSession();
+  if(!audit.execState[clauseId])audit.execState[clauseId]={};
+  if(!Array.isArray(audit.execState[clauseId].attachments))audit.execState[clauseId].attachments=[];
+  let ok=0;
+  for(const f of files){
+    try{
+      const dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("read error"));r.readAsDataURL(f);});
+      const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(audit.id)+"&action=attach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({clauseId,filename:f.name,contentType:f.type||"application/octet-stream",description,data:dataUrl})});
+      if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+      const entry=await res.json();
+      audit.execState[clauseId].attachments.push(entry);
+      ok++;
+    }catch(e){toast("Upload failed for "+f.name+": "+e.message,"red");}
+  }
+  const raw=auditSessions.find(x=>x.id===activeAuditId);if(raw)raw.execState=audit.execState;
+  if(descEl)descEl.value="";
+  refreshClauseAtt(clauseId);
+  if(ok)toast(ok+" file(s) attached to "+clauseId+".","green");
+}
+
+async function removeExecAttachment(clauseId,key){
+  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
+  if(!confirm("Remove this attachment? This permanently deletes the file from storage."))return;
+  if(auditSaveTimer){clearTimeout(auditSaveTimer);auditSaveTimer=null;}
+  await saveActiveAuditSession();
+  try{
+    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(audit.id)+"&file="+encodeURIComponent(key),{method:"DELETE"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const e=audit.execState[clauseId];
+    if(e&&Array.isArray(e.attachments))e.attachments=e.attachments.filter(a=>a.key!==key);
+    const raw=auditSessions.find(x=>x.id===activeAuditId);if(raw)raw.execState=audit.execState;
+    refreshClauseAtt(clauseId);
+    toast("Attachment removed.","green");
+  }catch(e){toast("Could not remove attachment: "+e.message,"red");}
+}
+
+// Edit changes the description label only (not the file). Persisted via the
+// normal exec-state save, so it works for both new and previously saved files.
+function editExecAttachment(clauseId,key){
+  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
+  const e=audit.execState[clauseId];if(!e||!Array.isArray(e.attachments))return;
+  const a=e.attachments.find(x=>x.key===key);if(!a)return;
+  const next=prompt("Edit attachment description:",a.description||"");
+  if(next===null)return;
+  a.description=next.trim();
+  const raw=auditSessions.find(x=>x.id===activeAuditId);if(raw)raw.execState=audit.execState;
+  scheduleAuditSave();
+  refreshClauseAtt(clauseId);
+  toast("Description updated.","green");
+}
+
+function removeExecLegacyPhoto(clauseId,index){
+  const audit=AUDITS.find(a=>a.id===activeAuditId);if(!audit)return;
+  if(!confirm("Remove this photo?"))return;
+  const e=audit.execState[clauseId];if(!e||!Array.isArray(e.photos))return;
+  e.photos.splice(index,1);
+  const raw=auditSessions.find(x=>x.id===activeAuditId);if(raw)raw.execState=audit.execState;
+  scheduleAuditSave();
+  refreshClauseAtt(clauseId);
+  toast("Photo removed.","green");
 }
 
 function saveAuditExec(){
