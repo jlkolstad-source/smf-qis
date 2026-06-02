@@ -5225,7 +5225,19 @@ Summarise the audit outcome using the statistics line above (clauses in scope, r
 ${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | Internal Audit Report per SQF Edition 9 §2.5.5 | Retain minimum 2 years per SOP #02".`;
-  await streamSingleReport(prompt,wrap,{type:"audit-report",auditId:a.id,site:a.site});
+  // Clause-level evidence for the PDF exporter: every reviewed clause that has
+  // file attachments (stored in Netlify Blobs via exec_state). The exporter
+  // fetches each file, embeds images inline, appends PDFs as appendices and
+  // lists Office files as referenced documents.
+  const clausesEv=[];
+  auditClauses.forEach(c=>{
+    if(c.section)return;
+    const s=ex[c.id]||{};
+    if(!s.status)return;
+    const atts=Array.isArray(s.attachments)?s.attachments:[];
+    if(atts.length)clausesEv.push({clauseId:c.id,attachments:atts.map(a=>({key:a.key,filename:a.filename||'(unnamed)',label:a.description||a.filename||'Evidence',contentType:a.contentType||''}))});
+  });
+  await streamSingleReport(prompt,wrap,{type:"audit-report",auditId:a.id,site:a.site,clauses:clausesEv});
 }
 
 // NCR / AUDIT FINDING SUMMARY — submission-ready report over the checked
@@ -5282,7 +5294,11 @@ ${AI_RECORD_SIGNOFFS_INSTR}
 ${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | NCR / Audit Finding Summary per SQF Edition 9 §2.5.4 | Retain minimum 2 years per SOP #02".`;
-  await streamSingleReport(prompt,wrap,{type:"sqfi-submission",site:currentSite});
+  // Evidence metadata for the PDF exporter: each finding's attachments (stored
+  // inline on the record as `photos`) so images embed as exhibits, PDFs append
+  // as appendices, and Office files list as referenced documents.
+  const findingsEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''}))}));
+  await streamSingleReport(prompt,wrap,{type:"sqfi-submission",site:currentSite,findings:findingsEv});
 }
 
 // CAPA STATUS SUMMARY — status report over the checked CAPA records only.
@@ -5335,7 +5351,11 @@ ${AI_RECORD_SIGNOFFS_INSTR}
 ${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | CAPA Status Summary per SQF Edition 9 §2.5.3 | Retain minimum 2 years per SOP #02".`;
-  await streamSingleReport(prompt,wrap,{type:"capa-summary",site:currentSite});
+  // Evidence metadata for the PDF exporter — same shape as the NCR report so the
+  // shared exporter embeds image exhibits, appends PDF appendices and lists
+  // Office files as referenced documents per CAPA.
+  const capaEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''}))}));
+  await streamSingleReport(prompt,wrap,{type:"capa-summary",site:currentSite,findings:capaEv});
 }
 
 function copyReport(){if(window._lastReport){navigator.clipboard.writeText(window._lastReport);toast("Copied to clipboard.","green");}}
@@ -5374,6 +5394,49 @@ async function downloadReportPDF(){
   const auditor=_firstSig?(_firstSig.name+(_firstSig.role?(', '+_firstSig.role):'')):((typeof userIdentityLabel==="function"?userIdentityLabel():"")||currentUser||'Quality Assurance');
   const auditSession=document.getElementById('ai-audit-date')?.value||'';
   const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  // ── EVIDENCE EXHIBITS — shared state + helpers ─────────────────────────────
+  // Report-type flags that drive inline evidence embedding (images), PDF
+  // appendices and referenced-document listings.
+  const isNCR=rptType==="sqfi-submission";
+  const isCapa=rptType==="capa-summary";
+  const isAudit=rptType==="audit-report";
+  const rMeta=window._lastReportMeta||{};
+  // Exhibit letters (A,B,C…) and appendix numbers run sequentially across the
+  // whole report. pdfAppendices collects PDF attachments to append after the
+  // signature block, each with its own separator page.
+  let exhibitSeq=0, apxSeq=0;
+  const pdfAppendices=[]; // {dataUrl?,sepTitle,sepLines:[...],sepPage?}
+  function exhibitLabel(n){let s='';n=n+1;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
+  // Classify an attachment by MIME type / filename extension.
+  function classifyEv(filename,contentType){
+    const ct=(contentType||'').toLowerCase(),fn=(filename||'').toLowerCase();
+    if(ct.startsWith('image/')||/\.(jpe?g|png|heic|webp)$/.test(fn))return 'image';
+    if(ct.includes('pdf')||/\.pdf$/.test(fn))return 'pdf';
+    return 'doc'; // Word / Excel / other — referenced, not embedded
+  }
+  // Normalise any image data URL to a JPEG the jsPDF engine can embed reliably
+  // (handles PNG/WEBP; HEIC that the browser cannot decode resolves to null).
+  async function evToJpeg(dataUrl){
+    try{
+      const img=new Image();
+      await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=dataUrl;});
+      const nw=img.naturalWidth||img.width, nh=img.naturalHeight||img.height;
+      if(!nw||!nh)return null;
+      const cv=document.createElement('canvas');cv.width=nw;cv.height=nh;
+      cv.getContext('2d').drawImage(img,0,0);
+      return {url:cv.toDataURL('image/jpeg',0.92),w:nw,h:nh};
+    }catch(e){return null;}
+  }
+  // Fetch a Netlify Blobs file as a data URL; null on any failure (caller shows
+  // a placeholder line rather than failing the whole PDF).
+  async function fetchBlobDataUrl(url){
+    try{
+      const res=await fetch(url);if(!res.ok)return null;
+      const blob=await res.blob();
+      return await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=()=>r(null);fr.readAsDataURL(blob);});
+    }catch(e){return null;}
+  }
 
   function drawHeaderFooter(pageNum,total){
     // Navy header bar
@@ -5474,6 +5537,159 @@ async function downloadReportPDF(){
   // ── CONTENT PAGES ───────────────────────────────────────────────────────
   doc.addPage();
   y=50;
+
+  // ── EVIDENCE EXHIBITS — drawing helpers (use the page cursor `y`) ──────────
+  function evEnsure(space){if(y+space>pageH-46){doc.addPage();y=50;}}
+  function drawEvidenceHeader(t){
+    evEnsure(22);y+=4;
+    doc.setFontSize(9.5);doc.setTextColor(...midBlue);doc.setFont('helvetica','bold');
+    doc.text(t,margin,y);y+=13;
+    doc.setFont('helvetica','normal');doc.setTextColor(...black);
+  }
+  function drawEvidenceLine(t){
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(...black);
+    doc.splitTextToSize(t,contentW-6).forEach(wl=>{evEnsure(13);doc.text(wl,margin+6,y);y+=13;});
+  }
+  // Embed an image exhibit at full content width (504pt), scaled proportionally
+  // and never overflowing the page; caption rendered below.
+  function drawExhibitImage(im,caption){
+    let w=contentW,h=im.h*(w/im.w);
+    const maxH=pageH-50-40;
+    if(h>maxH){h=maxH;w=im.w*(h/im.h);}
+    if(y+h+20>pageH-46){doc.addPage();y=50;}
+    try{doc.addImage(im.url,'JPEG',margin,y,w,h);}catch(e){drawEvidenceLine('[image could not be embedded]');return;}
+    y+=h+3;
+    doc.setFontSize(8);doc.setTextColor(90,90,110);doc.setFont('helvetica','italic');
+    doc.splitTextToSize(caption,contentW).forEach(cl=>{evEnsure(11);doc.text(cl,margin,y);y+=11;});
+    y+=6;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+  }
+  // Push a PDF attachment to the appendix queue and return its appendix number.
+  function queuePdfAppendix(dataUrl,label,sourceLine,filename){
+    const n=++apxSeq;
+    pdfAppendices.push({dataUrl:dataUrl||null,sepTitle:'APPENDIX '+n+':  '+(label||'Attachment'),sepLines:[sourceLine,'File: '+(filename||'(unnamed)'),dataUrl?'PDF document appended as full pages following this separator.':'Reference document — retained as a source attachment.']});
+    return n;
+  }
+  // Render the Evidence section for one NCR / CAPA record's attachments.
+  async function flushRecordEvidence(rec){
+    drawEvidenceHeader('Evidence');
+    const items=(rec&&rec.items)||[];
+    if(!items.length){drawEvidenceLine('No supporting evidence attached.');return;}
+    for(const it of items){
+      if(it.error){drawEvidenceLine('Evidence file unavailable — '+(it.filename||'(unnamed)'));continue;}
+      if(it.kind==='image'){
+        const im=await evToJpeg(it.dataUrl);
+        if(!im){drawEvidenceLine('Evidence file unavailable — '+(it.filename||'(unnamed)'));continue;}
+        drawExhibitImage(im,'Exhibit '+exhibitLabel(exhibitSeq++)+' — '+(it.label||'')+' — '+(it.filename||''));
+      }else if(it.kind==='pdf'){
+        const n=queuePdfAppendix(it.dataUrl,it.label,'Source: '+rec.id,it.filename);
+        drawEvidenceLine('See Appendix '+n+' — '+(it.label||it.filename||''));
+      }else{
+        drawEvidenceLine('Referenced Document: '+(it.label||'')+' — '+(it.filename||'')+' — not embedded, available separately.');
+      }
+    }
+  }
+  // Render clause-level evidence for the Audit Report Summary: image exhibits
+  // and appendix references for every clause with attachments, followed by an
+  // Evidence Summary index. evidenceSummary accumulates the index lines.
+  const evidenceSummary=[];
+  async function flushClauseEvidence(clauseEvidence){
+    if(!clauseEvidence||!clauseEvidence.length)return;
+    let hdrDone=false;
+    const ensureHdr=()=>{if(!hdrDone){drawEvidenceHeader('Clause Evidence Exhibits');hdrDone=true;}};
+    for(const c of clauseEvidence){
+      for(const it of (c.items||[])){
+        ensureHdr();
+        if(it.error){drawEvidenceLine('Evidence file unavailable — '+(it.filename||'(unnamed)')+' (Clause '+c.clauseId+')');continue;}
+        if(it.kind==='image'){
+          const im=await evToJpeg(it.dataUrl);
+          if(!im){drawEvidenceLine('Evidence file unavailable — '+(it.filename||'(unnamed)')+' (Clause '+c.clauseId+')');continue;}
+          const letter=exhibitLabel(exhibitSeq++);
+          drawExhibitImage(im,'Exhibit '+letter+' — '+(it.label||'')+' — Clause '+c.clauseId);
+          evidenceSummary.push('Exhibit '+letter+' — Clause '+c.clauseId+' — '+(it.label||''));
+        }else if(it.kind==='pdf'){
+          const n=queuePdfAppendix(it.dataUrl,it.label,'Source: Clause '+c.clauseId,it.filename);
+          drawEvidenceLine('Clause '+c.clauseId+': See Appendix '+n+' — '+(it.label||it.filename||''));
+        }else{
+          drawEvidenceLine('Clause '+c.clauseId+' — Referenced Document: '+(it.label||'')+' — '+(it.filename||'')+' — not embedded, available separately.');
+        }
+      }
+    }
+    if(evidenceSummary.length){
+      drawEvidenceHeader('Evidence Summary');
+      evidenceSummary.forEach(s=>drawEvidenceLine(s));
+    }
+  }
+  // Render a set of OOS image attachments inline as exhibits under a section.
+  async function flushOOSImages(list,sectionLabel){
+    if(!list||!list.length)return;
+    drawEvidenceHeader(sectionLabel);
+    for(const a of list){
+      const im=await evToJpeg(a.dataUrl);
+      if(!im){drawEvidenceLine('Evidence file unavailable — '+(a.filename||'(unnamed)'));continue;}
+      drawExhibitImage(im,'Exhibit '+exhibitLabel(exhibitSeq++)+' — '+(a.description||a.filename||'')+' — '+(a.filename||''));
+    }
+  }
+
+  // ── EVIDENCE EXHIBITS — gather attachment data before rendering ────────────
+  // NCR / CAPA evidence is stored inline on each record (`photos`), so no fetch
+  // is required, but a progress toast is shown for consistency with the
+  // Blobs-backed report types.
+  let recEvidence=null;
+  if(isNCR||isCapa){
+    recEvidence={};
+    const anyEv=Array.isArray(rMeta.findings)&&rMeta.findings.some(f=>f.attachments&&f.attachments.length);
+    if(anyEv)toast("Fetching evidence files…","green");
+    for(const f of (rMeta.findings||[])){
+      const items=[];
+      for(const a of (f.attachments||[])){
+        if(!a.dataUrl){items.push({error:true,filename:a.filename});continue;}
+        items.push({kind:classifyEv(a.filename,a.contentType),dataUrl:a.dataUrl,filename:a.filename,label:a.label||a.filename,contentType:a.contentType});
+      }
+      recEvidence[f.id]={id:f.id,items};
+    }
+  }
+  // Audit Report Summary — fetch each clause attachment from Netlify Blobs.
+  // Images/PDFs need their bytes; Office files are listed by metadata only.
+  let clauseEvidence=null;
+  if(isAudit){
+    clauseEvidence=[];
+    const auditClauseMeta=Array.isArray(rMeta.clauses)?rMeta.clauses:[];
+    if(auditClauseMeta.length)toast("Fetching evidence files…","green");
+    for(const c of auditClauseMeta){
+      const items=[];
+      for(const a of (c.attachments||[])){
+        const kind=classifyEv(a.filename,a.contentType);
+        if(kind==='doc'){items.push({kind,filename:a.filename,label:a.label||a.filename});continue;}
+        const du=await fetchBlobDataUrl(AUDITS_API+"?id="+encodeURIComponent(rMeta.auditId||'')+"&file="+encodeURIComponent(a.key));
+        if(!du){items.push({error:true,filename:a.filename});continue;}
+        items.push({kind,dataUrl:du,filename:a.filename,label:a.label||a.filename});
+      }
+      clauseEvidence.push({clauseId:c.clauseId,items});
+    }
+  }
+  // Audit clause-evidence flushes once, between the clause results table and the
+  // following section. auditPendingClauseFlush is armed when the CLAUSE-BY-CLAUSE
+  // section heading is seen and fired at the next ## heading.
+  let auditPendingClauseFlush=false;
+  // OOS Individual Event Report — bucket image attachments by phase from their
+  // description (Phase 1 / Lab → Phase 1; Phase 2 / Manufacturing → Phase 2;
+  // everything else → General Evidence). PDFs/Office files stay as appendices.
+  const oosImgP1=[],oosImgP2=[],oosImgGen=[];
+  if(isOOSIndividual&&Array.isArray(rMeta.attachments)){
+    if(rMeta.attachments.length)toast("Fetching evidence files…","green");
+    for(const a of rMeta.attachments){
+      if(classifyEv(a.filename,a.contentType)!=='image'||!a.dataUrl)continue;
+      const d=(a.description||a.filename||'').toLowerCase();
+      const bucket=(d.indexOf('phase 1')!==-1||d.indexOf('lab')!==-1)?oosImgP1:(d.indexOf('phase 2')!==-1||d.indexOf('manufactur')!==-1)?oosImgP2:oosImgGen;
+      bucket.push(a);
+    }
+  }
+  let oosCurSection=null; // 'p1' | 'p2' | null — tracks the OOS phase section
+  // Findings ordered longest-id-first so id matching in headings never collides
+  // on a shorter prefix (QIS-0001 vs QIS-00010).
+  const recList=(isNCR||isCapa)?(rMeta.findings||[]).slice().sort((a,b)=>(b.id||'').length-(a.id||'').length):[];
+  let curFinding=null;
+
   // Strip any signature/authorization residue the AI may have emitted so the PDF
   // carries exactly one signature block (the Report Authorization appended below).
   const lines=stripReportSignatureContent(text).split('\n');
@@ -5482,6 +5698,29 @@ async function downloadReportPDF(){
     const line=lines[i].trim();
     if(y>pageH-46){doc.addPage();y=50;}
     if(!line){y+=7;continue;}
+
+    // Evidence flush points — keyed off the section (## ) and detail (### )
+    // headings so each record's Evidence section renders directly below its
+    // detail block.
+    const _isH2=line.startsWith('## ');
+    const _isH3=line.startsWith('### ')&&!line.startsWith('#### ');
+    if((isNCR||isCapa)&&(_isH2||_isH3)){
+      const ht=line.replace(/^#+\s*/,'');
+      const matched=_isH3?recList.find(f=>f.id&&ht.indexOf(f.id)!==-1):null;
+      if(_isH2){ if(curFinding){await flushRecordEvidence(recEvidence[curFinding.id]);curFinding=null;} }
+      else if(matched){ if(curFinding)await flushRecordEvidence(recEvidence[curFinding.id]); curFinding=matched; }
+    } else if(isAudit&&_isH2){
+      const ht=line.replace(/^#+\s*/,'').toUpperCase();
+      if(auditPendingClauseFlush){await flushClauseEvidence(clauseEvidence);auditPendingClauseFlush=false;}
+      if(ht.indexOf('CLAUSE-BY-CLAUSE')!==-1||ht.indexOf('CLAUSE BY CLAUSE')!==-1)auditPendingClauseFlush=true;
+    } else if(isOOSIndividual&&_isH2){
+      const ht=line.replace(/^#+\s*/,'').toUpperCase();
+      // Leaving a phase section flushes that phase's inline images.
+      if(oosCurSection==='p1'){await flushOOSImages(oosImgP1,'Phase 1 Evidence');oosCurSection=null;}
+      else if(oosCurSection==='p2'){await flushOOSImages(oosImgP2,'Phase 2 Evidence');oosCurSection=null;}
+      if(ht.indexOf('PHASE 1')!==-1)oosCurSection='p1';
+      else if(ht.indexOf('PHASE 2')!==-1)oosCurSection='p2';
+    }
 
     if(line.startsWith('## ')){
       y+=6;
@@ -5566,6 +5805,19 @@ async function downloadReportPDF(){
     }
   }
 
+  // Flush the final record's Evidence section (NCR / CAPA) — its detail block is
+  // the last thing in the body, so there is no following heading to trigger it.
+  if((isNCR||isCapa)&&curFinding){await flushRecordEvidence(recEvidence[curFinding.id]);curFinding=null;}
+  // Flush clause evidence if the CLAUSE-BY-CLAUSE section was the last section.
+  if(isAudit&&auditPendingClauseFlush){await flushClauseEvidence(clauseEvidence);auditPendingClauseFlush=false;}
+  // OOS — flush any unflushed phase images, then General Evidence, all as body
+  // content before the signature block (and before the PDF appendices).
+  if(isOOSIndividual){
+    if(oosCurSection==='p1'){await flushOOSImages(oosImgP1,'Phase 1 Evidence');oosCurSection=null;}
+    else if(oosCurSection==='p2'){await flushOOSImages(oosImgP2,'Phase 2 Evidence');oosCurSection=null;}
+    await flushOOSImages(oosImgGen,'General Evidence');
+  }
+
   // ── REPORT AUTHORIZATION ──────────────────────────────────────────────────
   // Exactly one signature block per report, appended after all content. Uses the
   // signatories assembled in the AI Report panel plus the "Prepared By" identity;
@@ -5576,12 +5828,14 @@ async function downloadReportPDF(){
   // Image attachments are embedded inline on their own appendix pages; PDF
   // attachments are stitched in as appended pages after the signature block;
   // Excel/Word/other files are listed as reference documents.
-  const pdfAppendices=[];
   if(isOOSIndividual&&oosMeta&&Array.isArray(oosMeta.attachments)&&oosMeta.attachments.length){
+    const oosPdfApx=[];
     let apxNum=0;
     for(const a of oosMeta.attachments){
+      // Images are now embedded inline within the report body (by phase), not as
+      // appendix pages — skip them here. PDF appendix behavior is unchanged.
+      if(classifyEv(a.filename,a.contentType)==='image')continue;
       apxNum++;
-      const isImg=(a.contentType||"").startsWith("image/")&&a.dataUrl;
       const isPdf=(a.contentType||"").includes("pdf");
       doc.addPage();y=50;
       doc.setFillColor(...navy);doc.rect(margin,y,contentW,20,'F');
@@ -5590,62 +5844,98 @@ async function downloadReportPDF(){
       y+=28;
       doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
       doc.text('File: '+(a.filename||'(unnamed)'),margin,y);y+=16;
-      if(isImg){
-        try{
-          const img=new Image();
-          await new Promise(r=>{img.onload=r;img.onerror=r;img.src=a.dataUrl;});
-          let w=contentW,h=img.naturalWidth?img.naturalHeight*(contentW/img.naturalWidth):300;
-          const maxH=pageH-y-50;
-          if(h>maxH){h=maxH;w=img.naturalHeight?img.naturalWidth*(maxH/img.naturalHeight):contentW;}
-          const fmt=(a.contentType||"").includes("png")?"PNG":((a.contentType||"").includes("jpeg")||(a.contentType||"").includes("jpg")?"JPEG":"PNG");
-          doc.addImage(a.dataUrl,fmt,margin,y,w,h);
-        }catch(e){
-          doc.setTextColor(120,120,140);doc.text('[image could not be embedded — see source file '+(a.filename||'')+']',margin,y);
-        }
-      }else if(isPdf&&a.dataUrl){
+      if(isPdf&&a.dataUrl){
         doc.setTextColor(80,80,100);
         doc.text('PDF document appended as full pages following this report.',margin,y);
-        pdfAppendices.push(a);
+        oosPdfApx.push(a);
       }else{
         doc.setTextColor(80,80,100);
         doc.text('Reference document (Excel / Word / other) — retained as a source attachment to OOS '+(oosMeta.oosId||'')+'.',margin,y);
       }
     }
+    const oosTotal=doc.getNumberOfPages();
+    for(let p=1;p<=oosTotal;p++){doc.setPage(p);drawHeaderFooter(p,oosTotal);}
+    const oosFname='SMF_'+rptType+'_'+new Date().toISOString().slice(0,10)+'.pdf';
+    if(oosPdfApx.length){
+      try{
+        if(!window.PDFLib){
+          await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+        }
+        const {PDFDocument}=window.PDFLib;
+        const merged=await PDFDocument.load(doc.output('arraybuffer'));
+        for(const a of oosPdfApx){
+          try{
+            const b64=(a.dataUrl||'').split(',')[1]||'';
+            const bin=atob(b64);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+            const src=await PDFDocument.load(bytes,{ignoreEncryption:true});
+            const pages=await merged.copyPages(src,src.getPageIndices());
+            pages.forEach(p=>merged.addPage(p));
+          }catch(e){/* skip a PDF that cannot be parsed */}
+        }
+        const out=await merged.save();
+        const blob=new Blob([out],{type:'application/pdf'});
+        const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=oosFname;link.click();
+        toast("PDF downloaded (with appended attachments).","green");
+        return;
+      }catch(e){
+        doc.save(oosFname);
+        toast("PDF downloaded (attachments could not be stitched — listed in appendix).","yellow");
+        return;
+      }
+    }
+    doc.save(oosFname);
+    toast("PDF downloaded.","green");
+    return;
   }
 
-  // Apply header/footer to every page
+  // ── APPENDICES (PDF attachments) — NCR / CAPA / Audit ─────────────────────
+  // Each queued PDF gets a separator page after the signature block; its source
+  // pages are then stitched in immediately after that separator.
+  for(const ap of pdfAppendices){
+    doc.addPage();y=50;
+    doc.setFillColor(...navy);doc.rect(margin,y,contentW,20,'F');
+    doc.setFontSize(10.5);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+    doc.text((ap.sepTitle||'APPENDIX').toUpperCase(),margin+8,y+14);
+    y+=28;
+    doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    (ap.sepLines||[]).forEach(l=>doc.splitTextToSize(l,contentW).forEach(wl=>{if(y>pageH-46){doc.addPage();y=50;}doc.text(wl,margin,y);y+=14;}));
+    ap.sepPage=doc.getNumberOfPages()-1; // 0-based index of this separator's last page
+  }
+
+  // Apply header/footer to every base page.
   const total=doc.getNumberOfPages();
   for(let p=1;p<=total;p++){doc.setPage(p);drawHeaderFooter(p,total);}
 
   const fname='SMF_'+rptType+'_'+new Date().toISOString().slice(0,10)+'.pdf';
 
-  // Stitch any PDF appendices directly onto the end of the document with PDF-lib.
-  if(pdfAppendices.length){
+  // Stitch each PDF appendix's pages directly after its separator page.
+  const toStitch=pdfAppendices.filter(ap=>ap.dataUrl);
+  if(toStitch.length){
     try{
       if(!window.PDFLib){
         await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
       }
       const {PDFDocument}=window.PDFLib;
-      const baseBytes=doc.output('arraybuffer');
-      const merged=await PDFDocument.load(baseBytes);
-      for(const a of pdfAppendices){
+      const merged=await PDFDocument.load(doc.output('arraybuffer'));
+      // Insert in descending separator-page order so earlier indices stay valid.
+      for(const ap of toStitch.slice().sort((a,b)=>b.sepPage-a.sepPage)){
         try{
-          const b64=(a.dataUrl||'').split(',')[1]||'';
+          const b64=(ap.dataUrl||'').split(',')[1]||'';
           const bin=atob(b64);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
           const src=await PDFDocument.load(bytes,{ignoreEncryption:true});
           const pages=await merged.copyPages(src,src.getPageIndices());
-          pages.forEach(p=>merged.addPage(p));
+          pages.forEach((p,idx)=>merged.insertPage(ap.sepPage+1+idx,p));
         }catch(e){/* skip a PDF that cannot be parsed */}
       }
       const out=await merged.save();
       const blob=new Blob([out],{type:'application/pdf'});
       const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=fname;link.click();
-      toast("PDF downloaded (with appended attachments).","green");
+      toast("PDF downloaded (with embedded evidence and appendices).","green");
       return;
     }catch(e){
       // Fall back to the un-stitched document if PDF-lib fails to load.
       doc.save(fname);
-      toast("PDF downloaded (attachments could not be stitched — listed in appendix).","yellow");
+      toast("PDF downloaded (appendices could not be stitched — see separator pages).","yellow");
       return;
     }
   }
