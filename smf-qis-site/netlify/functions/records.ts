@@ -223,6 +223,32 @@ export default async (req: Request) => {
         return json(200, entries);
       }
 
+      // Effectiveness-check detail for one CAPA (the authoritative row from
+      // effectiveness_checks). Returns null when no check exists yet.
+      const effId = url.searchParams.get("effectiveness");
+      if (effId) {
+        const [check] = await db
+          .select()
+          .from(effectivenessChecks)
+          .where(eq(effectivenessChecks.capaId, effId))
+          .orderBy(asc(effectivenessChecks.id));
+        if (!check) return json(200, null);
+        const vAt = check.verifiedAt instanceof Date ? check.verifiedAt.toISOString() : (check.verifiedAt as any) || null;
+        return json(200, {
+          id: check.id,
+          capaId: check.capaId,
+          dueDate: check.dueDate || "",
+          owner: check.owner || "",
+          status: check.status || "",
+          rootCauseEliminated: check.rootCauseEliminated || "",
+          evidence: check.evidence || "",
+          recurred: check.recurred || "",
+          determination: check.determination || "",
+          verifiedBy: check.verifiedBy || "",
+          verifiedAt: vAt,
+        });
+      }
+
       const site = url.searchParams.get("site");
       const rows = site
         ? await db.select().from(records).where(eq(records.site, site)).orderBy(asc(records.id))
@@ -286,7 +312,7 @@ export default async (req: Request) => {
 
         // Derive the resulting effectiveness_status, the CAPA record status and
         // whether the verification stamp / failure note should be written.
-        let effStatus = existing.effectivenessStatus || "In Progress";
+        let effStatus = existing.effectivenessStatus || "Pending";
         let recordStatus = existing.status;
         let verifiedBy = "";
         let verifiedAt: Date | null = null;
@@ -306,6 +332,12 @@ export default async (req: Request) => {
           failureNote = true;
         } else if (determination === "Requires Additional Action") {
           effStatus = "In Progress";
+        } else if (!existing.effectivenessStatus && existing.status === "Closed — Awaiting Effectiveness Assignment") {
+          // First assignment of a check owner on a CAPA closed without one:
+          // schedule the check (Pending) and move the record into the
+          // pending-effectiveness state so closure can complete.
+          effStatus = "Pending";
+          recordStatus = "Closed — Pending Effectiveness Check";
         }
 
         // Upsert the effectiveness_checks row (one per CAPA).

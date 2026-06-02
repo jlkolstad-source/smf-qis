@@ -200,6 +200,13 @@ main{padding:24px 32px 80px;}
 .crisis-tbl th{text-align:left;padding:7px 9px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#fff;background:#C00000;}
 .crisis-tbl td{padding:7px 9px;border-bottom:1px solid #e8ecf0;font-size:12px;vertical-align:top;color:#1a1a2e;}
 .crisis-input{background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif;box-sizing:border-box;}
+.link-card{background:#fff;border:1px solid var(--border2);border-radius:8px;padding:14px 16px;}
+.eff-card{background:#fff;border:1px solid var(--border2);border-radius:8px;padding:14px 16px;}
+.link-card-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#1F3864;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.link-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #eef0f3;}
+.link-row:last-child{border-bottom:none;}
+.link-candidate{border:1px solid var(--border2);border-radius:6px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:all 0.12s;}
+.link-candidate:hover{background:#DEEAF1;border-color:#2E75B6;}
 .crisis-disc-q{background:#f4f6f8;border:1px solid #c0c8d2;border-radius:6px;padding:12px 14px;margin-bottom:10px;}
 .crisis-resp{background:#fff;border-left:3px solid #2E75B6;padding:6px 10px;margin-top:6px;border-radius:3px;font-size:12px;}
 .crisis-resp .who{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;}
@@ -450,6 +457,21 @@ main{padding:24px 32px 80px;}
     <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-oos-stale" style="color:#FFF2CC">0</div><div class="csuite-stat-label" style="color:#FCE4D6">Disp. Pending &gt;30d</div></div>
   </div>
+  <div class="csuite-banner" style="background:linear-gradient(135deg,#2d1a4a,#5B3A86);border-color:#B19CD9">
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-closure" style="color:#fff">--%</div><div class="csuite-stat-label" style="color:#E2D5F5">CAPA Closure Rate</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-avgclose" style="color:#fff">--</div><div class="csuite-stat-label" style="color:#E2D5F5">Avg Closure (days)</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-pendingeff" style="color:#fff" title="">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Pending Eff. Checks</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-effrate" style="color:#fff">--%</div><div class="csuite-stat-label" style="color:#E2D5F5">Effectiveness Rate</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-ineffective" style="color:#fff">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Ineffective Checks</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-major" style="color:#fff">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Linked to Major</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-overdue" style="color:#fff">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Overdue Eff. Checks</div></div>
+  </div>
   <div class="charts-row" style="grid-template-columns:1fr 1fr">
     <div class="chart-card">
       <div class="chart-title">Risk Exposure by Category</div>
@@ -629,6 +651,8 @@ main{padding:24px 32px 80px;}
         <input type="hidden" id="f-photos" value="[]">
       </div>
       <div class="form-group form-full"><label class="form-label">Objective Evidence Notes</label><textarea class="form-textarea" id="f-evidence" placeholder="Record documents reviewed, what was observed, dates..."></textarea></div>
+      <div class="form-group form-full" id="capa-linkage-section" style="margin-top:4px"></div>
+      <div class="form-group form-full" id="capa-effectiveness-section" style="margin-top:4px"></div>
       <div class="form-group form-full" id="sig-section-record" style="margin-top:4px"></div>
     </div>
     <div class="modal-actions">
@@ -831,10 +855,12 @@ let AUDITS=[];
 // (Lindon | Layton) used to scope the record/audit views. The audit creation
 // form pre-fills the address and derives the site from the chosen facility.
 const FACILITIES=[
-  {name:"Lindon",            site:"Lindon", address:"2642 W 400 N Suite 100 Lindon UT 84042"},
-  {name:"Layton Gordon Ave", site:"Layton", address:"1373 W Gordon Ave Layton UT 84041"},
-  {name:"Layton McCormick",  site:"Layton", address:"855 N McCormick Way Layton UT 84041"},
-  {name:"Layton Angel",      site:"Layton", address:"951 Angel St Layton UT 84041"},
+  {name:"Lindon",               site:"Lindon", address:"2642 W 400 N Suite 100 Lindon UT 84042"},
+  {name:"Layton - Gordon Ave",  site:"Layton", address:"1373 W Gordon Ave Layton UT 84041"},
+  {name:"Layton - New Gordon",  site:"Layton", address:"1235 W Gordon Ave Layton UT 84041"},
+  {name:"Layton - McCormick 855",site:"Layton",address:"855 McCormick Way Layton UT 84041"},
+  {name:"Layton - McCormick 851",site:"Layton",address:"851 McCormick Way Layton UT 84041"},
+  {name:"Layton - Angel",       site:"Layton", address:"951 Angel St Layton UT 84041"},
 ];
 function facilityByName(name){return FACILITIES.find(f=>f.name===name)||null;}
 
@@ -3079,8 +3105,14 @@ let currentSite="Lindon";
 
 // Shared-database REST endpoint (Netlify Function).
 const API="/api/records";
+// CAPA linkage REST endpoint (capa_links rows).
+const CAPA_LINKS_API="/api/capa-links";
 
 let records=[], editingId=null, currentFilter="all", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
+// When set, the next record created via the record modal is automatically linked
+// back to this source record in capa_links once it is saved. Shape:
+// { sourceType, sourceId }.
+let _pendingCapaSourceLink=null;
 // Clause rows currently rendered in the audit checklist (for the active session).
 let CLAUSES_FOR_ACTIVE_AUDIT=[];
 // Debounce handle for persisting in-progress audit session edits to the API.
@@ -3251,7 +3283,7 @@ async function loadData(){
 // site switch so all users always see the same persisted data.
 async function refresh(){await loadData();render();}
 
-function render(){renderSiteSwitcher();updateKPIs();renderTable();renderDashCharts();updateCSuite();updateDeadline();}
+function render(){renderSiteSwitcher();updateKPIs();renderTable();renderDashCharts();updateCSuite();updateCapaEffMetrics();updateDeadline();}
 
 function updateKPIs(){
   const open=records.filter(r=>r.status==="Open"||r.status==="In Progress").length;
@@ -3391,6 +3423,71 @@ function updateOOSCSuite(){
   set("cs-oos-stale",stale);
 }
 
+// ── CAPA EFFECTIVENESS METRICS (B4) ─────────────────────────────────────────
+// Severity of a source record, resolved from the supplied data sets (so this
+// works both on the live globals and on a report's fetched snapshot).
+function resolveSourceSeverity(type,id,recs,oos,crisis){
+  if(type==="OOS"){const o=(oos||[]).find(x=>x.id===id);return o?(o.classification||""):"";}
+  if(type==="Crisis Exercise")return "";
+  const r=(recs||[]).find(x=>x.id===id);return r?(r.severity||""):"";
+}
+// Compute all seven CAPA effectiveness metrics from live records + capa_links.
+// `recs` = record rows, `links` = capa_links rows, `oos`/`crisis` used only to
+// resolve linked source severity. Nothing here is hardcoded or inferred.
+function computeCapaEffMetrics(recs,links,oos,crisis){
+  const capas=(recs||[]).filter(r=>r.type==="CAPA");
+  const total=capas.length;
+  const closed=capas.filter(r=>/closed/i.test(r.status||""));
+  const closureRate=total?Math.round(closed.length/total*100):0;
+  // Average closure time: created_at → the time the record reached a Closed state
+  // (modified_at is stamped on the closing status change).
+  const times=closed.map(r=>{
+    const c=r.createdAt||r.created;const m=r.modifiedAt;
+    if(!c||!m)return null;
+    const d=Math.round((new Date(m)-new Date(c))/86400000);
+    return (isNaN(d)||d<0)?null:d;
+  }).filter(d=>d!==null);
+  const avgClose=times.length?Math.round(times.reduce((a,b)=>a+b,0)/times.length):null;
+  // CAPAs pending an effectiveness check.
+  const pending=capas.filter(r=>r.effectivenessStatus==="Pending"||r.effectivenessStatus==="In Progress");
+  // Completed effectiveness checks → determination derived from the record state
+  // (Effective ⇒ "Closed — Verified Effective"; otherwise Ineffective).
+  const completed=capas.filter(r=>r.effectivenessStatus==="Completed");
+  const effective=completed.filter(r=>/verified effective/i.test(r.status||""));
+  const ineffective=completed.length-effective.length;
+  const effRate=completed.length?Math.round(effective.length/completed.length*100):null;
+  // Overdue effectiveness checks.
+  const today=new Date().toISOString().slice(0,10);
+  const overdue=capas.filter(r=>(r.effectivenessStatus==="Pending"||r.effectivenessStatus==="In Progress")&&r.effectivenessCheckDueDate&&r.effectivenessCheckDueDate<today);
+  // CAPAs linked to any source record with severity Major.
+  const majorCapaIds=new Set();
+  (links||[]).forEach(l=>{
+    if(resolveSourceSeverity(l.sourceType,l.sourceId,recs,oos,crisis)==="Major")majorCapaIds.add(l.capaId);
+  });
+  return {
+    total,closed:closed.length,closureRate,
+    avgClose,
+    pending:pending.length,pendingIds:pending.map(r=>r.id),
+    completedChecks:completed.length,effective:effective.length,ineffective,effRate,
+    overdue:overdue.length,overdueIds:overdue.map(r=>r.id),
+    majorLinked:majorCapaIds.size,
+  };
+}
+// Fetch capa_links + compute metrics and paint the C-Suite KPI cards.
+async function updateCapaEffMetrics(){
+  const links=await capaLinksGet("");
+  const m=computeCapaEffMetrics(records,links,(typeof oosRecords!=="undefined"?oosRecords:[]),(typeof crisisList!=="undefined"?crisisList:[]));
+  const set=(id,v,red)=>{const el=document.getElementById(id);if(!el)return;el.textContent=v;el.style.color=red?"#FF8888":"#fff";};
+  set("cs-capa-closure",m.total?m.closureRate+"%":"--%");
+  set("cs-capa-avgclose",m.avgClose===null?"--":m.avgClose);
+  const pe=document.getElementById("cs-capa-pendingeff");
+  if(pe){pe.textContent=m.pending;pe.setAttribute("title",m.pendingIds.length?("Pending: "+m.pendingIds.join(", ")):"None pending");}
+  set("cs-capa-effrate",m.effRate===null?"--%":m.effRate+"%");
+  set("cs-capa-ineffective",m.ineffective,m.ineffective>0);
+  set("cs-capa-major",m.majorLinked);
+  set("cs-capa-overdue",m.overdue,m.overdue>0);
+}
+
 function renderTable(f){
   if(f!==undefined)currentFilter=f;
   let list=[...records];
@@ -3428,8 +3525,347 @@ function renderTable(f){
   }).join("");
 }
 
+// ══════════════════ CAPA LINKAGE + EFFECTIVENESS (shared) ═══════════════════
+// All linkage data is loaded live from /api/capa-links and all effectiveness
+// data from /api/records; nothing here is hardcoded.
+
+// State for the linkage / effectiveness UI. `links` are the capa_links rows
+// loaded for the source currently shown. `sourceType`/`sourceId` identify it.
+let _linkageState={sourceType:"",sourceId:"",links:[],hostId:""};
+
+async function capaLinksGet(qs){
+  try{const r=await fetch(CAPA_LINKS_API+(qs?("?"+qs):""));if(r.ok)return await r.json();}catch(e){}
+  return [];
+}
+async function capaLinkCreate(capaId,sourceType,sourceId){
+  const r=await fetch(CAPA_LINKS_API+"?action=create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capa_id:capaId,source_type:sourceType,source_id:sourceId})});
+  if(!r.ok){let m="HTTP "+r.status;try{m=(await r.json()).error||m;}catch(_){}throw new Error(m);}
+  return await r.json();
+}
+async function capaLinkDelete(id){
+  const r=await fetch(CAPA_LINKS_API+"?action=delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  if(!r.ok){let m="HTTP "+r.status;try{m=(await r.json()).error||m;}catch(_){}throw new Error(m);}
+  return await r.json();
+}
+
+// The capa_links source_type string for a CAPA/NCR/Audit record.
+function recordSourceType(r){return r.type==="AUDIT"?"Audit Finding":(r.type||"NCR");}
+
+// Badge markup for an arbitrary status string (open / in-progress / closed).
+function anyStatusBadge(s){
+  const t=(s||"").toLowerCase();
+  let cls="badge-open";
+  if(t.indexOf("closed")>-1||t.indexOf("verified effective")>-1||t==="complete"||t==="resolved")cls="badge-closed";
+  else if(t.indexOf("progress")>-1||t.indexOf("pending")>-1||t.indexOf("signed")>-1)cls="badge-inprogress";
+  else if(t.indexOf("overdue")>-1||t.indexOf("ineffective")>-1)cls="badge-overdue";
+  return `<span class="badge ${cls}">${cesc(s||"—")}</span>`;
+}
+// Badge markup for a capa_links source_type.
+function sourceTypeBadge(type){
+  const map={"NCR":"badge-ncr","Audit Finding":"badge-audit","OOS":"badge-major","Crisis Exercise":"badge-capa"};
+  return `<span class="badge ${map[type]||"badge-minor"}">${cesc(type||"—")}</span>`;
+}
+// Determination badge for effectiveness checks.
+function determinationBadge(d){
+  const t=(d||"").toLowerCase();
+  let cls="badge-inprogress";
+  if(t==="effective")cls="badge-closed";else if(t==="ineffective")cls="badge-overdue";
+  return `<span class="badge ${cls}">${cesc(d||"—")}</span>`;
+}
+
+// Resolve a linked source record's description / status / severity from the
+// already-loaded module data. Falls back gracefully when not on the current site.
+function resolveSourceRecord(type,id){
+  let rec=null;
+  if(type==="OOS"){rec=(oosRecords||[]).find(o=>o.id===id);if(rec)return{desc:rec.productName||rec.testAnalyte||rec.id,status:rec.status||"",severity:rec.classification||""};}
+  else if(type==="Crisis Exercise"){rec=(crisisList||[]).find(c=>c.id===id);if(rec)return{desc:rec.scenarioName||rec.scenarioType||rec.id,status:rec.status||"",severity:""};}
+  else{rec=(records||[]).find(r=>r.id===id);if(rec)return{desc:rec.desc||"",status:rec.status||"",severity:rec.severity||""};}
+  return{desc:"",status:"",severity:""};
+}
+function findCapaRecord(id){return (records||[]).find(r=>r.id===id)||null;}
+
+// <option> list of QIS registered users (signed-in user + everyone recorded as a
+// signatory / attendee / auditor / initiator across loaded data).
+function capaUserOptions(selected){
+  const names=(typeof sigCollectKnownNames==="function")?sigCollectKnownNames():[];
+  let html=`<option value="">— select owner —</option>`;
+  let found=false;
+  names.forEach(n=>{const s=n===selected;if(s)found=true;html+=`<option value="${cesc(n)}"${s?" selected":""}>${cesc(n)}</option>`;});
+  if(selected&&!found)html+=`<option value="${cesc(selected)}" selected>${cesc(selected)}</option>`;
+  return html;
+}
+function effPlusDaysISO(n){const d=new Date();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function effDaysRemaining(iso){if(!iso)return null;const d=new Date(iso.length<=10?iso+"T00:00:00":iso);if(isNaN(d))return null;return Math.ceil((d-new Date())/86400000);}
+
+// ── Dispatcher: build the linkage + effectiveness sections for the open record ─
+function renderRecordLinkage(r){
+  const linkHost=document.getElementById("capa-linkage-section");
+  const effHost=document.getElementById("capa-effectiveness-section");
+  if(linkHost)linkHost.innerHTML="";
+  if(effHost)effHost.innerHTML="";
+  // Linkage requires a persisted record id.
+  if(!editingId||!r){return;}
+  if(r.type==="CAPA"){
+    renderCapaSourceRecords(r);
+    renderEffectivenessCheck(r);
+  }else{
+    renderLinkedCapas("capa-linkage-section",recordSourceType(r),r.id);
+  }
+}
+
+// ── Generic "Linked CAPAs" section (source side: NCR / Audit / OOS / Crisis) ──
+// Renders into hostId with inner element ids scoped to that host so multiple
+// linkage sections can coexist in the DOM (record modal + OOS editor).
+async function renderLinkedCapas(hostId,sourceType,sourceId){
+  const host=document.getElementById(hostId);if(!host)return;
+  host.innerHTML=`<div class="link-card"><div class="link-card-title">&#128279; Linked CAPAs <span style="color:#4a5568;font-weight:400">loading…</span></div></div>`;
+  const links=await capaLinksGet("source_id="+encodeURIComponent(sourceId));
+  _linkageState={sourceType,sourceId,links,hostId};
+  host.innerHTML=linkedCapasHTML(hostId,sourceType,sourceId,links);
+}
+function linkedCapasHTML(hostId,sourceType,sourceId,links){
+  const rows=links.length?links.map(l=>{
+    const capa=findCapaRecord(l.capaId);
+    const status=capa?capa.status:"";
+    const owner=capa?capa.owner:"";
+    const due=capa?capa.due:"";
+    return `<div class="link-row">
+      <span class="badge badge-capa">${cesc(l.capaId)}</span>
+      ${anyStatusBadge(status)}
+      <span style="font-size:12px;color:#1a1a2e">${cesc(owner||"—")}</span>
+      <span style="font-family:'DM Mono',monospace;font-size:10px;color:#4a5568;margin-left:auto">${due?("due "+cesc(due)):"no due date"}</span>
+      <button class="btn-ghost" style="color:#C00000;padding:3px 9px;font-size:11px" onclick="doUnlinkCapa('${cesc(hostId)}','${cesc(l.id)}')">Unlink</button>
+    </div>`;
+  }).join(""):`<div style="font-size:12px;color:#4a5568;padding:6px 0">No CAPAs linked yet.</div>`;
+  return `<div class="link-card">
+    <div class="link-card-title">&#128279; Linked CAPAs
+      <button class="btn-ghost" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="toggleLinkCapaPicker('${cesc(hostId)}')">+ Link Existing CAPA</button>
+    </div>
+    <div id="${hostId}-rows">${rows}</div>
+    <div id="${hostId}-picker" style="display:none;margin-top:10px;border-top:1px dashed var(--border2);padding-top:10px">
+      <input class="form-input" id="${hostId}-search" placeholder="Search CAPA by ID, description, status or owner…" oninput="renderLinkCapaCandidates('${cesc(hostId)}')" style="margin-bottom:8px">
+      <div id="${hostId}-cands" style="max-height:210px;overflow-y:auto"></div>
+    </div>
+    <button class="btn-ghost" style="margin-top:10px;width:100%;border-style:dashed" onclick="startCapaFromSource('${cesc(sourceType)}','${cesc(sourceId)}')">+ Create New CAPA from this Record</button>
+  </div>`;
+}
+function toggleLinkCapaPicker(hostId){
+  const p=document.getElementById(hostId+"-picker");if(!p)return;
+  const show=p.style.display==="none";
+  p.style.display=show?"":"none";
+  if(show){const s=document.getElementById(hostId+"-search");if(s)s.value="";renderLinkCapaCandidates(hostId);}
+}
+function renderLinkCapaCandidates(hostId){
+  const host=document.getElementById(hostId+"-cands");if(!host)return;
+  const q=((document.getElementById(hostId+"-search")||{}).value||"").toLowerCase().trim();
+  const linkedIds=new Set((_linkageState.links||[]).map(l=>l.capaId));
+  let capas=(records||[]).filter(x=>x.type==="CAPA"&&!linkedIds.has(x.id));
+  if(q)capas=capas.filter(x=>(x.id+" "+(x.desc||"")+" "+(x.status||"")+" "+(x.owner||"")).toLowerCase().indexOf(q)>-1);
+  if(!capas.length){host.innerHTML=`<div style="font-size:12px;color:#4a5568;padding:6px 2px">No matching CAPA records.</div>`;return;}
+  host.innerHTML=capas.slice(0,50).map(x=>`<div class="link-candidate" onclick="doLinkExistingCapa('${cesc(hostId)}','${cesc(x.id)}')">
+    <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-capa">${cesc(x.id)}</span>${anyStatusBadge(x.status)}<span style="font-size:11px;color:#4a5568;margin-left:auto">${cesc(x.owner||"—")}</span></div>
+    <div style="font-size:11px;color:#1a1a2e;margin-top:4px">${cesc((x.desc||"").slice(0,90))}${(x.desc||"").length>90?"…":""}</div>
+  </div>`).join("");
+}
+async function doLinkExistingCapa(hostId,capaId){
+  const st=_linkageState;if(!st.sourceId)return;
+  try{
+    await capaLinkCreate(capaId,st.sourceType,st.sourceId);
+    toast("Linked CAPA "+capaId+".","green");
+    await renderLinkedCapas(hostId,st.sourceType,st.sourceId);
+  }catch(e){toast("Link failed: "+e.message,"red");}
+}
+async function doUnlinkCapa(hostId,linkId){
+  const st=_linkageState;if(!st.sourceId)return;
+  if(!confirm("Remove this CAPA link?"))return;
+  try{
+    await capaLinkDelete(linkId);
+    toast("Link removed.","green");
+    await renderLinkedCapas(hostId,st.sourceType,st.sourceId);
+  }catch(e){toast("Unlink failed: "+e.message,"red");}
+}
+
+// Open the record modal as a new CAPA pre-populated from a source record, and
+// arm the automatic link-back that fires when the new CAPA is saved.
+function startCapaFromSource(sourceType,sourceId,prefill){
+  // Derive prefill from the loaded data when not supplied (record modal case).
+  if(!prefill){
+    if(sourceType==="OOS"){const o=(oosRecords||[]).find(x=>x.id===sourceId);if(o)prefill={desc:o.productName||o.testAnalyte||"",clause:"",owner:o.initiatedBy||""};}
+    else if(sourceType==="Crisis Exercise"){const c=(crisisList||[]).find(x=>x.id===sourceId);if(c)prefill={desc:(c.scenarioName||c.scenarioType||"")+" — lessons-learned corrective action",clause:c.governingSop||"",owner:c.facilitator||""};}
+    else{const rec=(records||[]).find(x=>x.id===sourceId);if(rec)prefill={desc:rec.desc||"",clause:rec.clause||"",owner:rec.owner||""};}
+  }
+  prefill=prefill||{desc:"",clause:"",owner:""};
+  openModal("CAPA");
+  document.getElementById("f-desc").value=prefill.desc||"";
+  document.getElementById("f-clause").value=prefill.clause||"";
+  document.getElementById("f-owner").value=prefill.owner||"";
+  document.getElementById("f-evidence").value="Source Record: "+sourceType+" "+sourceId;
+  document.getElementById("modal-title").textContent="New CAPA · from "+sourceType+" "+sourceId;
+  _pendingCapaSourceLink={sourceType,sourceId};
+  if(!document.getElementById("modal").classList.contains("open"))document.getElementById("modal").classList.add("open");
+}
+
+// ── CAPA: "Source Records" section (display only) ────────────────────────────
+async function renderCapaSourceRecords(r){
+  const host=document.getElementById("capa-linkage-section");if(!host)return;
+  host.innerHTML=`<div class="link-card"><div class="link-card-title">&#128279; Source Records <span style="color:#4a5568;font-weight:400">loading…</span></div></div>`;
+  const links=await capaLinksGet("capa_id="+encodeURIComponent(r.id));
+  _linkageState.links=links;
+  const rows=links.length?links.map(l=>{
+    const sr=resolveSourceRecord(l.sourceType,l.sourceId);
+    return `<div class="link-row">
+      ${sourceTypeBadge(l.sourceType)}
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:#1F3864">${cesc(l.sourceId)}</span>
+      <span style="font-size:12px;color:#1a1a2e;flex:1;min-width:0">${cesc((sr.desc||"").slice(0,80))}${(sr.desc||"").length>80?"…":""}</span>
+      ${anyStatusBadge(sr.status)}
+    </div>`;
+  }).join(""):`<div style="font-size:12px;color:#4a5568;padding:6px 0">No source records linked.</div>`;
+  host.innerHTML=`<div class="link-card"><div class="link-card-title">&#128279; Source Records</div>${rows}</div>`;
+}
+
+// ── CAPA: Effectiveness Check section (B2) ───────────────────────────────────
+async function fetchEffectivenessCheck(capaId){
+  try{const r=await fetch(API+"?effectiveness="+encodeURIComponent(capaId));if(r.ok)return await r.json();}catch(e){}
+  return null;
+}
+async function renderEffectivenessCheck(r){
+  const host=document.getElementById("capa-effectiveness-section");if(!host)return;
+  const es=r.effectivenessStatus||"";
+  const status=r.status||"";
+  // (a) Open / In Progress, no effectiveness yet → greyed notice.
+  if(!es&&status.indexOf("Closed")!==0){
+    host.innerHTML=`<div class="eff-card" style="opacity:0.7;background:#f4f6f8">
+      <div class="link-card-title" style="color:#4a5568">&#9203; Effectiveness Check</div>
+      <div style="font-size:12px;color:#4a5568">Effectiveness check will be scheduled upon CAPA closure.</div></div>`;
+    return;
+  }
+  // (b) Closed awaiting effectiveness owner assignment → amber assignment panel.
+  if(!es&&status==="Closed — Awaiting Effectiveness Assignment"){
+    host.innerHTML=`<div class="eff-card" style="background:#FFF2CC;border-color:#BF9000">
+      <div class="link-card-title" style="color:#7F6000">&#9888; Effectiveness Check — Assignment Required</div>
+      <div style="font-size:12px;color:#7F6000;margin-bottom:12px">This CAPA requires an effectiveness check owner to be assigned before closure is complete.</div>
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Owner <span style="color:#C00000">*</span></label><select class="form-select" id="eff-assign-owner">${capaUserOptions(r.effectivenessCheckOwner||"")}</select></div>
+        <div class="form-group"><label class="form-label">Effectiveness Check Due Date</label><input class="form-input" type="date" id="eff-assign-due" value="${cesc(r.effectivenessCheckDueDate||effPlusDaysISO(90))}"></div>
+      </div>
+      <div style="text-align:right;margin-top:10px"><button class="btn" onclick="effConfirmAssignment('${cesc(r.id)}')">Confirm Assignment</button></div>
+    </div>`;
+    return;
+  }
+  // (c) / (d) need the effectiveness_checks row detail.
+  host.innerHTML=`<div class="eff-card"><div class="link-card-title">&#9203; Effectiveness Check <span style="color:#4a5568;font-weight:400">loading…</span></div></div>`;
+  const chk=await fetchEffectivenessCheck(r.id)||{};
+  if(es==="Completed"){host.innerHTML=effCompletedHTML(r,chk);return;}
+  // (c) Pending / In Progress → full form.
+  host.innerHTML=effFormHTML(r,chk);
+}
+function effFormHTML(r,chk){
+  const owner=r.effectivenessCheckOwner||chk.owner||"";
+  const due=r.effectivenessCheckDueDate||chk.dueDate||"";
+  const dr=effDaysRemaining(due);
+  const drTxt=dr===null?"":(dr<0?(`<span style="color:#C00000">${Math.abs(dr)} days overdue</span>`):(`<span style="color:${dr<14?"#BF9000":"#385723"}">${dr} days remaining</span>`));
+  const rce=chk.rootCauseEliminated||"";
+  const rec=chk.recurred||"";
+  const det=chk.determination||"";
+  const ev=chk.evidence||"";
+  return `<div class="eff-card">
+    <div class="link-card-title">&#9203; Effectiveness Check <span style="color:#4a5568;font-weight:400">${cesc(r.effectivenessStatus||"")}</span></div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">Assigned Owner</label>
+        <div style="display:flex;gap:6px;align-items:center"><input class="form-input" id="eff-owner" value="${cesc(owner)}" style="flex:1"><button class="btn-ghost" style="padding:6px 10px;font-size:11px" onclick="effChangeOwner()">Change</button></div></div>
+      <div class="form-group"><label class="form-label">Due Date ${drTxt?("· "+drTxt):""}</label><input class="form-input" type="date" id="eff-due" value="${cesc(due)}" onchange="effUpdateDueDate('${cesc(r.id)}',this.value)"></div>
+      <div class="form-group"><label class="form-label">Was root cause eliminated?</label><select class="form-select" id="eff-rce">${optList(["","Yes","No","Partially"],rce)}</select></div>
+      <div class="form-group"><label class="form-label">Has the finding recurred?</label>
+        <div style="display:flex;gap:16px;padding-top:6px;font-size:13px">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="eff-recurred" value="No" ${rec==="No"?"checked":""}> No</label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="eff-recurred" value="Yes" ${rec==="Yes"?"checked":""}> Yes</label>
+        </div></div>
+      <div class="form-group form-full"><label class="form-label">Evidence of effectiveness</label>
+        <textarea class="form-textarea" id="eff-evidence" style="min-height:64px">${cesc(ev)}</textarea>
+        <div style="margin-top:6px"><button class="btn-ghost" style="padding:5px 11px;font-size:11px" onclick="document.getElementById('eff-file-input').click()">&#128206; Attach File</button><input type="file" id="eff-file-input" style="display:none" onchange="effAttachFile(event)"></div></div>
+      <div class="form-group form-full"><label class="form-label">Determination</label><select class="form-select" id="eff-determination">${optList(["","Effective","Ineffective","Requires Additional Action"],det)}</select></div>
+    </div>
+    <div style="text-align:right;margin-top:10px"><button class="btn" onclick="effCompleteCheck('${cesc(r.id)}')">Complete Effectiveness Check</button></div>
+  </div>`;
+}
+function effCompletedHTML(r,chk){
+  const eff=(chk.determination||"").toLowerCase()==="effective";
+  const ineff=(chk.determination||"").toLowerCase()==="ineffective";
+  const bg=eff?"#E2EFDA":(ineff?"#FFE0E0":"#f4f6f8");
+  const bd=eff?"#375623":(ineff?"#C00000":"var(--border2)");
+  const vAt=chk.verifiedAt?(typeof cfmtTs==="function"?cfmtTs(chk.verifiedAt):chk.verifiedAt):"—";
+  return `<div class="eff-card" style="background:${bg};border-color:${bd}">
+    <div class="link-card-title" style="color:${eff?"#385723":(ineff?"#7a0000":"#1F3864")}">&#9989; Effectiveness Check — Completed</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">${determinationBadge(chk.determination)}</div>
+    <div style="font-size:12px;color:#1a1a2e;display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">
+      <div><b>Verified By:</b> ${cesc(chk.verifiedBy||"—")}</div>
+      <div><b>Verified At:</b> ${cesc(vAt)}</div>
+      <div><b>Root cause eliminated:</b> ${cesc(chk.rootCauseEliminated||"—")}</div>
+      <div><b>Finding recurred:</b> ${cesc(chk.recurred||"—")}</div>
+      <div style="grid-column:1/-1"><b>Evidence:</b> ${cesc(chk.evidence||"—")}</div>
+    </div>
+    ${ineff?`<div style="margin-top:12px;background:#FFF2CC;border:1px solid #BF9000;border-radius:6px;padding:9px 13px;font-size:12px;color:#7F6000">&#9888; New investigation required — this CAPA has been reopened.</div>`:""}
+  </div>`;
+}
+async function effConfirmAssignment(capaId){
+  const owner=(document.getElementById("eff-assign-owner")||{}).value||"";
+  const due=(document.getElementById("eff-assign-due")||{}).value||"";
+  if(!owner){toast("Select an effectiveness check owner.","red");return;}
+  try{
+    const res=await fetch(API+"?action=save-effectiveness",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capa_id:capaId,owner,due_date:due})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    toast("Effectiveness check owner assigned.","green");
+    await reopenRecordAfterEff(capaId);
+  }catch(e){toast("Assignment failed: "+e.message,"red");}
+}
+async function effUpdateDueDate(capaId,due){
+  try{
+    const res=await fetch(API+"?action=update-effectiveness-date",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capa_id:capaId,due_date:due})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    toast("Effectiveness-check due date updated.","green");
+    const r=findCapaRecord(capaId);if(r){r.effectivenessCheckDueDate=due;renderEffectivenessCheck(r);}
+  }catch(e){toast("Could not update due date: "+e.message,"red");}
+}
+function effChangeOwner(){const el=document.getElementById("eff-owner");if(el){el.removeAttribute("readonly");el.focus();}}
+function effAttachFile(ev){
+  const f=(ev.target.files||[])[0];if(!f)return;
+  const ta=document.getElementById("eff-evidence");
+  if(ta)ta.value=(ta.value?ta.value+"\n":"")+"[Attachment: "+f.name+"]";
+  ev.target.value="";
+  toast("Attachment noted in evidence. (File storage placeholder.)","yellow");
+}
+function effSignaturePlaceholder(){toast("Electronic signature captured (placeholder) for the effectiveness determination.","green");}
+async function effCompleteCheck(capaId){
+  const owner=(document.getElementById("eff-owner")||{}).value||"";
+  const due=(document.getElementById("eff-due")||{}).value||"";
+  const rce=(document.getElementById("eff-rce")||{}).value||"";
+  const ev=(document.getElementById("eff-evidence")||{}).value||"";
+  const det=(document.getElementById("eff-determination")||{}).value||"";
+  const recEl=document.querySelector('input[name="eff-recurred"]:checked');
+  const recurred=recEl?recEl.value:"";
+  if(!det){toast("Select a determination before completing the check.","red");return;}
+  try{
+    const res=await fetch(API+"?action=save-effectiveness",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capa_id:capaId,owner,due_date:due,root_cause_eliminated:rce,evidence:ev,recurred,determination:det})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    effSignaturePlaceholder();
+    toast("Effectiveness check saved — determination: "+det+".","green");
+    await reopenRecordAfterEff(capaId);
+  }catch(e){toast("Could not save effectiveness check: "+e.message,"red");}
+}
+// Refresh data after an effectiveness action and re-render the open record.
+async function reopenRecordAfterEff(capaId){
+  await loadData();
+  const r=findCapaRecord(capaId);
+  if(r&&document.getElementById("modal").classList.contains("open")){
+    document.getElementById("f-status").value=r.status||"Open";
+    applyCloseGate(r.status||"Open");
+    renderRecordLinkage(r);
+  }
+  render();
+}
+
 function openModal(presetType){
-  editingId=null;currentPhotos=[];
+  editingId=null;currentPhotos=[];_pendingCapaSourceLink=null;
   document.getElementById("modal-title").textContent="New Record";
   ["f-desc","f-clause","f-owner","f-rca","f-ca","f-due","f-evidence"].forEach(i=>{const el=document.getElementById(i);if(el)el.value="";});
   document.getElementById("f-type").value=(presetType==="CAPA"||presetType==="NCR"||presetType==="AUDIT")?presetType:"CAPA";
@@ -3439,6 +3875,7 @@ function openModal(presetType){
   document.getElementById("photo-preview-grid").innerHTML="";
   applyCloseGate("Open");
   initSignatureSection("record","record",null,"sig-section-record",[],null);
+  renderRecordLinkage(null);
   document.getElementById("modal").classList.add("open");
 }
 
@@ -3468,10 +3905,11 @@ function editRecord(id){
   renderPhotoPreview("photo-preview-grid",currentPhotos);
   applyCloseGate(r.status||"Open");
   initSignatureSection("record","record",id,"sig-section-record",r.signatures||[],function(updated){const rr=records.find(x=>x.id===(updated&&updated.id));if(rr&&updated)rr.signatures=updated.signatures;});
+  renderRecordLinkage(r);
   document.getElementById("modal").classList.add("open");
 }
 
-function closeModal(){document.getElementById("modal").classList.remove("open");editingId=null;currentPhotos=[];}
+function closeModal(){document.getElementById("modal").classList.remove("open");editingId=null;currentPhotos=[];_pendingCapaSourceLink=null;}
 
 async function saveRecord(){
   const desc=document.getElementById("f-desc").value.trim();
@@ -3494,9 +3932,20 @@ async function saveRecord(){
       res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
     }
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    // When a new CAPA was created from a source record, link it back automatically.
+    let linkMsg="";
+    if(!wasEditing&&_pendingCapaSourceLink){
+      try{
+        const created=await res.json();
+        if(created&&created.id){
+          await capaLinkCreate(created.id,_pendingCapaSourceLink.sourceType,_pendingCapaSourceLink.sourceId);
+          linkMsg=" and linked to "+_pendingCapaSourceLink.sourceType+" "+_pendingCapaSourceLink.sourceId;
+        }
+      }catch(le){linkMsg=" (link failed: "+le.message+")";}
+    }
     closeModal();
     await refresh();
-    toast(wasEditing?"Record updated.":"Record saved.","green");
+    toast(wasEditing?"Record updated.":("Record saved"+linkMsg+"."),"green");
   }catch(e){toast("Save failed: "+e.message,"red");}
 }
 
@@ -4394,6 +4843,38 @@ function aiFmtRecordFull(r){
 
 // AUDIT REPORT SUMMARY — a complete report for one audit session: header,
 // clause-by-clause results, findings summary, statistics, signature block.
+
+// ── CAPA-linkage helpers for report prompts (data fetched live, never faked) ──
+// One text block listing the CAPAs linked to a source record, for embedding in a
+// finding detail block.
+function reportLinkedCapaLines(links){
+  if(!links||!links.length)return "Linked CAPAs: None linked at time of report.";
+  const lines=links.map(l=>{
+    const c=findCapaRecord(l.capaId);
+    const status=c?(c.status||"—"):"(not on current view)";
+    const owner=c?(c.owner||"—"):"—";
+    const due=c?(c.due||"—"):"—";
+    const closed=c&&/closed/i.test(c.status||"")?((c.modifiedAt||"").slice(0,10)||"—"):"—";
+    return `- ${l.capaId} | Status: ${status} | Owner: ${owner} | Due: ${due} | Closure Date: ${closed}`;
+  });
+  return "Linked CAPAs:\n"+lines.join("\n");
+}
+// One text block listing the source records linked to a CAPA, for embedding in a
+// CAPA detail block.
+function reportSourceRecordLines(links){
+  if(!links||!links.length)return "Source Records: No source records linked.";
+  const lines=links.map(l=>{
+    const sr=resolveSourceRecord(l.sourceType,l.sourceId);
+    return `- ${l.sourceType} ${l.sourceId} | ${(sr.desc||"(description unavailable)").replace(/\n/g," ").slice(0,120)} | Status: ${sr.status||"—"}`;
+  });
+  return "Source Records:\n"+lines.join("\n");
+}
+// Quietly ensure OOS + Crisis data are loaded so source records resolve in reports.
+async function reportEnsureSourceData(){
+  try{if(typeof oosRecords==="undefined"||!oosRecords.length){if(typeof loadOOS==="function")await loadOOS();}}catch(e){}
+  try{if(typeof crisisList==="undefined"||!crisisList.length){if(typeof loadCrisisList==="function")await loadCrisisList();}}catch(e){}
+}
+
 async function generateAuditReportSummary(auditId,wrap){
   if(!auditId){wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Select an audit session to generate its report.</div>';toast("Select an audit session first.","red");return;}
   await loadAuditSessions();
@@ -4438,6 +4919,17 @@ async function generateAuditReportSummary(auditId,wrap){
   const openF=findings.filter(r=>r.status!=="Closed").length;
   const findingBlocks=findings.length?findings.map(r=>aiFmtRecordFull(r)).join("\n\n----------\n\n"):"(no NCRs or findings were raised during this audit)";
   const findingTable=findings.length?findings.map(r=>`| ${fld(r.id)} | ${fld(r.clause)} | ${fld(r.severity)} | ${(r.desc||"").replace(/\n/g," ").trim()||"(pending)"} | ${fld(r.owner)} | ${fld(r.status)} |`).join("\n"):"| — | — | — | (none raised) | — | — |";
+  // Corrective Actions Register — every CAPA linked (via capa_links) to any
+  // finding from this audit session. Data is fetched live; one row per link.
+  const carLinksArr=await Promise.all(findings.map(async f=>({finding:f,links:await capaLinksGet("source_id="+encodeURIComponent(f.id))})));
+  const carRows=[];
+  carLinksArr.forEach(({finding,links})=>{
+    (links||[]).forEach(l=>{
+      const c=findCapaRecord(l.capaId);
+      carRows.push(`| ${fld(l.capaId)} | ${fld(finding.id)} | ${c?((c.desc||"").replace(/\n/g," ").trim()||"(pending)"):"(not on current view)"} | ${c?fld(c.owner):"—"} | ${c?fld(c.status):"—"} | ${c?fld(c.due):"—"} | ${c?fld(c.effectivenessStatus||"—"):"—"} |`);
+    });
+  });
+  const carTable=carRows.length?carRows.join("\n"):"| — | — | (no CAPAs linked to this audit's findings) | — | — | — | — |";
   const prompt=`You are a food safety and SQF audit compliance expert producing a formal INTERNAL AUDIT REPORT SUMMARY for Somafina UST (SOMAFINA UST — dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). Mark the document CONFIDENTIAL.
 
 ${AI_DATA_INTEGRITY}
@@ -4470,6 +4962,12 @@ ${findingBlocks}
 
 ${AI_RECORD_SIGNOFFS_INSTR}
 
+## CORRECTIVE ACTIONS REGISTER
+Render this table exactly (header row then the data rows). It lists every CAPA linked to a finding from this audit session. If the data rows indicate none are linked, keep the single placeholder row as provided.
+| CAPA ID | Linked Finding | Description | Owner | Status | Due Date | Effectiveness Status |
+| --- | --- | --- | --- | --- | --- | --- |
+${carTable}
+
 ## OVERALL AUDIT STATISTICS
 Summarise the audit outcome using the statistics line above (clauses in scope, reviewed, conforming vs non-conforming, observations, findings raised and how many remain open). Overall Notes from the auditor: ${fld(ex._overall)}.
 
@@ -4487,8 +4985,9 @@ async function generateFindingSummaryReport(wrap){
   const sel=records.filter(r=>ids.indexOf(r.id)!==-1);
   if(!sel.length){wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Selected records could not be found. Re-open the selector and try again.</div>';return;}
   const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not yet completed)":s;};
-  const blocks=sel.map(r=>{
+  const blockArr=await Promise.all(sel.map(async r=>{
     const req=clauseRequirement(r.clause);
+    const links=await capaLinksGet("source_id="+encodeURIComponent(r.id));
     return `Record ID: ${fld(r.id)}
 Type: ${fld(r.type)}
 Clause: ${fld(r.clause)}
@@ -4502,8 +5001,10 @@ Observation/Description: ${fld(r.desc)}
 Root Cause Analysis (RCA): ${fld(r.rca)}
 Corrective Action (CA): ${fld(r.ca)}
 Objective Evidence: ${fld(r.evidence)}
-${aiFmtRecordSignoffs(r.signatures)}`;
-  }).join("\n\n----------\n\n");
+${aiFmtRecordSignoffs(r.signatures)}
+${reportLinkedCapaLines(links)}`;
+  }));
+  const blocks=blockArr.join("\n\n----------\n\n");
   const summaryTable=sel.map(r=>`| ${fld(r.id)} | ${fld(r.clause)} | ${fld(r.severity)} | ${(r.desc||"").replace(/\n/g," ").trim()||"(pending)"} | ${fld(r.owner)} | ${fld(r.status)} |`).join("\n");
   const prompt=`You are a food safety and SQF compliance expert producing a formal, submission-ready NCR / AUDIT FINDING SUMMARY for Somafina UST (SOMAFINA UST — dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). Mark the document CONFIDENTIAL. This report covers ONLY the ${sel.length} finding record(s) provided below.
 
@@ -4522,7 +5023,7 @@ Render this table exactly (header row then the data rows):
 ${summaryTable}
 
 ## FINDING DETAIL
-For each finding below, render a "### " detail block titled with the Record ID, containing labeled lines for: Clause, Clause Requirement, Observation, Root Cause Analysis, Corrective Action, Status, and Objective Evidence. Reproduce every field verbatim from the data provided; report blank/pending fields exactly as pending.
+For each finding below, render a "### " detail block titled with the Record ID, containing labeled lines for: Clause, Clause Requirement, Observation, Root Cause Analysis, Corrective Action, Status, and Objective Evidence. Reproduce every field verbatim from the data provided; report blank/pending fields exactly as pending. Then, within each detail block, render a "**Linked CAPAs**" subsection reproducing the linked-CAPA lines provided for that finding exactly (CAPA ID, status, owner, due date, closure date) — or the line "None linked at time of report" when that is what is provided.
 ${blocks}
 
 ${AI_RECORD_SIGNOFFS_INSTR}
@@ -4540,7 +5041,10 @@ async function generateCAPAStatusSummary(wrap){
   const sel=records.filter(r=>ids.indexOf(r.id)!==-1);
   if(!sel.length){wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Selected CAPAs could not be found. Re-open the selector and try again.</div>';return;}
   const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not yet completed)":s;};
-  const blocks=sel.map(r=>`Record ID: ${fld(r.id)}
+  await reportEnsureSourceData();
+  const blockArr=await Promise.all(sel.map(async r=>{
+    const links=await capaLinksGet("capa_id="+encodeURIComponent(r.id));
+    return `Record ID: ${fld(r.id)}
 Description: ${fld(r.desc)}
 Root Cause: ${fld(r.rca)}
 Corrective Action: ${fld(r.ca)}
@@ -4549,7 +5053,10 @@ Owner/Department: ${fld(r.owner)}
 Due Date: ${fld(r.due)}
 Clause: ${fld(r.clause)}
 Objective Evidence: ${fld(r.evidence)}
-${aiFmtRecordSignoffs(r.signatures)}`).join("\n\n----------\n\n");
+${aiFmtRecordSignoffs(r.signatures)}
+${reportSourceRecordLines(links)}`;
+  }));
+  const blocks=blockArr.join("\n\n----------\n\n");
   const summaryTable=sel.map(r=>`| ${fld(r.id)} | ${(r.desc||"").replace(/\n/g," ").trim()||"(pending)"} | ${fld(r.status)} | ${fld(r.owner)} | ${fld(r.due)} |`).join("\n");
   const open=sel.filter(r=>r.status!=="Closed").length;
   const prompt=`You are a food safety and SQF compliance expert producing a formal CAPA STATUS SUMMARY for Somafina UST (SOMAFINA UST — dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). Mark the document CONFIDENTIAL. This report covers ONLY the ${sel.length} CAPA record(s) provided below (open ${open}).
@@ -4569,7 +5076,7 @@ Render this table exactly (header row then the data rows):
 ${summaryTable}
 
 ## CAPA DETAIL
-For each CAPA below, render a "### " detail block titled with the Record ID, containing labeled lines for: Description, Root Cause, Corrective Action, Status, Owner, Due Date, and Objective Evidence. Reproduce every field verbatim; report blank/pending fields exactly as pending.
+For each CAPA below, render a "### " detail block titled with the Record ID, containing labeled lines for: Description, Root Cause, Corrective Action, Status, Owner, Due Date, and Objective Evidence. Reproduce every field verbatim; report blank/pending fields exactly as pending. Then, within each detail block, render a "**Source Records**" subsection reproducing the source-record lines provided for that CAPA exactly (source type, source record ID, description, current status) — or the line "No source records linked" when that is what is provided.
 ${blocks}
 
 ${AI_RECORD_SIGNOFFS_INSTR}
@@ -5005,10 +5512,16 @@ function onNaFacilityChange(){
 }
 
 function openNewAuditModal() {
-  // Facility dropdown defaults to a facility matching the current site.
+  // Facility dropdown is filtered to the facilities matching the currently
+  // selected header site. Lindon → only Lindon; Layton → all Layton buildings;
+  // anything else (e.g. "All") → every facility.
   const facSel=document.getElementById('na-facility');
-  facSel.innerHTML=FACILITIES.map(f=>`<option value="${f.name}">${f.name} — ${f.site}</option>`).join('');
-  const def=FACILITIES.find(f=>f.site===currentSite)||FACILITIES[0];
+  const facilityOptions=(currentSite==='Lindon'||currentSite==='Layton')
+    ? FACILITIES.filter(f=>f.site===currentSite)
+    : FACILITIES.slice();
+  facSel.innerHTML=facilityOptions.map(f=>`<option value="${f.name}">${f.name} — ${f.site}</option>`).join('');
+  // Pre-select the matching facility (the sole match when only one qualifies).
+  const def=facilityOptions[0]||FACILITIES[0];
   facSel.value=def.name;
   document.getElementById('na-address').value=def.address;
   document.getElementById('na-building').value='';
@@ -5468,6 +5981,7 @@ function renderCrisisEditor(){
     <div class="crisis-block">
       <div class="crisis-block-title">6 · Lessons Learned &amp; Improvement Actions <button class="btn-ghost" onclick="addCrisisLesson()">+ Item</button></div>
       <div style="overflow-x:auto"><table class="crisis-tbl" id="crisis-lessons"></table></div>
+      <div style="margin-top:14px" id="crisis-capa-linkage"></div>
     </div>
 
     <!-- (7) OVERALL ASSESSMENT -->
@@ -5604,6 +6118,7 @@ function renderCrisisLessons(){
       <td style="text-align:center">${l.ncrId?`<div class="ncr-issued" style="cursor:pointer;text-decoration:underline" title="Open NCR ${cesc(l.ncrId)}" onclick="openLessonNCR('${cesc(l.ncrId)}')">NCR<br>${cesc(l.ncrId)}</div>`:`<button class="ncr-btn" onclick="createLessonNCR(${i})">+ NCR</button>`}</td>
       <td><button class="btn-ghost" style="color:#C00000" onclick="activeCrisis.lessonsLearned.splice(${i},1);renderCrisisLessons()">&#10005;</button></td>
     </tr>`).join(""):`<tr><td colspan="7" style="color:#4a5568;font-size:11px">No items yet. Click <b>+ Item</b>.</td></tr>`)+`</tbody>`;
+  if(activeCrisis&&activeCrisis.id&&document.getElementById("crisis-capa-linkage"))renderLinkedCapas("crisis-capa-linkage","Crisis Exercise",activeCrisis.id);
 }
 function addCrisisLesson(){activeCrisis.lessonsLearned.push({item:"",owner:"",targetDate:"",capaRequired:false,capaId:"",ncrId:""});renderCrisisLessons();}
 
@@ -5841,7 +6356,12 @@ function renderOOSEditor(){
     </div>
 
     <div class="crisis-block">
-      <div class="crisis-block-title">5 · File Attachments <span style="color:#4a5568;font-weight:400">stored in Netlify Blobs</span></div>
+      <div class="crisis-block-title">5 · Linked CAPAs</div>
+      <div id="oos-capa-linkage"></div>
+    </div>
+
+    <div class="crisis-block">
+      <div class="crisis-block-title">6 · File Attachments <span style="color:#4a5568;font-weight:400">stored in Netlify Blobs</span></div>
       <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:1;min-width:180px"><label class="form-label">Document Type</label><select class="crisis-input" id="oos-attach-desc">${OOS_ATTACH_LABELS.map(l=>`<option>${cesc(l)}</option>`).join("")}</select></div>
         <div><label class="form-label">&nbsp;</label><button class="btn" onclick="document.getElementById('oos-file-input').click()">&#128206; Upload File(s)</button></div>
@@ -5852,7 +6372,7 @@ function renderOOSEditor(){
     </div>
 
     <div class="crisis-block">
-      <div class="crisis-block-title">6 · Signatures</div>
+      <div class="crisis-block-title">7 · Signatures</div>
       <div id="sig-section-oos"></div>
     </div>
 
@@ -5862,6 +6382,7 @@ function renderOOSEditor(){
     </div>`;
   renderOOSAttachments();
   initSignatureSection("oos","oos",o.id,"sig-section-oos",o.signatures||[],function(updated){if(activeOOS&&updated)activeOOS.signatures=updated.signatures;});
+  renderLinkedCapas("oos-capa-linkage","OOS",o.id);
 }
 
 function renderOOSAttachments(){
@@ -5982,8 +6503,8 @@ function rptPretty(dateStr){if(!dateStr)return "—";const d=new Date(dateStr.le
 async function rptFetchData(site){
   const q=site?("?site="+encodeURIComponent(site)):"";
   const safe=async u=>{try{const r=await fetch(u);return r.ok?await r.json():[];}catch(e){return [];}};
-  const [recs,oos,crisis]=await Promise.all([safe(API+q),safe(OOS_API+q),safe(CRISIS_API+q)]);
-  return {records:recs||[],oos:oos||[],crisis:crisis||[]};
+  const [recs,oos,crisis,capaLinks]=await Promise.all([safe(API+q),safe(OOS_API+q),safe(CRISIS_API+q),safe(CAPA_LINKS_API)]);
+  return {records:recs||[],oos:oos||[],crisis:crisis||[],capaLinks:capaLinks||[]};
 }
 
 // Load / save the editable narrative draft for a report.
@@ -6242,6 +6763,7 @@ function computeMonthly(data,period,site){
     lastAudit:past[0]||null,nextAudit:future[0]||null,auditOpen,auditClosed,days254,
     lastEx:exPast[0]||null,nextExDate:nextExDates[0]||null,crisisActions,
     risks,
+    capaEff:computeCapaEffMetrics(recs,data.capaLinks,oos,crisis),
   };
 }
 
@@ -6249,6 +6771,30 @@ function _trendArrow(cur,pr){
   if(cur>pr)return "&#9650; +"+(cur-pr)+" vs prior month";
   if(cur<pr)return "&#9660; "+(cur-pr)+" vs prior month";
   return "&#8212; no change vs prior month";
+}
+
+// Shared CAPA-effectiveness preview cards + markdown for the C-Suite reports.
+function capaEffMetricsHTML(e){
+  return `<div class="rpt-metrics">
+    <div class="rpt-metric"><div class="v">${e.total?e.closureRate+"%":"—"}</div><div class="l">CAPA Closure Rate</div></div>
+    <div class="rpt-metric"><div class="v">${e.avgClose===null?"—":e.avgClose+"d"}</div><div class="l">Avg Closure Time</div></div>
+    <div class="rpt-metric"><div class="v">${e.pending}</div><div class="l">Pending Eff. Checks</div></div>
+    <div class="rpt-metric"><div class="v">${e.effRate===null?"—":e.effRate+"%"}</div><div class="l">Effectiveness Rate</div></div>
+    <div class="rpt-metric ${e.ineffective?"danger":""}"><div class="v">${e.ineffective}</div><div class="l">Ineffective Checks</div></div>
+    <div class="rpt-metric"><div class="v">${e.majorLinked}</div><div class="l">Linked to Major</div></div>
+    <div class="rpt-metric ${e.overdue?"danger":""}"><div class="v">${e.overdue}</div><div class="l">Overdue Eff. Checks</div></div>
+  </div>${e.pendingIds.length?`<div class="rpt-note" style="margin-top:8px">Pending effectiveness checks: ${e.pendingIds.map(cesc).join(", ")}</div>`:""}`;
+}
+function capaEffMetricsMarkdown(e,heading){
+  let md=`## ${heading}\n\n| Metric | Value |\n| --- | --- |\n`;
+  md+=`| CAPA Closure Rate | ${e.total?e.closureRate+"% ("+e.closed+" of "+e.total+")":"— (no CAPA records)"} |\n`;
+  md+=`| Average CAPA Closure Time | ${e.avgClose===null?"— (no closed CAPAs with dates)":e.avgClose+" days"} |\n`;
+  md+=`| CAPAs Pending Effectiveness Check | ${e.pending}${e.pendingIds.length?" — "+e.pendingIds.join(", "):""} |\n`;
+  md+=`| CAPA Effectiveness Rate | ${e.effRate===null?"— (no completed checks)":e.effRate+"% ("+e.effective+" of "+e.completedChecks+" effective)"} |\n`;
+  md+=`| Ineffective Effectiveness Checks | ${e.ineffective}${e.ineffective>0?" (action required)":""} |\n`;
+  md+=`| CAPAs Linked to Major Findings | ${e.majorLinked} |\n`;
+  md+=`| Overdue Effectiveness Checks | ${e.overdue}${e.overdue>0?" (action required)":""} |\n\n`;
+  return md;
 }
 
 function monthlyPreviewHTML(m,draft){
@@ -6279,6 +6825,10 @@ function monthlyPreviewHTML(m,draft){
       <div><div class="rpt-note" style="margin-bottom:5px">Open by Department / Owner</div><table class="rpt-tbl"><thead><tr><th>Owner</th><th>Open</th></tr></thead><tbody>${ownerRows}</tbody></table></div>
       <div><div class="rpt-note" style="margin-bottom:5px">Open Major Findings</div><table class="rpt-tbl"><thead><tr><th>ID</th><th>Clause</th><th>Description</th><th>Owner</th><th>Due</th></tr></thead><tbody>${majorRows}</tbody></table></div>
     </div>
+  </div>
+  <div class="rpt-section">
+    <h3>CAPA Effectiveness</h3>
+    ${capaEffMetricsHTML(m.capaEff)}
   </div>
   <div class="rpt-section">
     <h3>3 · OOS Summary</h3>
@@ -6350,6 +6900,7 @@ function monthlyMarkdown(m,commentary){
   md+=(oe.length?oe.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | 0 |")+"\n\n";
   md+=`### Open Major Findings\n\n| ID | Clause | Description | Owner | Due |\n| --- | --- | --- | --- | --- |\n`;
   md+=(m.majorsOpen.length?m.majorsOpen.map(r=>`| ${f(r.id)} | ${f(r.clause)} | ${f((r.desc||"").slice(0,110))} | ${f(r.owner)} | ${f(r.due)} |`).join("\n"):"| (none) | — | No open Major findings | — | — |")+"\n\n";
+  md+=capaEffMetricsMarkdown(m.capaEff,"CAPA EFFECTIVENESS");
   md+=`## 3. OOS SUMMARY\n\n| Metric | Value |\n| --- | --- |\n| OOS Events This Month | ${m.oosThis} |\n| Confirmed | ${m.confirmed} |\n| Invalidated | ${m.invalidated} |\n| Open Disposition Items | ${m.oosOpenDisp} |\n| Pending Disposition > 30 days | ${m.oosStale} |\n\n`;
   if(m.oosStaleList.length){
     md+=`### OOS Pending Disposition Over 30 Days\n\n| OOS ID | Analyte / Product | Initiated | Days Open |\n| --- | --- | --- | --- |\n`;
@@ -6481,6 +7032,7 @@ function computeAnnual(data,period,site){
     capaClosedList:capaClosed,
     oosYear,oosConfirmed,oosInvalidated,analyteFail,oosRaw,oosFin,
     exYear,planUpdates,exActions,nextEx,
+    capaEff:computeCapaEffMetrics(recs,data.capaLinks,oos,crisis),
   };
 }
 
@@ -6561,6 +7113,8 @@ function annualPreviewHTML(m,d){
     </div>
     <div class="rpt-note" style="margin-top:10px;margin-bottom:5px">Root cause category distribution (OOS-categorized events)</div>
     <table class="rpt-tbl"><thead><tr><th>Category</th><th>#</th></tr></thead><tbody>${oosCatRows}</tbody></table>
+    <div class="rpt-note" style="margin-top:12px;margin-bottom:5px">CAPA Effectiveness Metrics</div>
+    ${capaEffMetricsHTML(m.capaEff)}
   </div>
   <div class="rpt-section"><h3>4 · OOS Trends <span class="rpt-note">(live)</span></h3>
     <div class="rpt-metrics">
@@ -6681,6 +7235,7 @@ function annualMarkdown(m,d){
   const oc=Object.entries(m.oosCats).sort((a,b)=>b[1]-a[1]);
   md+=(oc.length?oc.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | 0 |")+"\n\n";
   md+=`Effectiveness verification: closed CAPAs are verified through evidence-of-implementation review and confirmed at closure in the QIS audit trail.\n\n`;
+  md+=capaEffMetricsMarkdown(m.capaEff,"CAPA EFFECTIVENESS METRICS");
   md+=`## 4. OOS TRENDS\n\n| Metric | Value |\n| --- | --- |\n| Total OOS Events | ${m.oosYear.length} |\n| Confirmed | ${m.oosConfirmed} |\n| Invalidated | ${m.oosInvalidated} |\n| Confirmed Rate | ${m.oosYear.length?Math.round(m.oosConfirmed/m.oosYear.length*100):0}% |\n| Raw Material / Finished Product | ${m.oosRaw} / ${m.oosFin} |\n\n`;
   md+=`### Top Analytes with Failures\n\n| Analyte | Failures |\n| --- | --- |\n`;
   const an=Object.entries(m.analyteFail).sort((a,b)=>b[1]-a[1]);
