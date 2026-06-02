@@ -3721,12 +3721,31 @@ function startCapaFromSource(sourceType,sourceId,prefill){
   if(!document.getElementById("modal").classList.contains("open"))document.getElementById("modal").classList.add("open");
 }
 
-// ── CAPA: "Source Records" section (display only) ────────────────────────────
+// ── CAPA: "Source Records" section (add / remove links from the CAPA side) ───
+// State for the open CAPA's source-record linkage. `links` are the capa_links
+// rows for this CAPA; `tab` is the source type shown in the "Link Existing
+// Record" picker.
+let _capaSrcState={capaId:"",links:[],tab:"NCR"};
+// The four source kinds a CAPA can roll up. `key` is the capa_links source_type.
+const CAPA_SRC_TABS=[
+  {key:"NCR",label:"NCR"},
+  {key:"Audit Finding",label:"Audit Findings"},
+  {key:"OOS",label:"OOS Events"},
+  {key:"Crisis Exercise",label:"Crisis Exercise Lessons Learned"}
+];
 async function renderCapaSourceRecords(r){
   const host=document.getElementById("capa-linkage-section");if(!host)return;
   host.innerHTML=`<div class="link-card"><div class="link-card-title">&#128279; Source Records <span style="color:#4a5568;font-weight:400">loading…</span></div></div>`;
+  // Ensure OOS + Crisis module data are loaded so the picker can list them and
+  // linked rows resolve their description / status.
+  await reportEnsureSourceData();
   const links=await capaLinksGet("capa_id="+encodeURIComponent(r.id));
+  _capaSrcState={capaId:r.id,links,tab:_capaSrcState.tab||"NCR"};
   _linkageState.links=links;
+  host.innerHTML=capaSourceRecordsHTML();
+}
+function capaSourceRecordsHTML(){
+  const links=_capaSrcState.links||[];
   const rows=links.length?links.map(l=>{
     const sr=resolveSourceRecord(l.sourceType,l.sourceId);
     return `<div class="link-row">
@@ -3734,9 +3753,80 @@ async function renderCapaSourceRecords(r){
       <span style="font-family:'DM Mono',monospace;font-size:11px;color:#1F3864">${cesc(l.sourceId)}</span>
       <span style="font-size:12px;color:#1a1a2e;flex:1;min-width:0">${cesc((sr.desc||"").slice(0,80))}${(sr.desc||"").length>80?"…":""}</span>
       ${anyStatusBadge(sr.status)}
+      <button class="btn-ghost" style="color:#C00000;padding:3px 9px;font-size:11px" onclick="doUnlinkSourceRecord('${cesc(l.id)}')">Unlink</button>
     </div>`;
   }).join(""):`<div style="font-size:12px;color:#4a5568;padding:6px 0">No source records linked.</div>`;
-  host.innerHTML=`<div class="link-card"><div class="link-card-title">&#128279; Source Records</div>${rows}</div>`;
+  const tabs=CAPA_SRC_TABS.map(t=>{
+    const on=_capaSrcState.tab===t.key;
+    return `<button class="btn-ghost capa-src-tab" data-tab="${cesc(t.key)}" style="padding:4px 10px;font-size:11px${on?";background:#1F3864;color:#fff":""}" onclick="selectSourceRecordTab('${cesc(t.key)}')">${cesc(t.label)}</button>`;
+  }).join("");
+  return `<div class="link-card">
+    <div class="link-card-title">&#128279; Source Records
+      <button class="btn-ghost" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="toggleSourceRecordPicker()">+ Link Existing Record</button>
+    </div>
+    <div id="capa-src-rows">${rows}</div>
+    <div id="capa-src-picker" style="display:none;margin-top:10px;border-top:1px dashed var(--border2);padding-top:10px">
+      <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">${tabs}</div>
+      <input class="form-input" id="capa-src-search" placeholder="Search by ID, description, status or owner…" oninput="renderSourceRecordCandidates()" style="margin-bottom:8px">
+      <div id="capa-src-cands" style="max-height:210px;overflow-y:auto"></div>
+    </div>
+  </div>`;
+}
+// Candidate source records for one tab, normalised to {id,desc,status,owner}
+// and excluding records already linked to this CAPA.
+function capaSourceCandidates(tab){
+  const linkedKey=new Set((_capaSrcState.links||[]).map(l=>l.sourceType+"|"+l.sourceId));
+  let list=[];
+  if(tab==="NCR")list=(records||[]).filter(x=>x.type==="NCR").map(x=>({id:x.id,desc:x.desc||"",status:x.status||"",owner:x.owner||""}));
+  else if(tab==="Audit Finding")list=(records||[]).filter(x=>x.type==="AUDIT").map(x=>({id:x.id,desc:x.desc||"",status:x.status||"",owner:x.owner||""}));
+  else if(tab==="OOS")list=(oosRecords||[]).map(x=>({id:x.id,desc:x.productName||x.testAnalyte||"",status:x.status||"",owner:x.initiatedBy||""}));
+  else if(tab==="Crisis Exercise")list=(crisisList||[]).map(x=>({id:x.id,desc:x.scenarioName||x.scenarioType||"",status:x.status||"",owner:x.facilitator||""}));
+  return list.filter(x=>!linkedKey.has(tab+"|"+x.id));
+}
+function toggleSourceRecordPicker(){
+  const p=document.getElementById("capa-src-picker");if(!p)return;
+  const show=p.style.display==="none";
+  p.style.display=show?"":"none";
+  if(show){const s=document.getElementById("capa-src-search");if(s)s.value="";renderSourceRecordCandidates();}
+}
+function selectSourceRecordTab(tab){
+  _capaSrcState.tab=tab;
+  document.querySelectorAll("#capa-src-picker .capa-src-tab").forEach(b=>{
+    const on=b.getAttribute("data-tab")===tab;
+    b.style.background=on?"#1F3864":"";
+    b.style.color=on?"#fff":"";
+  });
+  const s=document.getElementById("capa-src-search");if(s)s.value="";
+  renderSourceRecordCandidates();
+}
+function renderSourceRecordCandidates(){
+  const host=document.getElementById("capa-src-cands");if(!host)return;
+  const tab=_capaSrcState.tab;
+  const q=((document.getElementById("capa-src-search")||{}).value||"").toLowerCase().trim();
+  let cands=capaSourceCandidates(tab);
+  if(q)cands=cands.filter(x=>(x.id+" "+x.desc+" "+x.status+" "+x.owner).toLowerCase().indexOf(q)>-1);
+  if(!cands.length){host.innerHTML=`<div style="font-size:12px;color:#4a5568;padding:6px 2px">No matching records.</div>`;return;}
+  host.innerHTML=cands.slice(0,50).map(x=>`<div class="link-candidate" onclick="doLinkSourceRecord('${cesc(tab)}','${cesc(x.id)}')">
+    <div style="display:flex;align-items:center;gap:8px">${sourceTypeBadge(tab)}<span style="font-family:'DM Mono',monospace;font-size:11px;color:#1F3864">${cesc(x.id)}</span>${anyStatusBadge(x.status)}<span style="font-size:11px;color:#4a5568;margin-left:auto">${cesc(x.owner||"—")}</span></div>
+    <div style="font-size:11px;color:#1a1a2e;margin-top:4px">${cesc((x.desc||"").slice(0,90))}${(x.desc||"").length>90?"…":""}</div>
+  </div>`).join("");
+}
+async function doLinkSourceRecord(sourceType,sourceId){
+  const capaId=_capaSrcState.capaId;if(!capaId)return;
+  try{
+    await capaLinkCreate(capaId,sourceType,sourceId);
+    toast("Linked "+sourceType+" "+sourceId+".","green");
+    await renderCapaSourceRecords(findCapaRecord(capaId)||{id:capaId});
+  }catch(e){toast("Link failed: "+e.message,"red");}
+}
+async function doUnlinkSourceRecord(linkId){
+  const capaId=_capaSrcState.capaId;if(!capaId)return;
+  if(!confirm("Remove this source record link?"))return;
+  try{
+    await capaLinkDelete(linkId);
+    toast("Link removed.","green");
+    await renderCapaSourceRecords(findCapaRecord(capaId)||{id:capaId});
+  }catch(e){toast("Unlink failed: "+e.message,"red");}
 }
 
 // ── CAPA: Effectiveness Check section (B2) ───────────────────────────────────
