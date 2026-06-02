@@ -5471,14 +5471,6 @@ async function downloadReportPDF(){
     y+=18;
   });
 
-  // Printed copy notice
-  y+=16;
-  doc.setFillColor(255,242,204);doc.rect(margin,y,contentW,22,'F');
-  doc.setDrawColor(127,96,0);doc.setLineWidth(0.5);
-  doc.rect(margin,y,contentW,22,'S');
-  doc.setFontSize(8.5);doc.setTextColor(127,96,0);doc.setFont('helvetica','bold');
-  doc.text('⚠  Printed copies valid 7 calendar days from print date.  Verify current version in ULIMS before use.',pageW/2,y+14,{align:'center'});
-
   // ── CONTENT PAGES ───────────────────────────────────────────────────────
   doc.addPage();
   y=50;
@@ -6848,11 +6840,6 @@ async function smfReportPDF(opts){
     doc.text(wrapped[0],margin+165,y+13);
     y+=18;
   });
-  y+=16;
-  doc.setFillColor(255,242,204);doc.rect(margin,y,contentW,22,'F');
-  doc.setDrawColor(127,96,0);doc.setLineWidth(0.5);doc.rect(margin,y,contentW,22,'S');
-  doc.setFontSize(8.5);doc.setTextColor(127,96,0);doc.setFont('helvetica','bold');
-  doc.text('⚠  Printed copies valid 7 calendar days from print date.  Verify the live record in QIS before use.',pageW/2,y+14,{align:'center'});
 
   // ── BODY ──────────────────────────────────────────────────────────────────
   doc.addPage();y=50;
