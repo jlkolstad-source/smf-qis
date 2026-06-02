@@ -189,6 +189,8 @@ main{padding:24px 32px 80px;}
 .exec-notes{background:#ffffff;border:1px solid #2E75B6;border-radius:4px;padding:6px 8px;color:#1F3864;font-family:'DM Sans',sans-serif;font-size:11px;width:100%;resize:vertical;min-height:42px;outline:none;}
 .exec-notes:focus{border-color:#1F4E79;}
 .exec-sop-input{background:#ffffff;border:1px solid #2E75B6;border-radius:4px;padding:4px 7px;color:#1F3864;font-family:'DM Mono',monospace;font-size:10px;width:100%;outline:none;}
+.exec-smf-input{background:#ffffff;border:1px solid #2E75B6;border-radius:4px;padding:4px 7px;color:#2E75B6;font-family:'DM Mono',monospace;font-size:11px;font-weight:600;line-height:1.4;width:100%;outline:none;}
+.exec-smf-input:focus{border-color:#1F4E79;}
 .ncr-btn{background:#FFE0E0;color:#C00000;border:1px solid #C00000;border-radius:4px;padding:3px 8px;font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;white-space:nowrap;transition:all 0.15s;}
 .ncr-btn:hover{background:#C00000;color:#fff;}
 .ncr-issued{background:#FFE0E0;border:1px solid #C00000;border-radius:4px;padding:3px 7px;font-size:10px;font-family:'DM Mono',monospace;color:#C00000;text-align:center;}
@@ -4141,7 +4143,7 @@ function loadAuditExec(auditId){
     html+=`<tr class="${rc}" id="execrow_${sid}">
       <td><div class="clause-id">${c.id}</div>${c.mandatory?`<span class="mand-tag">MANDATORY</span>`:""}<div id="attcount_${sid}">${clauseAttCountBadge(s)}</div></td>
       <td style="font-size:12px;line-height:1.6;color:#1F3864;font-weight:500">${c.req}</td>
-      <td style="font-size:11px;color:#2E75B6;font-family:'DM Mono',monospace;line-height:1.4;font-weight:600">${c.evidence}</td>
+      <td><input class="exec-smf-input" placeholder="Enter SMF evidence reference" value="${cesc(s.evidence!==undefined?s.evidence:(c.evidence||""))}" onchange="updateExecState('${c.id}','evidence',this.value)"></td>
       <td><input class="exec-sop-input" placeholder="Rev __ / Mon YYYY" value="${s.sopRev||""}" onchange="updateExecState('${c.id}','sopRev',this.value)"></td>
       <td>
         <select class="exec-status-sel" id="execsel_${sid}" onchange="updateExecStatus('${c.id}',this)">
@@ -5065,9 +5067,10 @@ async function generateAuditReportSummary(auditId,wrap){
     const s=ex[c.id]||{};
     if(!s.status)return; // results table covers reviewed clauses only
     const ln=findings.find(f=>f.clause===c.id);
-    clauseLines.push(`| ${fld(c.id)} | ${(c.req||"").replace(/\n/g," ").trim()||"(see SQF Edition 9)"} | ${statusLabel(c.id,s.status)} | ${fld(s.sopRev)} | ${(s.notes||"").replace(/\n/g," ").trim()||"(no notes recorded)"} | ${ln?fld(ln.id):"—"} |`);
+    const smfEv=(s.evidence!==undefined?s.evidence:(c.evidence||"")).replace(/\n/g," ").replace(/\|/g,"\\|").trim();
+    clauseLines.push(`| ${fld(c.id)} | ${(c.req||"").replace(/\n/g," ").trim()||"(see SQF Edition 9)"} | ${smfEv||"—"} | ${statusLabel(c.id,s.status)} | ${fld(s.sopRev)} | ${(s.notes||"").replace(/\n/g," ").trim()||"(no notes recorded)"} | ${ln?fld(ln.id):"—"} |`);
   });
-  const clauseTable=clauseLines.length?clauseLines.join("\n"):"| — | (no clauses reviewed) | — | — | — | — |";
+  const clauseTable=clauseLines.length?clauseLines.join("\n"):"| — | (no clauses reviewed) | — | — | — | — | — |";
   const reviewed=reviewedClauseIds.size;
   const totalClauses=auditClauses.filter(c=>c.id).length;
   const cC=auditClauses.filter(c=>c.id&&ex[c.id]&&ex[c.id].status==="C").length;
@@ -5105,8 +5108,8 @@ Render as a two-column field table: Audit ID (${fld(a.id)}), Facility (${fld(a.f
 
 ## CLAUSE-BY-CLAUSE RESULTS
 Render this table exactly (header row then the data rows). The Status column must use only these values: Conforming, Minor NC, Major NC, Observation, N/A.
-| Clause | Requirement | Status | SOP Rev | Notes / Objective Evidence | NCR |
-| --- | --- | --- | --- | --- | --- |
+| Clause | Requirement | SMF Evidence | Status | SOP Rev | Notes / Objective Evidence | NCR |
+| --- | --- | --- | --- | --- | --- | --- |
 ${clauseTable}
 
 ## FINDINGS SUMMARY
