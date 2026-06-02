@@ -31,6 +31,15 @@ export const records = pgTable(
     // the audits function to refuse closing a session while linked findings
     // remain open. Empty when the record is not tied to an audit session.
     auditId: text("audit_id").notNull().default(""),
+    // Direct single-CAPA linkage for NCR / Audit Finding records (the source
+    // record points at the CAPA that addresses it). Empty when not linked.
+    capaId: text("capa_id").notNull().default(""),
+    // Effectiveness-check state tracked directly on a CAPA record so the list
+    // views can show it without a join. The authoritative effectiveness record
+    // lives in the effectiveness_checks table below.
+    effectivenessCheckDueDate: text("effectiveness_check_due_date").notNull().default(""),
+    effectivenessCheckOwner: text("effectiveness_check_owner").notNull().default(""),
+    effectivenessStatus: text("effectiveness_status").notNull().default(""),
     // Electronic sign-offs. Each entry: { role, name, title, signedAt }.
     signatures: jsonb("signatures").$type<any[]>().notNull().default([]),
     // Audit-trail columns.
@@ -41,6 +50,62 @@ export const records = pgTable(
   },
   (t) => ({
     siteIdx: index("records_site_idx").on(t.site),
+  })
+);
+
+// ── CAPA LINKAGE ─────────────────────────────────────────────────────────────
+// Many-to-many linkage between a CAPA record and the source items it addresses
+// (NCRs, Audit Findings, OOS investigations, Crisis Exercises). One row per
+// link. `linked_by` is stamped server-side from the signed-in identity. The
+// records.capa_id column above covers the simple single-CAPA case; this table
+// covers a CAPA that rolls up multiple sources.
+export const capaLinks = pgTable(
+  "capa_links",
+  {
+    id: text("id").primaryKey(),
+    capaId: text("capa_id").notNull(),
+    // NCR | Audit Finding | OOS | Crisis Exercise
+    sourceType: text("source_type").notNull(),
+    sourceId: text("source_id").notNull(),
+    linkedBy: text("linked_by").notNull(),
+    linkedAt: timestamp("linked_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    capaIdx: index("capa_links_capa_idx").on(t.capaId),
+    sourceIdx: index("capa_links_source_idx").on(t.sourceId),
+  })
+);
+
+// ── EFFECTIVENESS CHECKS ─────────────────────────────────────────────────────
+// One row per CAPA effectiveness check. After a CAPA is closed and its check
+// owner has been assigned, the check is scheduled (Pending), conducted
+// (In Progress) and finally completed with a determination of Effective /
+// Ineffective / Requires Additional Action. The due date is adjustable at any
+// time before the check is completed.
+export const effectivenessChecks = pgTable(
+  "effectiveness_checks",
+  {
+    id: text("id").primaryKey(),
+    capaId: text("capa_id").notNull(),
+    // Adjustable at any time before the check is completed.
+    dueDate: text("due_date"),
+    // The person responsible for conducting the effectiveness check.
+    owner: text("owner").notNull(),
+    // Pending | In Progress | Completed
+    status: text("status").notNull().default("Pending"),
+    rootCauseEliminated: text("root_cause_eliminated").notNull().default(""),
+    evidence: text("evidence").notNull().default(""),
+    recurred: text("recurred").notNull().default(""),
+    // Effective | Ineffective | Requires Additional Action
+    determination: text("determination").notNull().default(""),
+    verifiedBy: text("verified_by").notNull().default(""),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    modifiedBy: text("modified_by").notNull().default(""),
+    modifiedAt: timestamp("modified_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    capaIdx: index("effectiveness_checks_capa_idx").on(t.capaId),
   })
 );
 

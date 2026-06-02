@@ -13,7 +13,7 @@ import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { eq, asc, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { records, auditLog } from "../../db/schema.js";
+import { records, auditLog, effectivenessChecks } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -88,6 +88,10 @@ function toClient(r: typeof records.$inferSelect) {
     photos: r.photos || [],
     selfAssigned: !!r.selfAssigned,
     auditId: r.auditId || "",
+    capaId: r.capaId || "",
+    effectivenessCheckDueDate: r.effectivenessCheckDueDate || "",
+    effectivenessCheckOwner: r.effectivenessCheckOwner || "",
+    effectivenessStatus: r.effectivenessStatus || "",
     signatures: Array.isArray(r.signatures) ? r.signatures : [],
     created: createdISO ? createdISO.slice(0, 10) : "",
     createdBy: r.createdBy || "",
@@ -162,7 +166,37 @@ function toRow(r: any) {
     photos: Array.isArray(r.photos) ? r.photos : [],
     selfAssigned: !!r.selfAssigned,
     auditId: (r.auditId || "").toString(),
+    capaId: (r.capaId ?? r.capa_id ?? "").toString(),
+    effectivenessCheckDueDate: (r.effectivenessCheckDueDate ?? r.effectiveness_check_due_date ?? "").toString(),
+    effectivenessCheckOwner: (r.effectivenessCheckOwner ?? r.effectiveness_check_owner ?? "").toString(),
+    effectivenessStatus: (r.effectivenessStatus ?? r.effectiveness_status ?? "").toString(),
   };
+}
+
+// Has the caller supplied a value for one of the effectiveness fields? Accepts
+// camelCase or snake_case so the field can be preserved through a PUT exactly
+// like `site` is when the body omits it.
+function bodyHas(body: any, ...keys: string[]): boolean {
+  return keys.some((k) => body[k] !== undefined);
+}
+
+// Date string (YYYY-MM-DD) n days from today, used to default the 90-day
+// effectiveness-check due date on close.
+function plusDaysISO(n: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// Sequential "EFF-####" id for effectiveness_checks rows.
+async function nextEffId() {
+  const rows = await db.select({ id: effectivenessChecks.id }).from(effectivenessChecks);
+  let max = 0;
+  for (const { id } of rows) {
+    const m = /^EFF-(\d+)$/.exec(id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return "EFF-" + String(max + 1).padStart(4, "0");
 }
 
 export default async (req: Request) => {
@@ -233,6 +267,152 @@ export default async (req: Request) => {
         return json(200, toClient(updated));
       }
 
+      // ── Save / update a CAPA effectiveness check ──────────────────────────
+      // Upserts the effectiveness_checks row for the CAPA and mirrors the
+      // resulting state onto the CAPA record. The determination drives both the
+      // effectiveness_status and the CAPA record's own status.
+      if (action === "save-effectiveness") {
+        const capaId = (body.capa_id || body.capaId || "").toString().trim();
+        if (!capaId) return json(400, { error: "Missing capa_id." });
+        const [existing] = await db.select().from(records).where(eq(records.id, capaId));
+        if (!existing) return json(404, { error: "Record not found." });
+
+        const dueDate = body.due_date !== undefined ? (body.due_date || "").toString() : existing.effectivenessCheckDueDate;
+        const owner = body.owner !== undefined ? (body.owner || "").toString() : existing.effectivenessCheckOwner;
+        const rootCauseEliminated = (body.root_cause_eliminated || "").toString();
+        const evidence = (body.evidence || "").toString();
+        const recurred = (body.recurred || "").toString();
+        const determination = (body.determination || "").toString().trim();
+
+        // Derive the resulting effectiveness_status, the CAPA record status and
+        // whether the verification stamp / failure note should be written.
+        let effStatus = existing.effectivenessStatus || "In Progress";
+        let recordStatus = existing.status;
+        let verifiedBy = "";
+        let verifiedAt: Date | null = null;
+        let failureNote = false;
+        const now = new Date();
+
+        if (determination === "Effective") {
+          effStatus = "Completed";
+          recordStatus = "Closed — Verified Effective";
+          verifiedBy = actor;
+          verifiedAt = now;
+        } else if (determination === "Ineffective") {
+          effStatus = "Completed";
+          recordStatus = "In Progress";
+          verifiedBy = actor;
+          verifiedAt = now;
+          failureNote = true;
+        } else if (determination === "Requires Additional Action") {
+          effStatus = "In Progress";
+        }
+
+        // Upsert the effectiveness_checks row (one per CAPA).
+        const [check] = await db
+          .select()
+          .from(effectivenessChecks)
+          .where(eq(effectivenessChecks.capaId, capaId))
+          .orderBy(asc(effectivenessChecks.id));
+        if (check) {
+          await db
+            .update(effectivenessChecks)
+            .set({
+              dueDate,
+              owner,
+              status: effStatus,
+              rootCauseEliminated,
+              evidence,
+              recurred,
+              determination,
+              verifiedBy: verifiedBy || check.verifiedBy,
+              verifiedAt: verifiedAt || check.verifiedAt,
+              modifiedBy: actor,
+              modifiedAt: now,
+            })
+            .where(eq(effectivenessChecks.id, check.id));
+        } else {
+          const effId = await nextEffId();
+          await db.insert(effectivenessChecks).values({
+            id: effId,
+            capaId,
+            dueDate,
+            owner,
+            status: effStatus,
+            rootCauseEliminated,
+            evidence,
+            recurred,
+            determination,
+            verifiedBy,
+            verifiedAt,
+            createdAt: now,
+            modifiedBy: actor,
+            modifiedAt: now,
+          });
+        }
+
+        const [updated] = await db
+          .update(records)
+          .set({
+            effectivenessCheckDueDate: dueDate || "",
+            effectivenessCheckOwner: owner || "",
+            effectivenessStatus: effStatus,
+            status: recordStatus,
+            modifiedBy: actor,
+            modifiedAt: now,
+          })
+          .where(eq(records.id, capaId))
+          .returning();
+
+        if (failureNote) {
+          await logChange(capaId, "effectiveness", "Effectiveness check failed — new investigation required.", actor);
+        }
+        if (existing.status !== recordStatus) {
+          await logChange(capaId, "status_change", `Status ${existing.status} → ${recordStatus}`, actor);
+        }
+        await logChange(
+          capaId,
+          "effectiveness",
+          `Effectiveness check saved${determination ? ` — determination: ${determination}` : ""}`,
+          actor
+        );
+        return json(200, toClient(updated));
+      }
+
+      // ── Adjust only the effectiveness-check due date ──────────────────────
+      // Allowed at any time while the check is not yet Completed.
+      if (action === "update-effectiveness-date") {
+        const capaId = (body.capa_id || body.capaId || "").toString().trim();
+        if (!capaId) return json(400, { error: "Missing capa_id." });
+        const dueDate = (body.due_date || body.dueDate || "").toString();
+        const [existing] = await db.select().from(records).where(eq(records.id, capaId));
+        if (!existing) return json(404, { error: "Record not found." });
+        if (existing.effectivenessStatus === "Completed") {
+          return json(400, { error: "Effectiveness check already completed; the due date can no longer be changed." });
+        }
+
+        const now = new Date();
+        const [updated] = await db
+          .update(records)
+          .set({ effectivenessCheckDueDate: dueDate, modifiedBy: actor, modifiedAt: now })
+          .where(eq(records.id, capaId))
+          .returning();
+
+        const [check] = await db
+          .select()
+          .from(effectivenessChecks)
+          .where(eq(effectivenessChecks.capaId, capaId))
+          .orderBy(asc(effectivenessChecks.id));
+        if (check) {
+          await db
+            .update(effectivenessChecks)
+            .set({ dueDate, modifiedBy: actor, modifiedAt: now })
+            .where(eq(effectivenessChecks.id, check.id));
+        }
+        await logChange(capaId, "effectiveness", `Effectiveness-check due date set to ${dueDate || "(cleared)"}`, actor);
+        return json(200, toClient(updated));
+      }
+
       // Bulk import: { records: [...] }
       if (Array.isArray(body.records)) {
         let base = await nextQisId();
@@ -285,10 +465,35 @@ export default async (req: Request) => {
       // Preserve the original site / audit link unless one is explicitly supplied.
       if (!body.site) row.site = existing.site;
       if (!body.auditId) row.auditId = existing.auditId;
+      // Preserve the effectiveness fields unless the body explicitly supplies
+      // them — they are normally managed by the effectiveness actions above.
+      if (!bodyHas(body, "capaId", "capa_id")) row.capaId = existing.capaId;
+      if (!bodyHas(body, "effectivenessCheckDueDate", "effectiveness_check_due_date"))
+        row.effectivenessCheckDueDate = existing.effectivenessCheckDueDate;
+      if (!bodyHas(body, "effectivenessCheckOwner", "effectiveness_check_owner"))
+        row.effectivenessCheckOwner = existing.effectivenessCheckOwner;
+      if (!bodyHas(body, "effectivenessStatus", "effectiveness_status"))
+        row.effectivenessStatus = existing.effectivenessStatus;
 
       // Only admins may close a finding.
       if (row.status === "Closed" && existing.status !== "Closed" && !admin) {
         return json(403, { error: "Only an administrator can close a finding." });
+      }
+
+      // CAPA close gating: a CAPA cannot reach a plain "Closed" state until an
+      // effectiveness check has been completed. When a CAPA is being closed,
+      // route it through the effectiveness-check lifecycle instead — scheduling
+      // the check (90 days out) if an owner is assigned, or holding it awaiting
+      // owner assignment otherwise.
+      if (row.status === "Closed" && existing.type === "CAPA") {
+        const checkOwner = (row.effectivenessCheckOwner || "").trim();
+        if (checkOwner) {
+          row.status = "Closed — Pending Effectiveness Check";
+          row.effectivenessStatus = "Pending";
+          if (!row.effectivenessCheckDueDate) row.effectivenessCheckDueDate = plusDaysISO(90);
+        } else {
+          row.status = "Closed — Awaiting Effectiveness Assignment";
+        }
       }
 
       const [updated] = await db
