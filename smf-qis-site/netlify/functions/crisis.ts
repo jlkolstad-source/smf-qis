@@ -19,7 +19,7 @@ import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { eq, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { crisisExercises, crisisResponseLog, auditLog, capaLinks } from "../../db/schema.js";
+import { crisisExercises, crisisResponseLog, auditLog } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -119,16 +119,26 @@ function logToClient(e: typeof crisisResponseLog.$inferSelect) {
   };
 }
 
-// Next "CMT-EX-YYYY-NNN" id. NNN is sequential within the given year.
+// Next "CMT-EX-YYYY-NNN" id. The running number is shared across EVERY crisis
+// exercise for the given year and always continues from the highest number
+// found, no matter what prefix format an existing id uses: the trailing numeric
+// run is extracted from the end of each id whose year segment matches.
 async function nextExerciseId(year: string) {
   const rows = await db.select({ id: crisisExercises.id }).from(crisisExercises);
+  const re = new RegExp("-" + year + "-(\\d+)$");
   let max = 0;
-  const re = new RegExp("^CMT-EX-" + year + "-(\\d+)$");
+  let width = 3;
   for (const { id } of rows) {
     const m = re.exec(id);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > max) {
+        max = n;
+        width = m[1].length;
+      }
+    }
   }
-  return "CMT-EX-" + year + "-" + String(max + 1).padStart(3, "0");
+  return "CMT-EX-" + year + "-" + String(max + 1).padStart(Math.max(3, width), "0");
 }
 
 // Normalise an incoming exercise payload into column values. Only the fields a
@@ -327,37 +337,20 @@ export default async (req: Request) => {
       if (!body.site) row.site = existing.site;
       if (!row.facilitator) row.facilitator = existing.facilitator;
 
-      // ── Exercise ID rename ────────────────────────────────────────────────
-      // The id is editable from the edit form. When a different id is supplied,
-      // validate it is free, then rename and cascade to the live response log,
-      // capa_links (capa_id / source_id) and the audit-log history so every
-      // reference is preserved.
-      const newIdRaw = (body.newId ?? body.new_id ?? "").toString().trim();
-      const renaming = !!newIdRaw && newIdRaw !== id;
-      const targetId = renaming ? newIdRaw : id;
-      if (renaming) {
-        const [clash] = await db.select().from(crisisExercises).where(eq(crisisExercises.id, newIdRaw));
-        if (clash) return json(409, { error: "An exercise with id " + newIdRaw + " already exists." });
-      }
+      // Exercise IDs are permanent and non-editable. Any id field in the
+      // request body is ignored — the id is never changed by an update.
 
       // Only admins may mark an exercise Complete (close it out).
       if (row.status === "Complete" && existing.status !== "Complete" && !admin) {
         return json(403, { error: "Only an administrator can mark an exercise Complete." });
       }
 
-      await db.update(crisisExercises).set({ ...row, id: targetId, modifiedBy: actor, modifiedAt: now }).where(eq(crisisExercises.id, id));
-      if (renaming) {
-        await db.update(crisisResponseLog).set({ exerciseId: targetId }).where(eq(crisisResponseLog.exerciseId, id));
-        await db.update(capaLinks).set({ capaId: targetId }).where(eq(capaLinks.capaId, id));
-        await db.update(capaLinks).set({ sourceId: targetId }).where(eq(capaLinks.sourceId, id));
-        await db.update(auditLog).set({ recordId: targetId }).where(eq(auditLog.recordId, id));
-        await logChange(targetId, "id_change", `Record ID changed: ${id} → ${targetId}`, actor);
-      }
+      await db.update(crisisExercises).set({ ...row, modifiedBy: actor, modifiedAt: now }).where(eq(crisisExercises.id, id));
       if (existing.status !== row.status) {
-        await logChange(targetId, "status_change", `Status ${existing.status} → ${row.status}`, actor);
+        await logChange(id, "status_change", `Status ${existing.status} → ${row.status}`, actor);
       }
-      await logChange(targetId, "update", "Exercise saved", actor);
-      return json(200, await loadFull(targetId));
+      await logChange(id, "update", "Exercise saved", actor);
+      return json(200, await loadFull(id));
     }
 
     if (req.method === "DELETE") {

@@ -649,8 +649,7 @@ main{padding:24px 32px 80px;}
     <div class="form-grid">
       <div class="form-group form-full" id="f-id-group" style="display:none">
         <label class="form-label">Record ID</label>
-        <input class="form-input" id="f-id" type="text" placeholder="e.g. NSF-LDN-2026-001">
-        <div style="font-size:10px;color:var(--warn);margin-top:4px">&#9888; Changing a record ID will update all linked references — use with care.</div>
+        <div id="f-id-display" style="display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-muted,#f7f8fa);font-weight:600;letter-spacing:0.3px;color:var(--text)"><span title="Record IDs are permanent and cannot be changed">&#128274;</span><span id="f-id-text"></span></div>
       </div>
       <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="f-type" onchange="onRecordTypeChange()"><option value="CAPA">CAPA</option><option value="NCR">NCR</option><option value="AUDIT">Audit Finding</option></select></div>
       <div class="form-group"><label class="form-label">Severity</label><select class="form-select" id="f-severity"><option value="Minor">Minor</option><option value="Major">Major</option><option value="Critical">Critical</option><option value="Observation">Observation</option></select></div>
@@ -886,6 +885,16 @@ const FACILITIES=[
   {name:"Layton - Angel",       site:"Layton", address:"951 Angel St Layton UT 84041"},
 ];
 function facilityByName(name){return FACILITIES.find(f=>f.name===name)||null;}
+
+// Three-letter site code embedded in generated record IDs (Audit Findings, NCR,
+// CAPA, OOS, Crisis Exercise). Lindon → LIN, any Layton facility → LAY, and any
+// other/unset scope (e.g. "All sites") → ALL.
+function siteCode(site){
+  const s=(site||"").trim().toLowerCase();
+  if(s==="lindon")return "LIN";
+  if(s.indexOf("layton")===0||s==="layton")return "LAY";
+  return "ALL";
+}
 
 // Map one backend audit-session row to the compatibility shape used across the
 // dashboard, Appendix B and report builders.
@@ -3986,9 +3995,9 @@ function openModal(presetType){
   document.getElementById("f-status").value="Open";
   document.getElementById("f-photos").value="[]";
   document.getElementById("photo-preview-grid").innerHTML="";
-  // ID is auto-generated on create — hide the editable ID field.
+  // ID is auto-generated on create — hide the read-only ID display.
   document.getElementById("f-id-group").style.display="none";
-  document.getElementById("f-id").value="";
+  document.getElementById("f-id-text").textContent="";
   // Reset the Audit-Finding source selector (shown only when type === AUDIT).
   document.getElementById("f-source-body").value="NSF";
   document.getElementById("f-source-code").value="";
@@ -4035,9 +4044,9 @@ function editRecord(id){
   const r=records.find(x=>x.id===id);if(!r)return;
   editingId=id;currentPhotos=r.photos?[...r.photos]:[];
   document.getElementById("modal-title").textContent="Edit · "+id;
-  // The Record ID is editable when editing an existing record.
+  // The Record ID is permanent — show it read-only with a lock icon.
   document.getElementById("f-id-group").style.display="";
-  document.getElementById("f-id").value=r.id||"";
+  document.getElementById("f-id-text").textContent=r.id||"";
   document.getElementById("f-type").value=r.type;
   document.getElementById("f-severity").value=r.severity;
   document.getElementById("f-desc").value=r.desc||"";
@@ -4084,12 +4093,7 @@ async function saveRecord(){
   const data={user,type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:newStatus,evidence:document.getElementById("f-evidence").value.trim(),photos,site:existing?existing.site:currentSite};
   // Only send source_body for Audit Findings (drives the ID prefix on create).
   if(isAudit)data.sourceBody=sourceBody;
-  // When editing, allow the Record ID to be renamed.
-  if(wasEditing){
-    const newId=document.getElementById("f-id").value.trim();
-    if(!newId){toast("Record ID cannot be empty.","red");return;}
-    if(newId!==editId)data.newId=newId;
-  }
+  // Record IDs are permanent — the id is never sent in the PUT body.
   try{
     let res;
     if(wasEditing){
@@ -4562,9 +4566,20 @@ function exportAuditExec(){
 function openNCRModal(clauseId){
   qncrClause=clauseId;qncrPhotos=[];
   document.getElementById("ncr-clause-lbl").textContent=clauseId;
-  const count=records.filter(r=>r.type==="NCR").length;
-  const base=activeAuditId?activeAuditId.replace("AUDIT-","").replace(/-S\d+$/,""):"LDN-2026";
-  document.getElementById("qncr-num").value="NCR-"+base+"-"+String(count+1).padStart(3,"0");
+  const base=activeAuditId?activeAuditId.replace("AUDIT-","").replace(/-S\d+$/,""):siteCode(currentSite)+"-2026";
+  // Continue the NCR sequence from the highest existing number for this site and
+  // year, extracting the trailing number from the end of each id regardless of
+  // its prefix format (so e.g. NCR-LIN-2026-0014 yields the next number 0015,
+  // not a restart). Scoped to the current site so each facility numbers its own.
+  const year=(base.match(/(\d{4})$/)||[])[1]||String(new Date().getFullYear());
+  const yre=new RegExp("-"+year+"-(\\d+)$");
+  let max=0,width=3;
+  records.forEach(r=>{
+    if(r.type!=="NCR"||r.site!==currentSite)return;
+    const m=yre.exec(r.id);
+    if(m){const n=parseInt(m[1],10);if(n>max){max=n;width=m[1].length;}}
+  });
+  document.getElementById("qncr-num").value="NCR-"+base+"-"+String(max+1).padStart(Math.max(3,width),"0");
   const due=new Date();due.setDate(due.getDate()+30);
   document.getElementById("qncr-due").value=due.toISOString().split("T")[0];
   ["qncr-desc","qncr-root","qncr-ca"].forEach(id=>document.getElementById(id).value="");
@@ -6126,7 +6141,7 @@ function openNewAuditModal() {
   document.getElementById('na-date').value = today;
   document.getElementById('na-report-due').value = twoWeeks.toISOString().split('T')[0];
   // Auto-generate audit number scoped to the chosen site.
-  const prefix=def.site==='Lindon'?'LDN':'LAY';
+  const prefix=siteCode(def.site);
   const count = auditSessions.length + 1;
   document.getElementById('na-id').value = 'AUDIT-' + prefix + '-2026-' + String(count).padStart(3,'0') + '-S1';
   document.getElementById('na-appb').value = '';
@@ -6516,7 +6531,7 @@ function renderCrisisEditor(){
     <div class="crisis-block">
       <div class="crisis-block-title">1 · Exercise Header <span style="color:#4a5568;font-weight:400">${cesc(e.id)}</span>${isAdminUser?`<button class="btn-danger" title="Delete exercise (admin)" onclick="deleteCrisisExercise('${e.id}')" style="margin-left:auto;padding:3px 10px">✕ Delete Exercise</button>`:""}</div>
       <div class="crisis-meta-grid">
-        <div><label class="form-label">Exercise ID</label><input class="crisis-input" id="ce-id" value="${cesc(e.id)}"><div style="font-size:10px;color:var(--warn);margin-top:4px">&#9888; Changing a record ID will update all linked references — use with care.</div></div>
+        <div><label class="form-label">Exercise ID</label><div class="crisis-input" style="display:flex;align-items:center;gap:6px;opacity:0.85" title="Record IDs are permanent and cannot be changed"><span>&#128274;</span><span>${cesc(e.id)}</span></div></div>
         <div><label class="form-label">Facilitator</label><input class="crisis-input" id="ce-facilitator" value="${cesc(e.facilitator)}"></div>
         <div><label class="form-label">Exercise Type</label><select class="crisis-input" id="ce-type">${optList(CRISIS_EX_TYPES,e.exerciseType)}</select></div>
         <div><label class="form-label">Exercise Format</label><select class="crisis-input" id="ce-format">${optList(CRISIS_FORMATS,e.exerciseFormat)}</select></div>
@@ -6795,22 +6810,11 @@ async function saveCrisis(quiet){
     nextExerciseDate:val("ce-next-date"),summaryNotes:val("ce-summary"),
   };
   function val(id){const el=document.getElementById(id);return el?el.value:"";}
-  // Allow renaming the exercise ID.
-  const newId=val("ce-id").trim();
-  if(!newId){toast("Exercise ID cannot be empty.","red");return;}
-  const renaming=newId!==e.id;
-  if(renaming)body.newId=newId;
+  // Exercise IDs are permanent — the id is never sent in the PUT body.
   try{
     const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(e.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     const fresh=await res.json();
-    if(renaming&&fresh.id&&fresh.id!==e.id){
-      // The ID changed — reload the editor under the new id so all references
-      // (live log, signatures, polling) bind to the renamed exercise.
-      activeCrisis=fresh;renderCrisisEditor();
-      if(!quiet)toast("Exercise saved as "+fresh.id+".","green");
-      return;
-    }
     // Keep live arrays/log from the authoritative response.
     activeCrisis.discussion=fresh.discussion;activeCrisis.attendees=fresh.attendees;activeCrisis.responseLog=fresh.responseLog;
     activeCrisis.status=fresh.status;activeCrisis.modifiedAt=fresh.modifiedAt;
@@ -6912,7 +6916,7 @@ function renderOOSEditor(){
     <div class="crisis-block">
       <div class="crisis-block-title">1 · Identification <span style="color:#4a5568;font-weight:400">${cesc(o.id)}</span>${isAdminUser?`<button class="btn-danger" title="Delete OOS (admin)" onclick="deleteOOS('${o.id}')" style="margin-left:auto;padding:3px 10px">✕ Delete</button>`:""}</div>
       <div class="crisis-meta-grid">
-        <div><label class="form-label">OOS ID</label><input class="crisis-input" id="oo-id" value="${cesc(o.id)}"><div style="font-size:10px;color:var(--warn);margin-top:4px">&#9888; Changing a record ID will update all linked references — use with care.</div></div>
+        <div><label class="form-label">OOS ID</label><div class="crisis-input" style="display:flex;align-items:center;gap:6px;opacity:0.85" title="Record IDs are permanent and cannot be changed"><span>&#128274;</span><span>${cesc(o.id)}</span></div></div>
         <div><label class="form-label">Date Initiated</label><input class="crisis-input" value="${cesc(o.dateInitiated)}" disabled style="opacity:0.7"></div>
         <div><label class="form-label">Initiated By</label><input class="crisis-input" value="${cesc(o.initiatedBy)}" disabled style="opacity:0.7"></div>
         <div><label class="form-label">Site</label><select class="crisis-input" id="oo-site">${optList(SITES,o.site)}</select></div>
@@ -7052,10 +7056,7 @@ async function saveOOS(){
     rootCause:val("oo-rootCause"),rootCauseCategory:val("oo-rootCauseCategory"),correctiveAction:val("oo-correctiveAction"),
     disposition:val("oo-disposition"),capaId:val("oo-capaId"),status:val("oo-status"),
   };
-  // Allow renaming the OOS record ID.
-  const newId=val("oo-id").trim();
-  if(!newId){toast("OOS ID cannot be empty.","red");return;}
-  if(newId!==o.id)body.newId=newId;
+  // OOS record IDs are permanent — the id is never sent in the PUT body.
   try{
     const res=await fetch(OOS_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
