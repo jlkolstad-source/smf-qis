@@ -553,7 +553,7 @@ main{padding:24px 32px 80px;}
         <div class="chart-title" style="margin-bottom:10px">Report Type</div>
         <div style="display:flex;flex-direction:column;gap:8px;font-size:12px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="audit-report" checked style="accent-color:var(--accent)" onchange="onReportTypeChange()"> Audit Report Summary</label>
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="sqfi-submission" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> NCR / Audit Finding Summary</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="sqfi-submission" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> NCR / Audit Finding — CA Package</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="capa-summary" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> CAPA Status Summary</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="crisis-exercise" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#9888; Crisis Exercise After-Action (SOP-20-EX-001)</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="oos-individual" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#129514; OOS Individual Event Report</label>
@@ -584,7 +584,7 @@ main{padding:24px 32px 80px;}
       <!-- NCR / Audit Finding Summary — scrollable checklist of NCR + Audit
            Finding records. Only the checked records go into the report. -->
       <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-ncr-picker">
-        <div class="chart-title" style="margin-bottom:8px">NCR / Audit Findings</div>
+        <div class="chart-title" style="margin-bottom:8px">NCR / Audit Findings — CA Package</div>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;font-weight:600;color:#1F3864;padding:6px 4px;border-bottom:1px solid var(--border2);margin-bottom:4px"><input type="checkbox" id="ai-ncr-all" style="accent-color:var(--accent)" onchange="aiToggleAll('ncr',this.checked)"> Select All / Deselect All</label>
         <div id="ai-ncr-list" style="max-height:340px;overflow-y:auto"></div>
       </div>
@@ -5382,56 +5382,145 @@ async function generateFindingSummaryReport(wrap){
   const sel=records.filter(r=>ids.indexOf(r.id)!==-1);
   if(!sel.length){wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Selected records could not be found. Re-open the selector and try again.</div>';return;}
   const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not yet completed)":s;};
+  function capaDetailBlock(capaId){
+    const c=findCapaRecord(capaId);
+    if(!c)return `  CAPA ID: ${capaId}\n  Status: (record not on current site view)\n  Note: Retrieve this CAPA record to view full detail.`;
+    const fld2=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not yet completed)":s;};
+    const effStatus=c.effectivenessStatus?"Effectiveness Check Status: "+c.effectivenessStatus:"Effectiveness Check Status: Not yet initiated";
+    const effDue=c.effectivenessCheckDueDate?"Effectiveness Check Due: "+c.effectivenessCheckDueDate:"";
+    const closedOn=c.modifiedAt&&/closed/i.test(c.status||"")?"\n  Closure Date: "+c.modifiedAt.slice(0,10):"";
+    return [
+      `  CAPA ID: ${fld2(c.id)}`,
+      `  CAPA Status: ${fld2(c.status)}`,
+      `  CAPA Owner: ${fld2(c.owner)}`,
+      `  CAPA Due Date: ${fld2(c.due)}${closedOn}`,
+      `  CAPA Root Cause: ${fld2(c.rca)}`,
+      `  CAPA Corrective Action: ${fld2(c.ca)}`,
+      `  ${effStatus}`,
+      effDue?`  ${effDue}`:"",
+    ].filter(Boolean).join("\n");
+  }
+  function linkedCapaDetailLines(links){
+    if(!links||!links.length)return "Linked CAPAs: None linked at time of report.";
+    return "Linked CAPAs:\n"+links.map(l=>capaDetailBlock(l.capaId)).join("\n\n");
+  }
+  function submissionFlags(r,links){
+    const flags=[];
+    if(!r.rca||!r.rca.trim())flags.push("⚠ Root cause analysis not yet completed");
+    if(!r.ca||!r.ca.trim())flags.push("⚠ Corrective action not yet documented");
+    if(!r.evidence||!r.evidence.trim())flags.push("⚠ Objective evidence not yet recorded");
+    if(!links||!links.length)flags.push("⚠ No CAPA linked — verify corrective action is tracked");
+    else{
+      const allClosed=links.every(l=>{const c=findCapaRecord(l.capaId);return c&&/closed/i.test(c.status||"");});
+      if(!allClosed)flags.push("⚑ One or more linked CAPAs are still open");
+    }
+    if((r.photos||[]).length===0&&(!r.evidence||!r.evidence.trim()))flags.push("⚠ No supporting evidence or attachments on file");
+    return flags.length?flags.join("\n"):null;
+  }
   const blockArr=await Promise.all(sel.map(async r=>{
     const req=clauseRequirement(r.clause);
     const links=await capaLinksGet("source_id="+encodeURIComponent(r.id));
+    const flags=submissionFlags(r,links);
+    const photoCount=(r.photos||[]).length;
+    const evidenceNote=photoCount>0?`Supporting Evidence: ${photoCount} attachment(s) on file — embedded as exhibits in PDF`:"Supporting Evidence: None attached to this record";
     return `Record ID: ${fld(r.id)}
 Type: ${fld(r.type)}
 Certification Body / Source: ${fld(r.sourceBody)}
 Clause: ${fld(r.clause)}
-Clause Requirement: ${req?req:"(refer to SQF Edition 9 clause text)"}
+Clause Requirement: ${req?req:"(refer to SQF Edition 9 clause text — clause not in library)"}
 Severity: ${fld(r.severity)}
 Status: ${fld(r.status)}
 Owner/Department: ${fld(r.owner)}
 Site: ${fld(r.site)}
 Due Date: ${fld(r.due)}
-Observation/Description: ${fld(r.desc)}
+Finding/Observation: ${fld(r.desc)}
 Root Cause Analysis (RCA): ${fld(r.rca)}
 Corrective Action (CA): ${fld(r.ca)}
-Objective Evidence: ${fld(r.evidence)}
+Objective Evidence of Implementation: ${fld(r.evidence)}
+${evidenceNote}
+${linkedCapaDetailLines(links)}
 ${aiFmtRecordSignoffs(r.signatures)}
-${reportLinkedCapaLines(links)}`;
+${flags?"Submission Readiness Flags:\n"+flags:"Submission Readiness: All required fields present"}`;
   }));
   const blocks=blockArr.join("\n\n----------\n\n");
-  const summaryTable=sel.map(r=>`| ${fld(r.id)} | ${fld(r.clause)} | ${fld(r.severity)} | ${(r.desc||"").replace(/\n/g," ").trim()||"(pending)"} | ${fld(r.owner)} | ${fld(r.status)} |`).join("\n");
-  const prompt=`You are a food safety and SQF compliance expert producing a formal, submission-ready NCR / AUDIT FINDING SUMMARY for Somafina UST (SOMAFINA UST — dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). Mark the document CONFIDENTIAL. This report covers ONLY the ${sel.length} finding record(s) provided below.
+  const fldShort=v=>(v===undefined||v===null?"":String(v)).trim()||"—";
+  const summaryTable=sel.map(r=>{
+    const hasRCA=r.rca&&r.rca.trim();const hasCA=r.ca&&r.ca.trim();const hasEv=r.evidence&&r.evidence.trim()||(r.photos||[]).length>0;
+    const ready=(hasRCA&&hasCA&&hasEv)?"Ready":"Incomplete";
+    return `| ${fldShort(r.id)} | ${fldShort(r.clause)} | ${fldShort(r.severity)} | ${(r.desc||"").replace(/\n/g," ").slice(0,70)}${(r.desc||"").length>70?"…":""} | ${fldShort(r.owner)} | ${fldShort(r.status)} | ${ready} |`;
+  }).join("\n");
+  const prompt=`You are a food safety and SQF compliance expert producing a formal, SQFI submission-ready NCR / AUDIT FINDING SUMMARY for Somafina UST (dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). This document is intended to serve as a complete corrective action package that can be submitted directly to the certification body. Mark it CONFIDENTIAL. This report covers ONLY the ${sel.length} finding record(s) provided below.
 
 ${AI_DATA_INTEGRITY}
 
-OUTPUT FORMAT: Markdown. Use "# " for the title, "## " for major section headings (ALL CAPS), "### " for sub-headings, "| ... |" GitHub tables, and "- " for lists.
+OUTPUT FORMAT: Markdown. Use "# " for the title, "## " for major section headings (ALL CAPS), "### " for sub-headings (Finding IDs), "#### " for sub-sub-headings within findings, "| ... |" tables, "- " for lists.
 
-Produce the report in this exact section order:
+Produce the report in this EXACT section order — no extra sections, no reordering:
 
 # SOMAFINA UST | NCR / AUDIT FINDING SUMMARY
+## Corrective Action Package — SQF Edition 9 §2.5.4
 
-## SUMMARY TABLE
-Render this table exactly (header row then the data rows):
-| Finding ID | Clause | Severity | Description | Owner | Status |
-| --- | --- | --- | --- | --- | --- |
+## SUBMISSION OVERVIEW
+Write 2–3 sentences stating: the number of findings covered, the site, the certification standard, and a plain-language statement that this package contains the root cause analysis, corrective actions, and supporting evidence for each finding. Do NOT add commentary beyond what the data supports.
+
+## FINDINGS SUMMARY TABLE
+Render this table exactly — header row then data rows — no modifications:
+| Finding ID | Clause | Severity | Description | Owner | Status | CA Package |
+| --- | --- | --- | --- | --- | --- | --- |
 ${summaryTable}
 
-## FINDING DETAIL
-For each finding below, render a "### " detail block titled with the Record ID, containing labeled lines for: Certification Body / Source, Clause, Clause Requirement, Observation, Root Cause Analysis, Corrective Action, Status, and Objective Evidence. Reproduce every field verbatim from the data provided; report blank/pending fields exactly as pending. Then, within each detail block, render a "**Linked CAPAs**" subsection reproducing the linked-CAPA lines provided for that finding exactly (CAPA ID, status, owner, due date, closure date) — or the line "None linked at time of report" when that is what is provided.
+## FINDING DETAILS
+For EACH finding record below, render a "### [Record ID] — [Clause] — [Severity]" heading, then these sub-sections in order:
+
+#### Nonconformance
+State the Certification Body / Source, then the full Clause reference, then the complete Clause Requirement text verbatim (reproduce it word-for-word from the data), then the Finding/Observation verbatim. Do not paraphrase.
+
+#### Root Cause Analysis
+Reproduce the RCA field verbatim. If it reads "(pending — not yet completed)", state it as pending and note that the CA package is incomplete until this is resolved.
+
+#### Corrective Action
+Reproduce the CA field verbatim. If pending, state it explicitly.
+
+#### Objective Evidence
+Reproduce the Objective Evidence field verbatim. Then state the Supporting Evidence note (attachment count or "None") verbatim. Note that image attachments are embedded as exhibits in the PDF version of this package.
+
+#### Linked CAPA Records
+Reproduce the Linked CAPAs block verbatim, including every sub-field (CAPA ID, status, owner, due date, closure date, root cause, corrective action, effectiveness check status). If multiple CAPAs are linked render each as a separate named sub-block. If none are linked, state that no CAPA has been linked and that tracking of corrective action implementation should be confirmed.
+
+#### Record Sign-offs
+Reproduce the Record Sign-offs block exactly.
+
+#### Submission Readiness
+Reproduce the Submission Readiness Flags verbatim (the ⚠ / ⚑ lines) or the "All required fields present" line. Then add one sentence summarizing whether this finding's CA package is ready for submission as-is or requires action before submission.
+
 ${blocks}
+
+## EVIDENCE MANIFEST
+Render a table summarizing all attachments referenced across all findings in this report:
+| Finding ID | Exhibit | Description | Type | Status |
+| --- | --- | --- | --- | --- |
+For each finding that has attachments (Supporting Evidence count > 0), list each attachment. Use "Embedded in PDF" for images, "PDF Appendix" for PDFs, "Referenced Document" for other types. For findings with no attachments write a single row: | [ID] | — | No attachments on file | — | Missing |
+
+## SUBMISSION CHECKLIST
+Render a checklist table for the reviewer:
+| # | Requirement | Status |
+| --- | --- | --- |
+Rows (use ✓ if the condition is met across ALL findings, ✗ if any finding fails it, ⚑ if partial):
+1 | Root cause analysis documented for all findings
+2 | Corrective action documented for all findings
+3 | Objective evidence or attachments present for all findings
+4 | At least one CAPA linked to each finding
+5 | All linked CAPAs have owner and due date assigned
+6 | Record sign-offs captured for all findings
+7 | All linked CAPAs are closed or have a confirmed closure date
+Derive each status from the data provided — do not guess or assume.
 
 ${AI_RECORD_SIGNOFFS_INSTR}
 
 ${signatoriesPromptSection()}
 
-Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | NCR / Audit Finding Summary per SQF Edition 9 §2.5.4 | Retain minimum 2 years per SOP #02".`;
-  // Evidence metadata for the PDF exporter: each finding's attachments (stored
-  // inline on the record as `photos`) so images embed as exhibits, PDFs append
-  // as appendices, and Office files list as referenced documents.
+Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | NCR / Audit Finding Corrective Action Package per SQF Edition 9 §2.5.4 | Retain minimum 2 years per SOP #02"`;
+
   const findingsEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''}))}));
   await streamSingleReport(prompt,wrap,{type:"sqfi-submission",site:currentSite,findings:findingsEv,coverRecords:sel});
 }
@@ -5569,7 +5658,7 @@ async function downloadReportPDF(){
   const lightBlue=[222,234,241];
   const pageW=612,pageH=792,margin=54,contentW=612-54*2;
   const rptType=document.querySelector("input[name='rpt-type']:checked")?.value||'';
-  const rptLabels={"sqfi-submission":"NCR / Audit Finding Summary","audit-report":"Audit Report Summary","capa-summary":"CAPA Status Summary","crisis-exercise":"Crisis Exercise After-Action Report","oos-individual":"OOS Individual Event Report","oos-summary":"OOS Summary Report"};
+  const rptLabels={"sqfi-submission":"NCR / Audit Finding Corrective Action Package","audit-report":"Audit Report Summary","capa-summary":"CAPA Status Summary","crisis-exercise":"Crisis Exercise After-Action Report","oos-individual":"OOS Individual Event Report","oos-summary":"OOS Summary Report"};
   const rptLabel=rptLabels[rptType]||'Audit Report';
   const isCrisis=rptType==="crisis-exercise";
   const oosMeta=window._lastReportMeta&&(window._lastReportMeta.type==="oos-individual"||window._lastReportMeta.type==="oos-summary")?window._lastReportMeta:null;
