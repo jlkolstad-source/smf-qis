@@ -127,27 +127,31 @@ function toClient(r: typeof oosRecords.$inferSelect) {
   };
 }
 
-// Next "OOS-YYYY-NNN" id. The running number is shared across EVERY OOS record
-// for the given year and always continues from the highest number found, no
-// matter what prefix format an existing id uses: the trailing numeric run is
-// extracted from the end of each id whose year segment matches. (OOS ids carry
-// no site segment, so the sequence runs across all sites for the year.)
-async function nextOosId(year: string) {
-  const rows = await db.select({ id: oosRecords.id }).from(oosRecords);
+// Site abbreviation used in the auto-generated OOS ids. Lindon → LDN, any
+// Layton facility → LAY, and any all-sites / unset scope → ALL.
+function siteAbbr(site: string): string {
+  const s = (site || "").trim().toLowerCase();
+  if (s === "lindon") return "LDN";
+  if (s.includes("layton")) return "LAY";
+  if (s === "all sites" || s === "all" || s === "") return "ALL";
+  return (site || "SMF").replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "SMF";
+}
+
+// Next "OOS-[SITE]-[YYYY]-[####]" id. The running number is scoped to the
+// (site, year) pair: every existing OOS record at the same site whose id carries
+// the same year segment is scanned, the trailing numeric run is extracted from
+// the end of each id regardless of its prefix format, the highest is found and
+// incremented by one (zero-padded to four digits). Each year resets independently.
+async function nextOosId(site: string, year: string) {
+  const rows = await db.select({ id: oosRecords.id, site: oosRecords.site }).from(oosRecords);
   const re = new RegExp("-" + year + "-(\\d+)$");
   let max = 0;
-  let width = 3;
-  for (const { id } of rows) {
-    const m = re.exec(id);
-    if (m) {
-      const n = parseInt(m[1], 10);
-      if (n > max) {
-        max = n;
-        width = m[1].length;
-      }
-    }
+  for (const r of rows) {
+    if (r.site !== site) continue;
+    const m = re.exec(r.id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
   }
-  return "OOS-" + year + "-" + String(max + 1).padStart(Math.max(3, width), "0");
+  return `OOS-${siteAbbr(site)}-${year}-${String(max + 1).padStart(4, "0")}`;
 }
 
 // Normalise an incoming OOS payload into column values. Only client-editable
@@ -315,9 +319,9 @@ export default async (req: Request) => {
       // ── Create a new OOS record ───────────────────────────────────────────
       const body = await req.json().catch(() => ({}));
       const year = String(new Date().getFullYear());
-      const newId = await nextOosId(year);
       const now = new Date();
       const row = toRow(body);
+      const newId = await nextOosId(row.site, year);
       const [created] = await db
         .insert(oosRecords)
         .values({
