@@ -643,6 +643,30 @@ main{padding:24px 32px 80px;}
   </div>
 </div>
 
+<!-- STEP-UP RE-AUTHENTICATION MODAL -->
+<!-- Reusable across every sensitive action (signing, closing, completing an -->
+<!-- effectiveness check or audit, deleting). Driven entirely by requireReauth(). -->
+<div class="modal-overlay" id="reauth-modal">
+  <div class="modal" style="border-top:3px solid #C00000;max-width:460px">
+    <div class="modal-title" style="color:#7a0000">Confirm your identity</div>
+    <div style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#7a0000">
+      This is a controlled action. Re-enter your password to confirm:
+      <div id="reauth-action" style="font-weight:700;margin-top:6px;font-family:'DM Mono',monospace;font-size:11px;word-break:break-word">—</div>
+    </div>
+    <form onsubmit="return reauthConfirm(event)" autocomplete="off">
+      <div class="form-group form-full">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="reauth-password" type="password" autocomplete="current-password" placeholder="Current password">
+      </div>
+      <div id="reauth-msg" class="auth-msg" style="min-height:16px;color:#C00000;font-size:11px;margin-top:6px"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" onclick="reauthCancel()">Cancel</button>
+        <button type="submit" class="btn" id="reauth-confirm-btn" style="background:#C00000">Confirm</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- RECORD MODAL -->
 <div class="modal-overlay" id="modal">
   <div class="modal">
@@ -3250,6 +3274,85 @@ function openProfileModal(){
   document.getElementById("profile-modal").classList.add("open");
 }
 function closeProfileModal(){document.getElementById("profile-modal").classList.remove("open");}
+// ── STEP-UP RE-AUTHENTICATION ───────────────────────────────────────────────
+// requireReauth() shows the shared confirmation modal and resolves to `true`
+// only once the user has re-entered the password for the signed-in account.
+// Every sensitive action calls it as a gate:
+//   if(!(await requireReauth({actionLabel:"…",recordId:id})))return;
+// The entered password is held only for the duration of a single verify call and
+// is wiped from the field and from memory immediately afterwards — it is never
+// stored or sent anywhere except the Identity login endpoint. Verification
+// failures are recorded server-side in audit_log via /api/reauth-log.
+let _reauthResolve=null;       // resolver for the in-flight requireReauth() promise
+let _reauthCtx=null;           // { actionLabel, recordId } for failure logging
+function requireReauth(opts){
+  const o=opts||{};
+  const label=o.actionLabel||"this action";
+  const recordId=o.recordId||"—";
+  // If the auth layer isn't available, fail safe by blocking the action.
+  if(typeof window.qisVerifyPassword!=="function"){
+    toast("Re-authentication is unavailable right now. Action blocked.","red");
+    return Promise.resolve(false);
+  }
+  // Only one re-auth prompt at a time; cancel any prior pending one.
+  if(_reauthResolve){const r=_reauthResolve;_reauthResolve=null;r(false);}
+  _reauthCtx={actionLabel:label,recordId};
+  const actEl=document.getElementById("reauth-action");if(actEl)actEl.textContent=label;
+  reauthMsg("");
+  const pwEl=document.getElementById("reauth-password");if(pwEl)pwEl.value="";
+  document.getElementById("reauth-modal").classList.add("open");
+  setTimeout(()=>{const el=document.getElementById("reauth-password");if(el)el.focus();},30);
+  return new Promise(resolve=>{_reauthResolve=resolve;});
+}
+function reauthMsg(text){const el=document.getElementById("reauth-msg");if(el)el.textContent=text||"";}
+function _reauthClosePw(){const el=document.getElementById("reauth-password");if(el)el.value="";}
+function _reauthFinish(ok){
+  document.getElementById("reauth-modal").classList.remove("open");
+  _reauthClosePw();
+  const r=_reauthResolve;_reauthResolve=null;_reauthCtx=null;
+  if(r)r(ok);
+}
+function reauthCancel(){_reauthFinish(false);}
+async function reauthConfirm(ev){
+  if(ev&&ev.preventDefault)ev.preventDefault();
+  const btn=document.getElementById("reauth-confirm-btn");
+  const pwEl=document.getElementById("reauth-password");
+  let pw=pwEl?pwEl.value:"";
+  if(!pw){reauthMsg("Enter your password to confirm.");return false;}
+  if(btn)btn.disabled=true;reauthMsg("Verifying…");
+  const ctx=_reauthCtx||{actionLabel:"this action",recordId:"—"};
+  try{
+    const result=await window.qisVerifyPassword(currentUserEmail,pw);
+    // Wipe the password from the field and from memory the moment we're done.
+    pw="";if(pwEl)pwEl.value="";
+    if(result&&result.ok){
+      if(btn)btn.disabled=false;
+      _reauthFinish(true);
+      return false;
+    }
+    const reason=(result&&result.reason)||"Invalid password.";
+    reauthMsg(reason);
+    await logReauthFailure(ctx,reason);
+    if(btn)btn.disabled=false;
+    return false;
+  }catch(e){
+    pw="";if(pwEl)pwEl.value="";
+    const reason=(e&&e.message)||"Verification failed.";
+    reauthMsg(reason);
+    await logReauthFailure(ctx,reason);
+    if(btn)btn.disabled=false;
+    return false;
+  }
+}
+// Record a verification failure in the audit trail. Best-effort: never blocks
+// the user-facing flow, and never carries the entered password.
+async function logReauthFailure(ctx,reason){
+  try{
+    await fetch("/api/reauth-log",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action:ctx.actionLabel||"Sensitive action",recordId:ctx.recordId||"—",reason:reason||"Password verification failed"})});
+  }catch(e){/* logging is best-effort */}
+}
+
 async function saveProfile(){
   const full_name=document.getElementById("pf-name").value.trim();
   const title=document.getElementById("pf-title").value.trim();
@@ -4019,6 +4122,7 @@ async function effCompleteCheck(capaId){
   const recEl=document.querySelector('input[name="eff-recurred"]:checked');
   const recurred=recEl?recEl.value:"";
   if(!det){toast("Select a determination before completing the check.","red");return;}
+  if(!(await requireReauth({actionLabel:"Complete effectiveness check for "+capaId,recordId:capaId})))return;
   try{
     const res=await fetch(API+"?action=save-effectiveness",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capa_id:capaId,owner,due_date:due,root_cause_eliminated:rce,evidence:ev,recurred,determination:det})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -4140,6 +4244,10 @@ async function saveRecord(){
   if(newStatus==="Closed"&&!isAdminUser&&(!existing||existing.status!=="Closed")){
     toast("Only an administrator can close a finding.","red");return;
   }
+  // Step-up re-auth when transitioning a record into the Closed status.
+  if(newStatus==="Closed"&&(!existing||existing.status!=="Closed")){
+    if(!(await requireReauth({actionLabel:"Set "+(wasEditing?editId:"new record")+" status to Closed",recordId:wasEditing?editId:"(new record)"})))return;
+  }
   const isAudit=document.getElementById("f-type").value==="AUDIT";
   const sourceBody=resolveSourceBody();
   if(isAudit&&sourceBody===null)return; // invalid custom code; resolveSourceBody toasted
@@ -4175,6 +4283,7 @@ async function saveRecord(){
 async function deleteRecord(id){
   if(!isAdminUser){toast("Only an administrator can delete records.","red");return;}
   if(!confirm("Delete?"))return;
+  if(!(await requireReauth({actionLabel:"Delete record "+id,recordId:id})))return;
   try{
     const res=await fetch(API+"?id="+encodeURIComponent(id),{method:"DELETE"});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -4274,6 +4383,7 @@ async function startAudit(id){
 }
 
 async function completeAudit(id){
+  if(!(await requireReauth({actionLabel:"Complete & close audit session "+id,recordId:id})))return;
   try{
     const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=complete",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
     const data=await res.json().catch(()=>({}));
@@ -4289,6 +4399,7 @@ async function completeAudit(id){
 
 async function deleteAudit(id){
   if(!confirm("Delete scheduled audit "+id+"? This cannot be undone."))return;
+  if(!(await requireReauth({actionLabel:"Delete audit session "+id,recordId:id})))return;
   try{
     const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=delete",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -6626,6 +6737,7 @@ async function showCrisisList(){
 async function deleteCrisisExercise(id){
   if(!isAdminUser){toast("Only an administrator can delete exercises.","red");return;}
   if(!confirm("Delete crisis exercise "+id+"? This permanently removes the exercise and its entire CMT response log. This cannot be undone."))return;
+  if(!(await requireReauth({actionLabel:"Delete Crisis Exercise "+id,recordId:id})))return;
   try{
     const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(id),{method:"DELETE"});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -6757,6 +6869,7 @@ async function sigSign(ctxKey,i){
   const sel=document.getElementById("sigrole-"+ctxKey+"-"+i);
   const role=(sel?sel.value:st.pending[i].role)||"";
   if(!role){toast("Choose a signature role.","red");return;}
+  if(!(await requireReauth({actionLabel:"Sign as "+role+" on "+st.id,recordId:st.id})))return;
   try{
     const res=await fetch(SIG_ENDPOINTS[st.kind]+"?id="+encodeURIComponent(st.id)+"&action=sign",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({role})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -7162,6 +7275,7 @@ function renderCrisisAttendees(){
 }
 function addCrisisAttendee(){activeCrisis.attendees.push({name:"",title:"",qualifications:"",role:"",signoffAt:""});renderCrisisAttendees();}
 async function crisisSignoff(){
+  if(!(await requireReauth({actionLabel:"Sign off Crisis Exercise "+(activeCrisis&&activeCrisis.id||""),recordId:(activeCrisis&&activeCrisis.id)||"—"})))return;
   try{
     const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(activeCrisis.id)+"&action=signoff",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -7186,6 +7300,10 @@ async function saveCrisis(quiet){
   };
   function val(id){const el=document.getElementById(id);return el?el.value:"";}
   // Exercise IDs are permanent — the id is never sent in the PUT body.
+  // Step-up re-auth when completing the exercise (its closed/terminal status).
+  if(body.status==="Complete"&&e.status!=="Complete"){
+    if(!(await requireReauth({actionLabel:"Set Crisis Exercise "+e.id+" status to Complete",recordId:e.id})))return;
+  }
   try{
     const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(e.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -7432,6 +7550,10 @@ async function saveOOS(){
     disposition:val("oo-disposition"),capaId:val("oo-capaId"),status:val("oo-status"),
   };
   // OOS record IDs are permanent — the id is never sent in the PUT body.
+  // Step-up re-auth when closing the OOS (transition into a "Closed …" status).
+  if(OOS_CLOSED.includes(body.status)&&o.status!==body.status){
+    if(!(await requireReauth({actionLabel:"Close OOS "+o.id+" — "+body.status,recordId:o.id})))return;
+  }
   try{
     const res=await fetch(OOS_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -7444,6 +7566,7 @@ async function saveOOS(){
 async function deleteOOS(id){
   if(!isAdminUser){toast("Only an administrator can delete OOS records.","red");return;}
   if(!confirm("Delete OOS "+id+"? This permanently removes the record and all attached files. This cannot be undone."))return;
+  if(!(await requireReauth({actionLabel:"Delete OOS "+id,recordId:id})))return;
   try{
     const res=await fetch(OOS_API+"?id="+encodeURIComponent(id),{method:"DELETE"});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -8388,6 +8511,22 @@ window.qisShowSignin=function(){msg("auth-msg","");showPanel("auth-signin");};
 window.qisUpdateProfile=async function(data){
   await updateUser({data:{full_name:data.full_name,title:data.title}});
   return await getUser();
+};
+
+// Step-up verification for sensitive actions. Re-checks the entered password
+// against Netlify Identity by logging in again with the current user's email.
+// Returns {ok:true} on success or {ok:false,reason} on failure. The password is
+// used only for this single call and is never stored or logged here.
+window.qisVerifyPassword=async function(email,password){
+  if(!email)return {ok:false,reason:"No signed-in account to verify against."};
+  if(!password)return {ok:false,reason:"Enter your password to confirm."};
+  try{
+    await login(email,password);
+    return {ok:true};
+  }catch(e){
+    if(e instanceof AuthError&&e.status===401)return {ok:false,reason:"Incorrect password."};
+    return {ok:false,reason:authError(e)};
+  }
 };
 
 window.qisForgot=async function(ev){
