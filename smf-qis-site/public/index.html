@@ -5623,12 +5623,12 @@ async function downloadReportPDF(){
   }
   // Fetch a Netlify Blobs file as a data URL; null on any failure (caller shows
   // a placeholder line rather than failing the whole PDF).
-  async function fetchBlobDataUrl(url){
+  async function fetchBlobDataUrl(url,errOut){
     try{
-      const res=await fetch(url);if(!res.ok)return null;
+      const res=await fetch(url);if(!res.ok){if(errOut)errOut.reason='HTTP '+res.status+(res.statusText?' '+res.statusText:'');return null;}
       const blob=await res.blob();
-      return await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=()=>r(null);fr.readAsDataURL(blob);});
-    }catch(e){return null;}
+      return await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=()=>{if(errOut)errOut.reason='FileReader read error';r(null);};fr.readAsDataURL(blob);});
+    }catch(e){if(errOut)errOut.reason=(e&&e.message)||String(e);return null;}
   }
 
   function drawHeaderFooter(pageNum,total){
@@ -5767,7 +5767,7 @@ async function downloadReportPDF(){
   // Push a PDF attachment to the appendix queue and return its appendix number.
   function queuePdfAppendix(dataUrl,label,sourceLine,filename){
     const n=++apxSeq;
-    pdfAppendices.push({dataUrl:dataUrl||null,sepTitle:'APPENDIX '+n+':  '+(label||'Attachment'),sepLines:[sourceLine,'File: '+(filename||'(unnamed)'),dataUrl?'PDF document appended as full pages following this separator.':'Reference document — retained as a source attachment.']});
+    pdfAppendices.push({dataUrl:dataUrl||null,filename:filename||'',sepTitle:'APPENDIX '+n+':  '+(label||'Attachment'),sepLines:[sourceLine,'File: '+(filename||'(unnamed)'),dataUrl?'PDF document appended as full pages following this separator.':'Reference document — retained as a source attachment.']});
     return n;
   }
   // Audit Report Summary clause-evidence image: embed inline at the current Y
@@ -5949,11 +5949,14 @@ async function downloadReportPDF(){
         // Blobs entry rather than failing the lookup (Fix 3).
         const fileKey=String(a.key||'').trim();
         const fetchUrl=AUDITS_API+"?id="+encodeURIComponent(rMeta.auditId||'')+"&file="+encodeURIComponent(fileKey);
-        const du=await fetchBlobDataUrl(fetchUrl);
+        const fetchErr={};
+        const du=await fetchBlobDataUrl(fetchUrl,fetchErr);
         if(!du){
           // Surface the failure in the browser console instead of silently
-          // dropping to a placeholder line (Fix 3).
-          console.error('[audit-report] Appendix evidence fetch failed',{clauseId:c.clauseId,filename:a.filename,key:fileKey,url:fetchUrl});
+          // dropping to a placeholder line — include the full filename and the
+          // error message (HTTP status / exception) so the failing appendix
+          // (e.g. Appendix 7) is identifiable (Fix 3).
+          console.error('[audit-report] Appendix evidence fetch failed',{clauseId:c.clauseId,filename:a.filename,key:fileKey,url:fetchUrl,error:fetchErr.reason||'unknown'});
           items.push({error:true,filename:a.filename});continue;
         }
         items.push({kind,dataUrl:du,filename:a.filename,label:a.label||a.filename});
@@ -6239,8 +6242,10 @@ async function downloadReportPDF(){
         }catch(e){
           // A separator page was already emitted for this appendix; log why its
           // source pages could not be stitched in (e.g. a signed/encrypted PDF
-          // that pdf-lib cannot parse) instead of failing silently (Fix 3).
-          console.error('[audit-report] Appendix PDF embed failed — separator page only',{appendix:ap.sepTitle,error:e});
+          // like Appendix 7 that pdf-lib cannot parse) instead of failing
+          // silently. Include the full filename and the error message so the
+          // failing attachment is identifiable in the browser console (Fix 3).
+          console.error('[audit-report] Appendix PDF embed failed — separator page only',{appendix:ap.sepTitle,filename:ap.filename||'(unnamed)',error:(e&&e.message)||String(e)});
         }
       }
       // Fix 4 — make the file identifiable in email without opening it, and emit
