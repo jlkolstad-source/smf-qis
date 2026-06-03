@@ -5603,15 +5603,22 @@ async function downloadReportPDF(){
   }
   // Normalise any image data URL to a JPEG the jsPDF engine can embed reliably
   // (handles PNG/WEBP; HEIC that the browser cannot decode resolves to null).
-  async function evToJpeg(dataUrl){
+  async function evToJpeg(dataUrl,opts){
     try{
+      const o=opts||{};
       const img=new Image();
       await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=dataUrl;});
       const nw=img.naturalWidth||img.width, nh=img.naturalHeight||img.height;
       if(!nw||!nh)return null;
-      const cv=document.createElement('canvas');cv.width=nw;cv.height=nh;
-      cv.getContext('2d').drawImage(img,0,0);
-      return {url:cv.toDataURL('image/jpeg',0.92),w:nw,h:nh};
+      // Optional downscale (Fix 2): cap the canvas width at opts.maxW (keeping
+      // aspect ratio) so the embedded JPEG carries no more pixels than the PDF
+      // actually renders, and export at opts.quality. Callers that omit opts get
+      // the original full-resolution 0.92-quality behavior unchanged.
+      let cw=nw,ch=nh;
+      if(o.maxW&&nw>o.maxW){cw=o.maxW;ch=Math.round(nh*(o.maxW/nw));}
+      const cv=document.createElement('canvas');cv.width=cw;cv.height=ch;
+      cv.getContext('2d').drawImage(img,0,0,cw,ch);
+      return {url:cv.toDataURL('image/jpeg',o.quality||0.92),w:cw,h:ch};
     }catch(e){return null;}
   }
   // Fetch a Netlify Blobs file as a data URL; null on any failure (caller shows
@@ -5764,13 +5771,13 @@ async function downloadReportPDF(){
     return n;
   }
   // Audit Report Summary clause-evidence image: embed inline at the current Y
-  // cursor, scaled to fit the content width with a 120pt max height, then a
-  // caption below in italic gray 9pt. Advances Y past the image, caption and an
+  // cursor, scaled to fit the content width with a 150pt max height (Fix 2), then
+  // a caption below in italic gray 9pt. Advances Y past the image, caption and an
   // 8pt margin. Only breaks to a new page when the remaining space is smaller
   // than the image height + 40pt — never solely to render an image.
   function drawAuditExhibitImage(im,caption){
     let w=contentW,h=im.h*(w/im.w);
-    const maxH=120;
+    const maxH=150;
     if(h>maxH){h=maxH;w=im.w*(h/im.h);}
     if(pageH-46-y < h+40){doc.addPage();y=50;}
     try{doc.addImage(im.url,'JPEG',margin,y,w,h);}catch(e){drawEvidenceLine('[image could not be embedded]');return;}
@@ -5841,7 +5848,7 @@ async function downloadReportPDF(){
         ensureHdr();
         if(it.error){docRefs.push({text:'Evidence file unavailable — '+(it.filename||'(unnamed)')+' (Clause '+c.clauseId+')'});continue;}
         if(it.kind==='image'){
-          const im=await evToJpeg(it.dataUrl);
+          const im=await evToJpeg(it.dataUrl,{maxW:500,quality:0.72});
           if(!im){docRefs.push({text:'Evidence file unavailable — '+(it.filename||'(unnamed)')+' (Clause '+c.clauseId+')'});continue;}
           const letter=exhibitLabel(exhibitSeq++);
           // Inline image at the cursor, scaled to fit, caption below. No duplicate
@@ -6188,10 +6195,19 @@ async function downloadReportPDF(){
   // pages are then stitched in immediately after that separator.
   for(const ap of pdfAppendices){
     doc.addPage();y=50;
-    doc.setFillColor(...navy);doc.rect(margin,y,contentW,20,'F');
-    doc.setFontSize(10.5);doc.setTextColor(...white);doc.setFont('helvetica','bold');
-    doc.text((ap.sepTitle||'APPENDIX').toUpperCase(),margin+8,y+14);
-    y+=28;
+    if(isAudit){
+      // Lean separator (Fix 3): no navy fill block or background rectangle — the
+      // title renders as navy bold text directly on the white page. The shared
+      // header/footer is still applied below, keeping SMF branding intact.
+      doc.setFontSize(10.5);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+      doc.splitTextToSize((ap.sepTitle||'APPENDIX').toUpperCase(),contentW).forEach(wl=>{doc.text(wl,margin,y+11);y+=16;});
+      y+=12;
+    }else{
+      doc.setFillColor(...navy);doc.rect(margin,y,contentW,20,'F');
+      doc.setFontSize(10.5);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+      doc.text((ap.sepTitle||'APPENDIX').toUpperCase(),margin+8,y+14);
+      y+=28;
+    }
     doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
     (ap.sepLines||[]).forEach(l=>doc.splitTextToSize(l,contentW).forEach(wl=>{if(y>pageH-46){doc.addPage();y=50;}doc.text(wl,margin,y);y+=14;}));
     ap.sepPage=doc.getNumberOfPages()-1; // 0-based index of this separator's last page
@@ -6227,7 +6243,17 @@ async function downloadReportPDF(){
           console.error('[audit-report] Appendix PDF embed failed — separator page only',{appendix:ap.sepTitle,error:e});
         }
       }
-      const out=await merged.save();
+      // Fix 4 — make the file identifiable in email without opening it, and emit
+      // a non-object-stream PDF that older email clients / viewers handle
+      // reliably (and is slightly smaller). Audit report only.
+      if(isAudit){
+        try{
+          merged.setTitle(String(rMeta.auditId||'Internal Audit Report'));
+          merged.setAuthor(String(auditor||'Somafina UST'));
+          merged.setSubject(String(rptLabel||'Audit Report Summary'));
+        }catch(e){/* metadata is best-effort — never block the download */}
+      }
+      const out=await merged.save(isAudit?{useObjectStreams:false}:undefined);
       const blob=new Blob([out],{type:'application/pdf'});
       const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=fname;link.click();
       toast("PDF downloaded (with embedded evidence and appendices).","green");
