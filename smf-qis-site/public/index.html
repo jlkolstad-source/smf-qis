@@ -5312,6 +5312,9 @@ async function generateAuditReportSummary(auditId,wrap){
     });
   });
   const carTable=carRows.length?carRows.join("\n"):"| — | — | (no CAPAs linked to this audit's findings) | — | — | — | — |";
+  // The body AUDIT HEADER "Audit ID" and the cover Document Information
+  // "Audit / Session" row both key off a.id (passed to the exporter as
+  // meta.auditId). Keep them identical so the cover and body never mismatch.
   const prompt=`You are a food safety and SQF audit compliance expert producing a formal INTERNAL AUDIT REPORT SUMMARY for Somafina UST (SOMAFINA UST — dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). Mark the document CONFIDENTIAL.
 
 ${AI_DATA_INTEGRITY}
@@ -5576,7 +5579,6 @@ async function downloadReportPDF(){
   // assembled signatory, else the signed-in user — no hardcoded names.
   const _firstSig=getReportSignatories()[0];
   const auditor=_firstSig?(_firstSig.name+(_firstSig.role?(', '+_firstSig.role):'')):((typeof userIdentityLabel==="function"?userIdentityLabel():"")||currentUser||'Quality Assurance');
-  const auditSession=document.getElementById('ai-audit-date')?.value||'';
   const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
 
   // ── EVIDENCE EXHIBITS — shared state + helpers ─────────────────────────────
@@ -5699,13 +5701,15 @@ async function downloadReportPDF(){
     ['Next Exercise Date',crisisMeta&&crisisMeta.nextExerciseDate?crisisMeta.nextExerciseDate:'(see report)'],
   ]:[
     ['Report Type',rptLabel],
-    ['Audit / Session',auditSession||'AUDIT-LDN-2026-001-S1'],
+    // Audit session ID — uses a.id (carried on the report meta as rMeta.auditId),
+    // the SAME property the body AUDIT HEADER table renders, so the cover and
+    // body can never diverge. Do not switch this to a DOM field value again.
+    ['Audit / Session',rMeta.auditId||'AUDIT-LDN-2026-001-S1'],
     ['Lead Auditor',auditor],
     ['Site','Lindon, Utah  ·  Somafina UST'],
     ['Generated',today],
     ['Governing Standard','SQF Edition 9 — Dietary Supplements Manufacturing (Module 2 + 17)'],
-    ['Governing SOP','SOP #22 Rev 05 — Audits and Inspections'],
-    ['CA Deadline','June 18, 2026  ·  §2.5.4 Corrective Action Submission'],
+    ['Governing SOP','SOP #22 — Audits and Inspections'],
   ];
   // Append the record-opened / -closed dates and ownership rows. Multi-record
   // summaries (NCR, CAPA, OOS) show ranges + counts; single-record reports show
@@ -5759,6 +5763,45 @@ async function downloadReportPDF(){
     pdfAppendices.push({dataUrl:dataUrl||null,sepTitle:'APPENDIX '+n+':  '+(label||'Attachment'),sepLines:[sourceLine,'File: '+(filename||'(unnamed)'),dataUrl?'PDF document appended as full pages following this separator.':'Reference document — retained as a source attachment.']});
     return n;
   }
+  // Audit Report Summary clause-evidence image: embed inline at the current Y
+  // cursor, scaled to fit the content width with a 120pt max height, then a
+  // caption below in italic gray 9pt. Advances Y past the image, caption and an
+  // 8pt margin. Only breaks to a new page when the remaining space is smaller
+  // than the image height + 40pt — never solely to render an image.
+  function drawAuditExhibitImage(im,caption){
+    let w=contentW,h=im.h*(w/im.w);
+    const maxH=120;
+    if(h>maxH){h=maxH;w=im.w*(h/im.h);}
+    if(pageH-46-y < h+40){doc.addPage();y=50;}
+    try{doc.addImage(im.url,'JPEG',margin,y,w,h);}catch(e){drawEvidenceLine('[image could not be embedded]');return;}
+    y+=h+3;
+    doc.setFontSize(9);doc.setTextColor(130,130,140);doc.setFont('helvetica','italic');
+    doc.splitTextToSize(caption,contentW).forEach(cl=>{evEnsure(12);doc.text(cl,margin,y);y+=12;});
+    y+=8;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+  }
+  // Render a bordered data table (rows[0] is the header) matching the body
+  // markdown-table style: navy header row, alternating row shading, 8pt text and
+  // light column rules. Used for the audit Evidence Summary table.
+  function drawDataTable(rows){
+    if(!rows||!rows.length)return;
+    const ncol=Math.max(...rows.map(r=>r.length));
+    const colW=contentW/ncol;
+    rows.forEach((cells,ri)=>{
+      cells=cells.slice();while(cells.length<ncol)cells.push('');
+      doc.setFontSize(8);doc.setFont('helvetica',ri===0?'bold':'normal');
+      const wrapped=cells.map(c=>doc.splitTextToSize(String(c==null?'':c),colW-6));
+      const rowH=Math.max(1,...wrapped.map(w=>w.length))*10+6;
+      if(y+rowH>pageH-46){doc.addPage();y=50;}
+      if(ri===0){doc.setFillColor(...navy);}else{doc.setFillColor(ri%2?240:248,ri%2?242:250,ri%2?245:252);}
+      doc.rect(margin,y,contentW,rowH,'F');
+      doc.setTextColor(...(ri===0?white:black));
+      wrapped.forEach((w,ci)=>{w.forEach((wl,wi)=>{doc.text(wl,margin+ci*colW+3,y+11+wi*10);});});
+      doc.setDrawColor(210,216,226);doc.setLineWidth(0.3);
+      for(let c=1;c<ncol;c++){doc.line(margin+c*colW,y,margin+c*colW,y+rowH);}
+      y+=rowH;
+    });
+    y+=6;
+  }
   // Render the Evidence section for one NCR / CAPA record's attachments.
   async function flushRecordEvidence(rec){
     drawEvidenceHeader('Evidence');
@@ -5778,35 +5821,78 @@ async function downloadReportPDF(){
       }
     }
   }
-  // Render clause-level evidence for the Audit Report Summary: image exhibits
-  // and appendix references for every clause with attachments, followed by an
-  // Evidence Summary index. evidenceSummary accumulates the index lines.
+  // Render clause-level evidence for the Audit Report Summary. Images embed
+  // inline as exhibits (scaled, captioned); PDFs queue as appendices; Office
+  // files are listed as non-embedded references. A structured per-type reference
+  // list follows the inline images, and an Evidence Summary table closes the
+  // section. evidenceSummary collects {letter, clauseId, filename} for the table.
   const evidenceSummary=[];
   async function flushClauseEvidence(clauseEvidence){
     if(!clauseEvidence||!clauseEvidence.length)return;
     let hdrDone=false;
     const ensureHdr=()=>{if(!hdrDone){drawEvidenceHeader('Clause Evidence Exhibits');hdrDone=true;}};
+    // Per-category reference rows, accumulated while images embed inline, then
+    // rendered as grouped per-line lists below the images. Image exhibits are
+    // NOT collected here — their italic captions under each inline image are the
+    // only place exhibit filenames appear in this section (Fix 1).
+    const pdfRefs=[],docRefs=[];
     for(const c of clauseEvidence){
       for(const it of (c.items||[])){
         ensureHdr();
-        if(it.error){drawEvidenceLine('Evidence file unavailable — '+(it.filename||'(unnamed)')+' (Clause '+c.clauseId+')');continue;}
+        if(it.error){docRefs.push({text:'Evidence file unavailable — '+(it.filename||'(unnamed)')+' (Clause '+c.clauseId+')'});continue;}
         if(it.kind==='image'){
           const im=await evToJpeg(it.dataUrl);
-          if(!im){drawEvidenceLine('Evidence file unavailable — '+(it.filename||'(unnamed)')+' (Clause '+c.clauseId+')');continue;}
+          if(!im){docRefs.push({text:'Evidence file unavailable — '+(it.filename||'(unnamed)')+' (Clause '+c.clauseId+')'});continue;}
           const letter=exhibitLabel(exhibitSeq++);
-          drawExhibitImage(im,'Exhibit '+letter+' — '+(it.label||'')+' — Clause '+c.clauseId);
-          evidenceSummary.push('Exhibit '+letter+' — Clause '+c.clauseId+' — '+(it.label||''));
+          // Inline image at the cursor, scaled to fit, caption below. No duplicate
+          // plain-text exhibit list follows — the caption is the sole listing.
+          drawAuditExhibitImage(im,'Exhibit '+letter+' — '+(it.filename||'')+' — Clause '+c.clauseId);
+          evidenceSummary.push({letter,clauseId:c.clauseId,filename:it.filename||''});
         }else if(it.kind==='pdf'){
           const n=queuePdfAppendix(it.dataUrl,it.label,'Source: Clause '+c.clauseId,it.filename);
-          drawEvidenceLine('Clause '+c.clauseId+': See Appendix '+n+' — '+(it.label||it.filename||''));
+          pdfRefs.push({n,filename:(it.filename||it.label||'')});
         }else{
-          drawEvidenceLine('Clause '+c.clauseId+' — Referenced Document: '+(it.label||'')+' — '+(it.filename||'')+' — not embedded, available separately.');
+          docRefs.push({text:'Referenced Document: '+(it.filename||'')+' — not embedded, available separately.'});
         }
       }
     }
+    // Grouped reference list (Fix 2): each category is preceded by a 1pt light-
+    // gray horizontal rule and a small bold group label, then renders one entry
+    // per line.
+    const drawGroupRule=()=>{evEnsure(15);y+=3;doc.setDrawColor(205,210,218);doc.setLineWidth(1);doc.line(margin,y,margin+contentW,y);y+=11;};
+    const drawGroupLabel=(t)=>{evEnsure(13);doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...midBlue);doc.text(t,margin,y);y+=13;};
+    // Group 1 — PDF Appendices: "See Appendix N" in navy bold, filename normal,
+    // each on its own line at 14pt line height.
+    if(pdfRefs.length){
+      ensureHdr();drawGroupRule();drawGroupLabel('PDF Appendices');
+      pdfRefs.forEach(ref=>{
+        evEnsure(14);
+        const head='See Appendix '+ref.n;
+        doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+        doc.text(head,margin+6,y);
+        const hw=doc.getTextWidth(head);
+        doc.setFont('helvetica','normal');doc.setTextColor(...black);
+        doc.text(' — '+ref.filename,margin+6+hw,y);
+        y+=14;
+      });
+    }
+    // Group 2 — Referenced Documents (not embedded): gray italic, each on its own
+    // line at 13pt line height.
+    if(docRefs.length){
+      ensureHdr();drawGroupRule();drawGroupLabel('Referenced Documents (not embedded)');
+      doc.setFontSize(9);doc.setFont('helvetica','italic');doc.setTextColor(130,130,140);
+      docRefs.forEach(ref=>{
+        doc.splitTextToSize(ref.text,contentW-6).forEach(wl=>{evEnsure(13);doc.text(wl,margin+6,y);y+=13;});
+      });
+      doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    }
+    // Evidence Summary — a 3-column table (Exhibit | Clause | Filename) using the
+    // same navy header style as the Findings Summary table below it (Fix 5).
     if(evidenceSummary.length){
       drawEvidenceHeader('Evidence Summary');
-      evidenceSummary.forEach(s=>drawEvidenceLine(s));
+      const rows=[['Exhibit','Clause','Filename']];
+      evidenceSummary.forEach(e=>rows.push([e.letter,e.clauseId,e.filename]));
+      drawDataTable(rows);
     }
   }
   // Render a set of OOS image attachments inline as exhibits under a section.
@@ -5850,8 +5936,19 @@ async function downloadReportPDF(){
       for(const a of (c.attachments||[])){
         const kind=classifyEv(a.filename,a.contentType);
         if(kind==='doc'){items.push({kind,filename:a.filename,label:a.label||a.filename});continue;}
-        const du=await fetchBlobDataUrl(AUDITS_API+"?id="+encodeURIComponent(rMeta.auditId||'')+"&file="+encodeURIComponent(a.key));
-        if(!du){items.push({error:true,filename:a.filename});continue;}
+        // Normalise the blob key (trim stray whitespace) and encode it
+        // consistently so filenames containing spaces/parentheses — e.g. the
+        // Appendix 7 "… (3) - signed.pdf" attachment — resolve to the right
+        // Blobs entry rather than failing the lookup (Fix 3).
+        const fileKey=String(a.key||'').trim();
+        const fetchUrl=AUDITS_API+"?id="+encodeURIComponent(rMeta.auditId||'')+"&file="+encodeURIComponent(fileKey);
+        const du=await fetchBlobDataUrl(fetchUrl);
+        if(!du){
+          // Surface the failure in the browser console instead of silently
+          // dropping to a placeholder line (Fix 3).
+          console.error('[audit-report] Appendix evidence fetch failed',{clauseId:c.clauseId,filename:a.filename,key:fileKey,url:fetchUrl});
+          items.push({error:true,filename:a.filename});continue;
+        }
         items.push({kind,dataUrl:du,filename:a.filename,label:a.label||a.filename});
       }
       clauseEvidence.push({clauseId:c.clauseId,items});
@@ -6009,9 +6106,17 @@ async function downloadReportPDF(){
   }
 
   // ── REPORT AUTHORIZATION ──────────────────────────────────────────────────
-  // Exactly one signature block per report, appended after all content. Uses the
-  // signatories assembled in the AI Report panel plus the "Prepared By" identity;
-  // record-level sign-offs are rendered inline in the body, not here.
+  // Exactly one signature block per report, appended after all content (and
+  // always before any Appendix pages). Uses the signatories assembled in the AI
+  // Report panel plus the "Prepared By" identity; record-level sign-offs are
+  // rendered inline in the body, not here.
+  if(isAudit){
+    // Audit Report Summary — separate the signature block from the auditor-notes
+    // paragraph with at least 40pt of whitespace, and start a fresh page when
+    // fewer than 80pt remain so the block is never crammed at the page bottom.
+    y+=40;
+    if(pageH-46-y < 80){doc.addPage();y=50;}
+  }
   y=pdfBuilderSignatureBlock(doc,getReportSignatories(),getReportPreparedBy(),navy,white,black,margin,contentW,pageW,pageH,y+12);
 
   // ── OOS INDIVIDUAL EVENT REPORT — APPENDICES ──────────────────────────────
@@ -6115,7 +6220,12 @@ async function downloadReportPDF(){
           const src=await PDFDocument.load(bytes,{ignoreEncryption:true});
           const pages=await merged.copyPages(src,src.getPageIndices());
           pages.forEach((p,idx)=>merged.insertPage(ap.sepPage+1+idx,p));
-        }catch(e){/* skip a PDF that cannot be parsed */}
+        }catch(e){
+          // A separator page was already emitted for this appendix; log why its
+          // source pages could not be stitched in (e.g. a signed/encrypted PDF
+          // that pdf-lib cannot parse) instead of failing silently (Fix 3).
+          console.error('[audit-report] Appendix PDF embed failed — separator page only',{appendix:ap.sepTitle,error:e});
+        }
       }
       const out=await merged.save();
       const blob=new Blob([out],{type:'application/pdf'});
