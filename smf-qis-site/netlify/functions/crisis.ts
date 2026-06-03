@@ -119,26 +119,32 @@ function logToClient(e: typeof crisisResponseLog.$inferSelect) {
   };
 }
 
-// Next "CMT-EX-YYYY-NNN" id. The running number is shared across EVERY crisis
-// exercise for the given year and always continues from the highest number
-// found, no matter what prefix format an existing id uses: the trailing numeric
-// run is extracted from the end of each id whose year segment matches.
-async function nextExerciseId(year: string) {
-  const rows = await db.select({ id: crisisExercises.id }).from(crisisExercises);
+// Site abbreviation used in the auto-generated exercise ids. Lindon → LDN, any
+// Layton facility → LAY, and any all-sites / unset scope → ALL.
+function siteAbbr(site: string): string {
+  const s = (site || "").trim().toLowerCase();
+  if (s === "lindon") return "LDN";
+  if (s.includes("layton")) return "LAY";
+  if (s === "all sites" || s === "all" || s === "") return "ALL";
+  return (site || "SMF").replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "SMF";
+}
+
+// Next "CMT-[SITE]-[YYYY]-[####]" id. The running number is scoped to the
+// (site, year) pair: every existing crisis exercise at the same site whose id
+// carries the same year segment is scanned, the trailing numeric run is
+// extracted from the end of each id regardless of its prefix format, the highest
+// is found and incremented by one (zero-padded to four digits). Each year resets
+// independently.
+async function nextExerciseId(site: string, year: string) {
+  const rows = await db.select({ id: crisisExercises.id, site: crisisExercises.site }).from(crisisExercises);
   const re = new RegExp("-" + year + "-(\\d+)$");
   let max = 0;
-  let width = 3;
-  for (const { id } of rows) {
-    const m = re.exec(id);
-    if (m) {
-      const n = parseInt(m[1], 10);
-      if (n > max) {
-        max = n;
-        width = m[1].length;
-      }
-    }
+  for (const r of rows) {
+    if (r.site !== site) continue;
+    const m = re.exec(r.id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
   }
-  return "CMT-EX-" + year + "-" + String(max + 1).padStart(Math.max(3, width), "0");
+  return `CMT-${siteAbbr(site)}-${year}-${String(max + 1).padStart(4, "0")}`;
 }
 
 // Normalise an incoming exercise payload into column values. Only the fields a
@@ -307,14 +313,13 @@ export default async (req: Request) => {
       }
 
       // ── Create a new exercise ─────────────────────────────────────────────
-      const year = (body.exerciseDate && /^\d{4}/.test(body.exerciseDate))
-        ? body.exerciseDate.slice(0, 4)
-        : String(new Date().getFullYear());
-      const newId = await nextExerciseId(year);
       const now = new Date();
       const row = toRow(body);
       // Facilitator defaults to the signed-in user when not supplied.
       if (!row.facilitator) row.facilitator = name;
+      // Id year is the current year at time of creation (per record-id policy).
+      const year = String(new Date().getFullYear());
+      const newId = await nextExerciseId(row.site, year);
       const [created] = await db
         .insert(crisisExercises)
         .values({ id: newId, ...row, createdBy: actor, createdAt: now, modifiedBy: actor, modifiedAt: now })

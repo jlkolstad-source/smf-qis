@@ -150,44 +150,56 @@ async function nextQisId() {
   return "QIS-" + String(max + 1).padStart(4, "0");
 }
 
-// Three-letter site abbreviation used in prefixed Audit-Finding ids.
+// Site abbreviation used in the auto-generated record ids. Lindon → LDN, any
+// Layton facility → LAY, and any all-sites / unset scope → ALL.
 function siteAbbr(site: string): string {
   const s = (site || "").trim().toLowerCase();
   if (s === "lindon") return "LDN";
-  if (s === "layton") return "LAY";
+  if (s.includes("layton")) return "LAY";
+  if (s === "all sites" || s === "all" || s === "") return "ALL";
   return (site || "SMF").replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "SMF";
 }
 
-// Next prefixed Audit-Finding id for a given certification-body prefix, site and
-// year, e.g. "NSF-LDN-2026-001". The running number is shared across EVERY
-// Audit Finding for the same site and year, regardless of which certification
-// body prefix or site-abbreviation format the existing ids happen to use: the
-// trailing numeric run is extracted from the end of each id and the new id
-// continues from the highest number found. So if Lindon's 2026 findings already
-// run SQF-LIN-2026-0001 … SQF-LIN-2026-0014 (and perhaps NSF-LDN-2026-0007), the
-// next finding becomes 0015 rather than restarting at 001 for a new prefix.
-async function nextAuditId(prefix: string, site: string, year: string): Promise<string> {
-  const base = `${prefix}-${siteAbbr(site)}-${year}`;
+// Next sequential id for a record TYPE at a given site and year in the
+// "[PREFIX]-[SITE]-[YYYY]-[####]" convention (e.g. "NCR-LDN-2026-0001"). The
+// running number is scoped to the (type, site, year) triple: every existing
+// record of the same type and site whose id carries the same year segment is
+// scanned, the trailing numeric run is extracted from the end of each id
+// regardless of its prefix format, the highest is found and incremented by one
+// (zero-padded to four digits). Each year resets independently, so a new year
+// starts back at 0001.
+async function nextTypeId(type: string, prefix: string, site: string, year: string): Promise<string> {
   const rows = await db
     .select({ id: records.id, type: records.type, site: records.site })
     .from(records);
-  // Match the year segment + trailing number at the end of the id, ignoring
-  // whatever prefix precedes it (e.g. "...-2026-0014" → 14).
   const re = new RegExp("-" + year + "-(\\d+)$");
   let max = 0;
-  let width = 3;
+  for (const r of rows) {
+    if (r.type !== type || r.site !== site) continue;
+    const m = re.exec(r.id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `${prefix}-${siteAbbr(site)}-${year}-${String(max + 1).padStart(4, "0")}`;
+}
+
+// Next prefixed Audit-Finding id for a given certification-body prefix, site and
+// year, e.g. "NSF-LDN-2026-0001". Sequential numbering is tracked per prefix per
+// site per year independently — NSF-LDN-2026 and SQF-LDN-2026 each advance on
+// their own sequence — so only existing AUDIT findings at the same site whose id
+// starts with this prefix and carries the same year segment continue the run.
+async function nextAuditId(prefix: string, site: string, year: string): Promise<string> {
+  const rows = await db
+    .select({ id: records.id, type: records.type, site: records.site })
+    .from(records);
+  const tail = new RegExp("-" + year + "-(\\d+)$");
+  let max = 0;
   for (const r of rows) {
     if (r.type !== "AUDIT" || r.site !== site) continue;
-    const m = re.exec(r.id);
-    if (m) {
-      const n = parseInt(m[1], 10);
-      if (n > max) {
-        max = n;
-        width = m[1].length;
-      }
-    }
+    if (!r.id.startsWith(prefix + "-")) continue;
+    const m = tail.exec(r.id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
   }
-  return `${base}-${String(max + 1).padStart(Math.max(3, width), "0")}`;
+  return `${prefix}-${siteAbbr(site)}-${year}-${String(max + 1).padStart(4, "0")}`;
 }
 
 // Normalise an incoming record payload into DB column values.
@@ -514,14 +526,21 @@ export default async (req: Request) => {
 
       // Single create.
       const row = toRow(body);
-      // Auto-generate the id when the client did not supply one. Audit Findings
-      // with a certification-body source are numbered per prefix/site/year
-      // (e.g. "NSF-LDN-2026-001"); everything else falls back to "QIS-####".
+      // Auto-generate the id when the client did not supply one, using the
+      // "[PREFIX]-[SITE]-[YYYY]-[####]" convention. NCR / CAPA are numbered per
+      // type/site/year; Audit Findings take their prefix from the
+      // certification-body source and are numbered per prefix/site/year. Record
+      // ids are permanent — they are generated once here and never change.
+      const year = String(new Date().getFullYear());
       let id: string;
       if (body.id && String(body.id).trim()) {
         id = String(body.id).trim();
-      } else if (row.type === "AUDIT" && row.sourceBody) {
-        id = await nextAuditId(row.sourceBody, row.site, String(new Date().getFullYear()));
+      } else if (row.type === "AUDIT") {
+        id = await nextAuditId(row.sourceBody || "AUDIT", row.site, year);
+      } else if (row.type === "NCR") {
+        id = await nextTypeId("NCR", "NCR", row.site, year);
+      } else if (row.type === "CAPA") {
+        id = await nextTypeId("CAPA", "CAPA", row.site, year);
       } else {
         id = await nextQisId();
       }

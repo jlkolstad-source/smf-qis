@@ -353,6 +353,35 @@ export default async (req: Request) => {
         return json(200, toClient(updated));
       }
 
+      // ── Save edited audit header details ─────────────────────────────────
+      // Updates the editable session header (facility, building, address,
+      // scheduled date, sections, scope, lead/co-auditor) after creation. The
+      // execState is merged so clause-level progress and other transient values
+      // survive. Refused once the session is Closed to protect completed records.
+      if (action === "save-header") {
+        const sid = (id || body.id || "").toString();
+        if (!sid) return json(400, { error: "Missing audit session id." });
+        const [existing] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
+        if (!existing) return json(404, { error: "Audit session not found." });
+        if (existing.status === "Closed") {
+          return json(403, { error: "A closed audit session's details can no longer be edited." });
+        }
+        const now = new Date();
+        const row = toRow(body);
+        if (!body.site) row.site = existing.site;
+        const mergedExec = {
+          ...(existing.execState && typeof existing.execState === "object" ? existing.execState : {}),
+          ...(body.execState && typeof body.execState === "object" ? body.execState : {}),
+        };
+        const [updated] = await db
+          .update(auditSessions)
+          .set({ ...row, execState: mergedExec, modifiedBy: actor, modifiedAt: now })
+          .where(eq(auditSessions.id, sid))
+          .returning();
+        await logChange(sid, "update", "Audit session header details edited", actor);
+        return json(200, toClient(updated));
+      }
+
       // ── Create a new (Scheduled) session ──────────────────────────────────
       const providedId = (body.id || "").toString().trim();
       const newId = providedId || (await nextAuditId());

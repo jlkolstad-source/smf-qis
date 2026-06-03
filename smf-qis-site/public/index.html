@@ -411,7 +411,8 @@ main{padding:24px 32px 80px;}
     <div class="filter-chip capa" onclick="filterRecords('CAPA',this)">CAPA</div>
     <div class="filter-chip ncr" onclick="filterRecords('NCR',this)">NCR</div>
     <div class="filter-chip audit" onclick="filterRecords('AUDIT',this)">Audit Finding</div>
-    <div class="filter-chip" onclick="filterRecords('open',this)" style="margin-left:auto">Open</div>
+    <select class="form-select" id="rec-source-filter" onchange="onSourceFilterChange()" title="Filter Audit Findings by certification body / source" style="margin-left:auto;width:auto;min-width:170px;padding:6px 10px;font-size:11px"><option value="">All Certification Bodies</option></select>
+    <div class="filter-chip" onclick="filterRecords('open',this)">Open</div>
     <div class="filter-chip" onclick="filterRecords('overdue',this)">Overdue</div>
     <div class="filter-chip" onclick="filterRecords('closed',this)">Closed</div>
   </div>
@@ -773,6 +774,54 @@ main{padding:24px 32px 80px;}
   </div>
 </div>
 
+<!-- EDIT AUDIT DETAILS MODAL -->
+<div class="modal-overlay" id="edit-audit-modal">
+  <div class="modal" style="border-top:3px solid #1F4E79;max-width:600px">
+    <div class="modal-title" style="color:#1F3864">Edit Audit Details</div>
+    <div style="background:#DEEAF1;border:1px solid #2E75B6;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;font-family:'DM Mono',monospace;color:#1F3864">
+      EDIT SESSION HEADER · Available only while the audit is Scheduled or In Progress
+    </div>
+    <input type="hidden" id="ea-id">
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Facility</label>
+        <select class="form-select" id="ea-facility" onchange="onEaFacilityChange()"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Building Name / Number</label>
+        <input class="form-input" id="ea-building" placeholder="e.g. Building C / Dock 4" type="text">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Facility Address</label>
+        <input class="form-input" id="ea-address" type="text" placeholder="Facility address">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Scheduled Date</label>
+        <input class="form-input" id="ea-date" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lead Auditor</label>
+        <input class="form-input" id="ea-lead" placeholder="Lead auditor name" type="text">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Co-Auditor</label>
+        <input class="form-input" id="ea-co" placeholder="Co-auditor name (optional)" type="text">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">SQF Sections to Audit — check a module to select all of its sections, or pick individual sections</label>
+        <div id="ea-section-picker" style="margin-top:4px"></div>
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">Audit Scope Description</label>
+        <textarea class="form-textarea" id="ea-notes" placeholder="Scope notes, reason for ad-hoc audit, specific areas of focus..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeEditAuditModal()">Cancel</button>
+      <button class="btn" style="background:#1F4E79" onclick="saveEditAudit()">Save Changes</button>
+    </div>
+  </div>
+</div>
 <!-- NEW CRISIS EXERCISE MODAL -->
 <div class="modal-overlay" id="new-crisis-modal">
   <div class="modal" style="border-top:3px solid #C00000;max-width:620px">
@@ -3140,7 +3189,7 @@ const API="/api/records";
 // CAPA linkage REST endpoint (capa_links rows).
 const CAPA_LINKS_API="/api/capa-links";
 
-let records=[], editingId=null, currentFilter="all", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
+let records=[], editingId=null, currentFilter="all", currentSourceFilter="", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
 // When set, the next record created via the record modal is automatically linked
 // back to this source record in capa_links once it is saved. Shape:
 // { sourceType, sourceId }.
@@ -3522,6 +3571,7 @@ async function updateCapaEffMetrics(){
 
 function renderTable(f){
   if(f!==undefined)currentFilter=f;
+  populateRecordSourceFilter();
   let list=[...records];
   if(currentFilter==="CAPA")list=list.filter(r=>r.type==="CAPA");
   else if(currentFilter==="NCR")list=list.filter(r=>r.type==="NCR");
@@ -3529,6 +3579,9 @@ function renderTable(f){
   else if(currentFilter==="open")list=list.filter(r=>r.status==="Open"||r.status==="In Progress");
   else if(currentFilter==="overdue")list=list.filter(r=>r.status!=="Closed"&&r.due&&new Date(r.due)<new Date());
   else if(currentFilter==="closed")list=list.filter(r=>r.status==="Closed");
+  // Source / Certification Body filter — only Audit Findings carry a source_body,
+  // so selecting one narrows the list to those findings with the matching value.
+  if(currentSourceFilter)list=list.filter(r=>(r.sourceBody||"")===currentSourceFilter);
   const tbody=document.getElementById("records-tbody");
   if(!list.length){tbody.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📋</div>No records match.</div></td></tr>`;return;}
   tbody.innerHTML=list.map(r=>{
@@ -4183,11 +4236,13 @@ function renderAuditList(){
     const canStart=(disp==="Scheduled"||disp==="Past Due");
     const canComplete=(disp==="In Progress");
     const canDelete=(disp==="Scheduled"||disp==="Past Due");
+    const canEdit=(disp!=="Closed");
     const aid=a.id.replace(/'/g,"\\'");
     const openLinked=records.filter(r=>r.auditId===a.id&&(r.type==="NCR"||r.type==="CAPA")&&r.status!=="Closed").length;
     let actions="";
     if(canStart)actions+=`<button class="btn" style="background:#1F4E79;padding:5px 10px;font-size:11px" onclick="event.stopPropagation();startAudit('${aid}')">▶ Start Audit</button>`;
     if(canComplete)actions+=`<button class="btn" style="background:#548235;padding:5px 10px;font-size:11px" title="${openLinked?(openLinked+' linked finding(s) still open — close them before completing'):'All linked findings clear — ready to close'}" onclick="event.stopPropagation();completeAudit('${aid}')">✓ Complete Audit${openLinked?(" ("+openLinked+" open)"):""}</button>`;
+    if(canEdit)actions+=`<button class="btn-ghost" style="padding:5px 10px;font-size:11px;color:#1F4E79;border-color:#2E75B6" onclick="event.stopPropagation();openEditAuditModal('${aid}')">✎ Edit Audit Details</button>`;
     if(canDelete)actions+=`<button class="btn-ghost" style="padding:5px 10px;font-size:11px;color:#C00000;border-color:#C00000" onclick="event.stopPropagation();deleteAudit('${aid}')">🗑 Delete</button>`;
     return `
       <div class="audit-card ${disp==="In Progress"?"active-audit":""}" onclick="loadAuditExec('${aid}')">
@@ -4938,7 +4993,7 @@ Use formal SQF-compliant regulatory language throughout, matching the measured, 
     document.getElementById("dl-pdf-btn").style.display="";
     {const _ss=document.getElementById("send-sig-btn");if(_ss)_ss.style.display="";}
     window._lastReport=full;
-    window._lastReportMeta={type:"crisis-exercise",exerciseId:ex.id,site:ex.site,nextExerciseDate:ex.nextExerciseDate};
+    window._lastReportMeta={type:"crisis-exercise",exerciseId:ex.id,site:ex.site,nextExerciseDate:ex.nextExerciseDate,coverRecords:[ex]};
     toast("After-action report generated.","green");
   }catch(err){
     wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Generation failed: ${err.message}</div>`;
@@ -5044,7 +5099,7 @@ Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | OOS Investi
   // images inline and stitch PDF appendices after the signature block.
   const withData=[];
   for(const a of attachments){withData.push({...a,dataUrl:await oosFetchAttachmentData(o.id,a)});}
-  await streamSingleReport(prompt,wrap,{type:"oos-individual",oosId:o.id,site:o.site,record:o,attachments:withData});
+  await streamSingleReport(prompt,wrap,{type:"oos-individual",oosId:o.id,site:o.site,record:o,attachments:withData,coverRecords:[o]});
 }
 
 // REPORT TYPE 2 — OOS Summary Report across the current filter selection.
@@ -5119,7 +5174,7 @@ ${signatoriesPromptSection()}
 
 ${context?"ADDITIONAL CONTEXT:\n"+context+"\n":""}
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | OOS Summary per 21 CFR Part 111 & SQF Edition 9 | Living document — retain per SOP #02".`;
-  await streamSingleReport(prompt,wrap,{type:"oos-summary",site:currentSite});
+  await streamSingleReport(prompt,wrap,{type:"oos-summary",site:currentSite,coverRecords:filtered});
 }
 
 async function generateAIReport(){
@@ -5313,7 +5368,7 @@ Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | Internal Au
     const atts=Array.isArray(s.attachments)?s.attachments:[];
     if(atts.length)clausesEv.push({clauseId:c.id,attachments:atts.map(a=>({key:a.key,filename:a.filename||'(unnamed)',label:a.description||a.filename||'Evidence',contentType:a.contentType||''}))});
   });
-  await streamSingleReport(prompt,wrap,{type:"audit-report",auditId:a.id,site:a.site,clauses:clausesEv});
+  await streamSingleReport(prompt,wrap,{type:"audit-report",auditId:a.id,site:a.site,clauses:clausesEv,coverRecords:[a]});
 }
 
 // NCR / AUDIT FINDING SUMMARY — submission-ready report over the checked
@@ -5375,7 +5430,7 @@ Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | NCR / Audit
   // inline on the record as `photos`) so images embed as exhibits, PDFs append
   // as appendices, and Office files list as referenced documents.
   const findingsEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''}))}));
-  await streamSingleReport(prompt,wrap,{type:"sqfi-submission",site:currentSite,findings:findingsEv});
+  await streamSingleReport(prompt,wrap,{type:"sqfi-submission",site:currentSite,findings:findingsEv,coverRecords:sel});
 }
 
 // CAPA STATUS SUMMARY — status report over the checked CAPA records only.
@@ -5432,11 +5487,63 @@ Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | CAPA Status
   // shared exporter embeds image exhibits, appends PDF appendices and lists
   // Office files as referenced documents per CAPA.
   const capaEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''}))}));
-  await streamSingleReport(prompt,wrap,{type:"capa-summary",site:currentSite,findings:capaEv});
+  await streamSingleReport(prompt,wrap,{type:"capa-summary",site:currentSite,findings:capaEv,coverRecords:sel});
 }
 
 function copyReport(){if(window._lastReport){navigator.clipboard.writeText(window._lastReport);toast("Copied to clipboard.","green");}}
 function downloadReport(){if(!window._lastReport)return;const blob=new Blob([window._lastReport],{type:"text/plain"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="QIS_Report_"+new Date().toISOString().slice(0,10)+".txt";a.click();}
+
+// ── PDF COVER PAGE — record opened/closed dates and ownership ───────────────
+// Status values across every QIS module that represent a closed-out record
+// (records: "Closed …" / "Signed"; OOS: "Closed Confirmed/Invalidated";
+// crisis: "Complete" / "Signed"; CAPA effectiveness: "… Verified Effective").
+function _coverIsClosed(s){return /closed|complete|signed|effective/i.test(String(s||""));}
+// Format any date-ish value to a readable long date; falls back to a date slice.
+function _coverDate(v){if(!v)return"";const dt=new Date(v);return isNaN(dt)?String(v).slice(0,10):dt.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});}
+function _coverOpenedRaw(r){return (r&&(r.createdAt||r.created_at||r.created||r.dateInitiated))||"";}
+function _coverOpenedBy(r){return (r&&(r.createdBy||r.created_by||r.initiatedBy||r.initiated_by))||"";}
+function _coverClosedRaw(r){if(!r||!_coverIsClosed(r.status))return"";return r.closedDate||r.closed_date||r.closedAt||r.closed_at||r.modifiedAt||r.modified_at||"";}
+function _coverClosedBy(r){return (r&&(r.closedBy||r.closed_by))||"";}
+// Build the four cover-page rows (Record Opened / Record Closed / Opened By /
+// Closed By) for the record(s) a report covers. Single-record reports show the
+// specific record's dates and owners; multi-record reports show ranges, a
+// closed-count and unique-or-"Multiple" owners.
+function buildCoverOwnershipRows(recs,multi){
+  recs=(recs||[]).filter(Boolean);
+  if(!recs.length)return [
+    ['Record Opened','—'],
+    ['Record Closed','Open — not yet closed'],
+    ['Opened By','—'],
+    ['Closed By','Pending closure'],
+  ];
+  if(!multi){
+    const r=recs[0];
+    const closedRaw=_coverClosedRaw(r);
+    return [
+      ['Record Opened',_coverDate(_coverOpenedRaw(r))||'—'],
+      ['Record Closed',closedRaw?_coverDate(closedRaw):'Open — not yet closed'],
+      ['Opened By',_coverOpenedBy(r)||'—'],
+      ['Closed By',_coverClosedBy(r)||'Pending closure'],
+    ];
+  }
+  const openedDates=recs.map(_coverOpenedRaw).filter(Boolean).map(v=>new Date(v)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
+  let openedCell='—';
+  if(openedDates.length){
+    const lo=_coverDate(openedDates[0]),hi=_coverDate(openedDates[openedDates.length-1]);
+    openedCell=lo===hi?lo:(lo+' – '+hi);
+  }
+  const closedCount=recs.filter(r=>_coverIsClosed(r.status)).length;
+  const openers=[...new Set(recs.map(_coverOpenedBy).filter(Boolean))];
+  const openedBy=openers.length===0?'—':(openers.length>2?'Multiple':openers.join('; '));
+  const closers=[...new Set(recs.filter(r=>_coverIsClosed(r.status)).map(_coverClosedBy).filter(Boolean))];
+  const closedBy=closers.length===0?'Pending closure':(closers.length>2?'Multiple':closers.join('; '));
+  return [
+    ['Record Opened',openedCell],
+    ['Record Closed',closedCount+' of '+recs.length+' records closed'],
+    ['Opened By',openedBy],
+    ['Closed By',closedBy],
+  ];
+}
 
 async function downloadReportPDF(){
   const text=window._lastReport||'';
@@ -5600,6 +5707,12 @@ async function downloadReportPDF(){
     ['Governing SOP','SOP #22 Rev 05 — Audits and Inspections'],
     ['CA Deadline','June 18, 2026  ·  §2.5.4 Corrective Action Submission'],
   ];
+  // Append the record-opened / -closed dates and ownership rows. Multi-record
+  // summaries (NCR, CAPA, OOS) show ranges + counts; single-record reports show
+  // the specific record's values. The covered record(s) ride on the report meta.
+  const _coverRecs=(window._lastReportMeta&&window._lastReportMeta.coverRecords)||[];
+  const _coverMulti=(rptType==="sqfi-submission"||rptType==="capa-summary"||rptType==="oos-summary");
+  infoRows.push(...buildCoverOwnershipRows(_coverRecs,_coverMulti));
   infoRows.forEach(([label,value],i)=>{
     doc.setFillColor(i%2===0?222:240,i%2===0?234:242,i%2===0?241:245);
     doc.rect(margin,y,contentW,18,'F');
@@ -6077,6 +6190,22 @@ function filterRecords(f,el){
   renderTable();
 }
 
+// Populate the Source / Certification Body filter from the distinct source_body
+// values present on the current Audit Finding records ("All" pinned at the top),
+// preserving the active selection while it still exists.
+function populateRecordSourceFilter(){
+  const sel=document.getElementById("rec-source-filter");if(!sel)return;
+  const vals=[...new Set((records||[]).filter(r=>r.type==="AUDIT"&&(r.sourceBody||"").trim()).map(r=>r.sourceBody.trim()))].sort();
+  if(currentSourceFilter&&!vals.includes(currentSourceFilter))currentSourceFilter="";
+  sel.innerHTML='<option value="">All Certification Bodies</option>'+vals.map(v=>`<option value="${cesc(v)}">${cesc(v)}</option>`).join("");
+  sel.value=currentSourceFilter;
+}
+function onSourceFilterChange(){
+  const sel=document.getElementById("rec-source-filter");
+  currentSourceFilter=sel?sel.value:"";
+  renderTable();
+}
+
 function toast(msg,type="green"){
   const w=document.getElementById("toast-wrap");
   const t=document.createElement("div");t.className="toast "+type;t.textContent=msg;
@@ -6190,6 +6319,111 @@ async function saveNewAudit() {
 
 document.getElementById('new-audit-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('new-audit-modal')) closeNewAuditModal();
+});
+
+// ── EDIT AUDIT DETAILS (header fields, post-creation) ──────────────────────
+// Build the edit-modal section picker, pre-checking the session's saved
+// sections. Mirrors the new-audit picker but uses its own ea-* classes/ids.
+function renderEaSectionPicker(selected){
+  const host=document.getElementById('ea-section-picker');if(!host)return;
+  const sel=new Set(selected||[]);
+  host.innerHTML=CLAUSE_MODULES.map((m,mi)=>{
+    const secs=m.sections.map(s=>`
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:6px 9px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;font-size:11px">
+        <input type="checkbox" class="ea-sec" data-mod="${mi}" value="${s}" ${sel.has(s)?'checked':''} style="accent-color:#1F4E79" onchange="onEaSectionToggle(${mi})"> ${cesc(clauseSectionLabel(s))}
+      </label>`).join('');
+    const allChecked=m.sections.length>0&&m.sections.every(s=>sel.has(s));
+    return `
+      <div style="margin-bottom:12px;border:1px solid #BDD7EE;border-radius:6px;padding:10px;background:#fff">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:12px;color:#1F3864;margin-bottom:8px">
+          <input type="checkbox" class="ea-mod" data-mod="${mi}" ${allChecked?'checked':''} style="accent-color:#1F4E79" onchange="onEaModuleToggle(${mi})"> ${cesc(m.module)} <span style="font-weight:400;color:#4a5568">— select all</span>
+        </label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${secs}</div>
+      </div>`;
+  }).join('');
+}
+function onEaModuleToggle(mi){
+  const on=document.querySelector('.ea-mod[data-mod="'+mi+'"]').checked;
+  document.querySelectorAll('.ea-sec[data-mod="'+mi+'"]').forEach(cb=>cb.checked=on);
+}
+function onEaSectionToggle(mi){
+  const secs=Array.from(document.querySelectorAll('.ea-sec[data-mod="'+mi+'"]'));
+  const all=secs.every(cb=>cb.checked);
+  const modCb=document.querySelector('.ea-mod[data-mod="'+mi+'"]');if(modCb)modCb.checked=all;
+}
+function eaSelectedSections(){
+  return Array.from(document.querySelectorAll('.ea-sec:checked')).map(cb=>cb.value);
+}
+function onEaFacilityChange(){
+  const f=facilityByName(document.getElementById('ea-facility').value);
+  if(f)document.getElementById('ea-address').value=f.address;
+}
+
+function openEditAuditModal(id){
+  const raw=auditSessions.find(x=>x.id===id);
+  if(!raw){toast("Audit session not found.","red");return;}
+  if(auditDisplayStatus(raw)==="Closed"){toast("Closed audits cannot be edited.","red");return;}
+  const ex=raw.execState&&typeof raw.execState==="object"?raw.execState:{};
+  document.getElementById('ea-id').value=raw.id;
+  // Facility dropdown lists every facility; pre-select the saved one by name.
+  const facSel=document.getElementById('ea-facility');
+  facSel.innerHTML=FACILITIES.map(f=>`<option value="${cesc(f.name)}">${cesc(f.name)} — ${cesc(f.site)}</option>`).join('');
+  const match=FACILITIES.find(f=>f.name===raw.facilityName);
+  facSel.value=match?match.name:FACILITIES[0].name;
+  document.getElementById('ea-address').value=raw.facilityAddress||(match?match.address:'');
+  document.getElementById('ea-building').value=raw.building||'';
+  document.getElementById('ea-date').value=raw.scheduledDate||'';
+  document.getElementById('ea-lead').value=ex._lead||'';
+  document.getElementById('ea-co').value=ex._co||'';
+  document.getElementById('ea-notes').value=ex._notes||'';
+  renderEaSectionPicker(Array.isArray(raw.sections)?raw.sections:[]);
+  document.getElementById('edit-audit-modal').classList.add('open');
+}
+
+function closeEditAuditModal(){
+  document.getElementById('edit-audit-modal').classList.remove('open');
+}
+
+async function saveEditAudit(){
+  const id=document.getElementById('ea-id').value;
+  const raw=auditSessions.find(x=>x.id===id);
+  if(!raw){toast("Audit session not found.","red");return;}
+  const sections=eaSelectedSections();
+  if(!sections.length){toast('Select at least one SQF section (or a whole module) to audit.','red');return;}
+  const fac=facilityByName(document.getElementById('ea-facility').value)||FACILITIES[0];
+  const clausesLabel=sections.map(s=>clauseSectionLabel(s)).join(' · ');
+  // Merge the edited header keys into the existing execState so clause progress
+  // and other transient values are preserved.
+  const ex=Object.assign({},(raw.execState&&typeof raw.execState==="object"?raw.execState:{}),{
+    _lead:document.getElementById('ea-lead').value,
+    _co:document.getElementById('ea-co').value,
+    _notes:document.getElementById('ea-notes').value,
+  });
+  const body={
+    id,
+    site:fac.site,
+    facilityName:fac.name,
+    facilityAddress:document.getElementById('ea-address').value.trim(),
+    building:document.getElementById('ea-building').value.trim(),
+    scheduledDate:document.getElementById('ea-date').value,
+    clausesLabel,
+    sections,
+    execState:ex,
+  };
+  try{
+    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=save-header",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    closeEditAuditModal();
+    await loadAuditSessions();
+    // Refresh whichever audit view is currently open with the saved values.
+    if(activeAuditId===id)loadAuditExec(id);else renderAuditList();
+    renderDashCharts();
+    toast('Audit details updated.','green');
+  }catch(e){toast('Could not update audit details: '+e.message,'red');}
+}
+
+document.getElementById('edit-audit-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('edit-audit-modal')) closeEditAuditModal();
 });
 
 document.getElementById("modal").addEventListener("click",e=>{if(e.target===document.getElementById("modal"))closeModal();});
