@@ -1,15 +1,17 @@
-// Audit-trail sink for step-up re-authentication failures.
+// Audit-trail sink for step-up re-authentication events.
 //
 // When a user is asked to re-enter their password to confirm a sensitive action
 // (signing a record, closing a record, completing an effectiveness check or audit
-// session, or deleting a record) and that verification FAILS, the browser posts
-// here so the failed attempt is recorded in the shared `audit_log` table.
+// session, or deleting a record) the browser posts the outcome here so the event
+// is recorded in the shared `audit_log` table. A FAILED verification is logged as
+// `reauth_failure` with a short reason; a SUCCESSFUL one (currently the
+// effectiveness-check completion flow) is logged as `reauth_success`.
 //
-// Only the failure metadata is stored — the user's email (taken server-side from
-// the authenticated Identity session, never from the request body), the action
-// that was attempted, the timestamp (audit_log.changed_at defaults to now()) and
-// a short failure reason. The entered password is NEVER sent here, stored, or
-// logged.
+// Only metadata is stored — the user's email (taken server-side from the
+// authenticated Identity session, never from the request body), the action that
+// was attempted/confirmed, the timestamp (audit_log.changed_at defaults to now())
+// and, for failures, a short reason. The entered password is NEVER sent here,
+// stored, or logged.
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { db } from "../../db/index.js";
@@ -39,17 +41,29 @@ export default async (req: Request) => {
     }
 
     // Defensive: never persist anything that could carry a secret. We read only
-    // the three known metadata fields and cap their length.
+    // the known metadata fields and cap their length.
+    const outcome = String(body.outcome || "failure").toLowerCase() === "success" ? "success" : "failure";
     const action = String(body.action || "Sensitive action").slice(0, 300);
     const recordId = String(body.recordId || "—").slice(0, 120) || "—";
     const reason = String(body.reason || "Password verification failed").slice(0, 300);
 
-    await db.insert(auditLog).values({
-      recordId,
-      action: "reauth_failure",
-      detail: `Re-authentication failed for "${action}" · Reason: ${reason}`,
-      changedBy: email,
-    });
+    if (outcome === "success") {
+      // Successful step-up verification — record the confirmed action. No reason
+      // field applies; the user email and timestamp are stamped server-side.
+      await db.insert(auditLog).values({
+        recordId,
+        action: "reauth_success",
+        detail: `Re-authentication confirmed for "${action}"`,
+        changedBy: email,
+      });
+    } else {
+      await db.insert(auditLog).values({
+        recordId,
+        action: "reauth_failure",
+        detail: `Re-authentication failed for "${action}" · Reason: ${reason}`,
+        changedBy: email,
+      });
+    }
 
     return json(200, { ok: true });
   } catch (err) {
