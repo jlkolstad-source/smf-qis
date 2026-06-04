@@ -481,6 +481,8 @@ main{padding:24px 32px 80px;}
     <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-pendingeff" style="color:#fff" title="">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Pending Eff. Checks</div></div>
     <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-verified" style="color:#fff" title="">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Verified Effective</div></div>
+    <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-effrate" style="color:#fff">--%</div><div class="csuite-stat-label" style="color:#E2D5F5">Effectiveness Rate</div></div>
     <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-ineffective" style="color:#fff">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Ineffective Checks</div></div>
@@ -3331,25 +3333,43 @@ async function reauthConfirm(ev){
       return false;
     }
     const reason=(result&&result.reason)||"Invalid password.";
-    reauthMsg(reason);
+    reauthMsg(reauthDisplayMsg(reason));
     await logReauthFailure(ctx,reason);
     if(btn)btn.disabled=false;
     return false;
   }catch(e){
     pw="";if(pwEl)pwEl.value="";
     const reason=(e&&e.message)||"Verification failed.";
-    reauthMsg(reason);
+    reauthMsg(reauthDisplayMsg(reason));
     await logReauthFailure(ctx,reason);
     if(btn)btn.disabled=false;
     return false;
   }
+}
+// User-facing re-auth failure message: a wrong password always reads as
+// "Password incorrect — please try again."; other failures (identity service
+// unavailable, etc.) surface their own reason. The precise reason is still
+// written to the audit trail by logReauthFailure.
+function reauthDisplayMsg(reason){
+  return /incorrect password|invalid (?:email or )?password|wrong password/i.test(reason||"")
+    ? "Password incorrect — please try again."
+    : (reason||"Password verification failed.");
 }
 // Record a verification failure in the audit trail. Best-effort: never blocks
 // the user-facing flow, and never carries the entered password.
 async function logReauthFailure(ctx,reason){
   try{
     await fetch("/api/reauth-log",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({action:ctx.actionLabel||"Sensitive action",recordId:ctx.recordId||"—",reason:reason||"Password verification failed"})});
+      body:JSON.stringify({outcome:"failure",action:ctx.actionLabel||"Sensitive action",recordId:ctx.recordId||"—",reason:reason||"Password verification failed"})});
+  }catch(e){/* logging is best-effort */}
+}
+// Record a successful step-up verification in the audit trail. Best-effort and,
+// like the failure logger, never carries the entered password — only the action,
+// the record id and (stamped server-side) the user email and timestamp.
+async function logReauthSuccess(ctx){
+  try{
+    await fetch("/api/reauth-log",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({outcome:"success",action:(ctx&&ctx.actionLabel)||"Sensitive action",recordId:(ctx&&ctx.recordId)||"—"})});
   }catch(e){/* logging is best-effort */}
 }
 
@@ -3640,6 +3660,12 @@ function computeCapaEffMetrics(recs,links,oos,crisis){
   const effective=completed.filter(r=>/verified effective/i.test(r.status||""));
   const ineffective=completed.length-effective.length;
   const effRate=completed.length?Math.round(effective.length/completed.length*100):null;
+  // Closure-state split — CAPAs whose corrective action is verified effective are
+  // counted separately from those closed but still awaiting their effectiveness
+  // check, so the dashboard distinguishes "done and proven" from "closed,
+  // verification outstanding".
+  const verifiedEffective=capas.filter(r=>/closed\s*[—–-]\s*verified effective/i.test(r.status||""));
+  const closedPendingEff=capas.filter(r=>/closed\s*[—–-]\s*pending effectiveness/i.test(r.status||""));
   // Overdue effectiveness checks.
   const today=new Date().toISOString().slice(0,10);
   const overdue=capas.filter(r=>(r.effectivenessStatus==="Pending"||r.effectivenessStatus==="In Progress")&&r.effectivenessCheckDueDate&&r.effectivenessCheckDueDate<today);
@@ -3653,6 +3679,8 @@ function computeCapaEffMetrics(recs,links,oos,crisis){
     avgClose,
     pending:pending.length,pendingIds:pending.map(r=>r.id),
     completedChecks:completed.length,effective:effective.length,ineffective,effRate,
+    verifiedEffective:verifiedEffective.length,verifiedEffectiveIds:verifiedEffective.map(r=>r.id),
+    closedPendingEff:closedPendingEff.length,closedPendingEffIds:closedPendingEff.map(r=>r.id),
     overdue:overdue.length,overdueIds:overdue.map(r=>r.id),
     majorLinked:majorCapaIds.size,
   };
@@ -3666,6 +3694,10 @@ async function updateCapaEffMetrics(){
   set("cs-capa-avgclose",m.avgClose===null?"--":m.avgClose);
   const pe=document.getElementById("cs-capa-pendingeff");
   if(pe){pe.textContent=m.pending;pe.setAttribute("title",m.pendingIds.length?("Pending: "+m.pendingIds.join(", ")):"None pending");}
+  // Verified Effective — CAPAs whose corrective action has been proven effective,
+  // counted apart from those still closed-pending an effectiveness check.
+  const ve=document.getElementById("cs-capa-verified");
+  if(ve){ve.textContent=m.verifiedEffective;ve.setAttribute("title",m.verifiedEffectiveIds&&m.verifiedEffectiveIds.length?("Verified Effective: "+m.verifiedEffectiveIds.join(", ")):"None verified effective yet");}
   set("cs-capa-effrate",m.effRate===null?"--%":m.effRate+"%");
   set("cs-capa-ineffective",m.ineffective,m.ineffective>0);
   set("cs-capa-major",m.majorLinked);
@@ -4122,10 +4154,18 @@ async function effCompleteCheck(capaId){
   const recEl=document.querySelector('input[name="eff-recurred"]:checked');
   const recurred=recEl?recEl.value:"";
   if(!det){toast("Select a determination before completing the check.","red");return;}
-  if(!(await requireReauth({actionLabel:"Complete effectiveness check for "+capaId,recordId:capaId})))return;
+  // Step-up re-authentication is required for every determination because each
+  // one changes the CAPA's status (Effective → Closed — Verified Effective;
+  // Ineffective → reopened; Requires Additional Action → check stays in progress).
+  const reauthAction="Completing effectiveness check — determination: "+det+" for "+capaId;
+  if(!(await requireReauth({actionLabel:reauthAction,recordId:capaId})))return;
   try{
     const res=await fetch(API+"?action=save-effectiveness",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({capa_id:capaId,owner,due_date:due,root_cause_eliminated:rce,evidence:ev,recurred,determination:det})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    // The verification succeeded and the determination saved — record a success
+    // entry in the audit trail (user email is stamped server-side; the password
+    // is never sent or logged).
+    logReauthSuccess({actionLabel:reauthAction,recordId:capaId});
     effSignaturePlaceholder();
     toast("Effectiveness check saved — determination: "+det+".","green");
     await reopenRecordAfterEff(capaId);
@@ -5194,10 +5234,6 @@ Corrective Action: ${fld(o.correctiveAction)}. Linked CAPA Record: ${o.capaId&&o
 ## DISPOSITION DECISION
 Disposition: ${fld(o.disposition)}. State the authorization basis for this disposition and reference the closure record (Closed By: ${fld(o.closedBy)}; Closed Date: ${fld(o.closedDate)}).
 
-## RECORD SIGN-OFFS
-Render a "#### Record Sign-offs" sub-heading reproducing exactly the sign-off lines below (name, role, and the signed timestamp or "Pending") — these are the people who acknowledged this specific OOS record. Do not invent or omit any sign-off.
-${aiFmtRecordSignoffs(o.signatures)}
-
 ${signatoriesPromptSection()}
 
 ## APPENDICES
@@ -5328,8 +5364,7 @@ function aiFmtRecordFull(r){
     `Description: ${fld(r.desc)}`,
     `Root Cause Analysis (RCA): ${fld(r.rca)}`,
     `Corrective Action (CA): ${fld(r.ca)}`,
-    `Objective Evidence of Implementation: ${fld(r.evidence)}`,
-    aiFmtRecordSignoffs(r.signatures)
+    `Objective Evidence of Implementation: ${fld(r.evidence)}`
   ].join("\n");
 }
 
@@ -5456,8 +5491,6 @@ ${findingTable}
 Then, for each finding, render a "### " detail block reproducing every field below verbatim (clause reference, description, root cause, corrective action, current status, owner, due date, evidence):
 ${findingBlocks}
 
-${AI_RECORD_SIGNOFFS_INSTR}
-
 ## CORRECTIVE ACTIONS REGISTER
 Render this table exactly (header row then the data rows). It lists every CAPA linked to a finding from this audit session. If the data rows indicate none are linked, keep the single placeholder row as provided.
 | CAPA ID | Linked Finding | Description | Owner | Status | Due Date | Effectiveness Status |
@@ -5482,7 +5515,7 @@ Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | Internal Au
     const atts=Array.isArray(s.attachments)?s.attachments:[];
     if(atts.length)clausesEv.push({clauseId:c.id,attachments:atts.map(a=>({key:a.key,filename:a.filename||'(unnamed)',label:a.description||a.filename||'Evidence',contentType:a.contentType||''}))});
   });
-  await streamSingleReport(prompt,wrap,{type:"audit-report",auditId:a.id,site:a.site,clauses:clausesEv,coverRecords:[a]});
+  await streamSingleReport(prompt,wrap,{type:"audit-report",auditId:a.id,site:a.site,clauses:clausesEv,coverRecords:[a],recordSignatures:Object.fromEntries(findings.map(f=>[f.id,Array.isArray(f.signatures)?f.signatures:[]]))});
 }
 
 // NCR / AUDIT FINDING SUMMARY — submission-ready report over the checked
@@ -5529,10 +5562,21 @@ async function generateFindingSummaryReport(wrap){
     return flags.length?flags.join("\n"):null;
   }
   const ncrLinkedCapas=[];
+  const verifMap={};
   const blockArr=await Promise.all(sel.map(async r=>{
     const req=clauseRequirement(r.clause);
     const links=await capaLinksGet("source_id="+encodeURIComponent(r.id));
     (links||[]).forEach(l=>{if(l.capaId&&ncrLinkedCapas.indexOf(l.capaId)===-1)ncrLinkedCapas.push(l.capaId);});
+    // Corrective-action verification detail for the PDF's per-finding block: for
+    // each linked CAPA capture its status, effectiveness determination and (when
+    // Closed — Verified Effective) who verified it and when. Effectiveness rows
+    // are fetched only for CAPAs whose check is Completed.
+    verifMap[r.id]=await Promise.all((links||[]).map(async l=>{
+      const c=findCapaRecord(l.capaId);
+      let chk=null;
+      if(c&&c.effectivenessStatus==="Completed"){try{chk=await fetchEffectivenessCheck(l.capaId);}catch(e){chk=null;}}
+      return {capaId:l.capaId,status:c?(c.status||""):"",effectivenessStatus:c?(c.effectivenessStatus||""):"",determination:chk?(chk.determination||""):"",verifiedBy:chk?(chk.verifiedBy||""):"",verifiedAt:chk?(chk.verifiedAt||""):""};
+    }));
     const flags=submissionFlags(r,links);
     const photoCount=(r.photos||[]).length;
     const evidenceNote=photoCount>0?`Supporting Evidence: ${photoCount} attachment(s) on file — embedded as exhibits in PDF`:"Supporting Evidence: None attached to this record";
@@ -5552,7 +5596,6 @@ Corrective Action (CA): ${fld(r.ca)}
 Objective Evidence of Implementation: ${fld(r.evidence)}
 ${evidenceNote}
 ${linkedCapaDetailLines(links)}
-${aiFmtRecordSignoffs(r.signatures)}
 ${flags?"Submission Readiness Flags:\n"+flags:"Submission Readiness: All required fields present"}`;
   }));
   const blocks=blockArr.join("\n\n----------\n\n");
@@ -5600,9 +5643,6 @@ Reproduce the Objective Evidence field verbatim. Then state the Supporting Evide
 #### Linked CAPA Records
 Reproduce the Linked CAPAs block verbatim, including every sub-field (CAPA ID, status, owner, due date, closure date, root cause, corrective action, effectiveness check status). If multiple CAPAs are linked render each as a separate named sub-block. If none are linked, state that no CAPA has been linked and that tracking of corrective action implementation should be confirmed.
 
-#### Record Sign-offs
-Reproduce the Record Sign-offs block exactly.
-
 #### Submission Readiness
 Reproduce the Submission Readiness Flags verbatim (the ⚠ / ⚑ lines) or the "All required fields present" line. Then add one sentence summarizing whether this finding's CA package is ready for submission as-is or requires action before submission.
 
@@ -5624,17 +5664,15 @@ Rows (use ✓ if the condition is met across ALL findings, ✗ if any finding fa
 3 | Objective evidence or attachments present for all findings
 4 | At least one CAPA linked to each finding
 5 | All linked CAPAs have owner and due date assigned
-6 | Record sign-offs captured for all findings
-7 | All linked CAPAs are closed or have a confirmed closure date
+6 | All linked CAPAs are closed or have a confirmed closure date
+Note: each finding's record signatures and corrective-action verification are shown in its detail block in the PDF; do not add a checklist row for them.
 Derive each status from the data provided — do not guess or assume.
-
-${AI_RECORD_SIGNOFFS_INSTR}
 
 ${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | NCR / Audit Finding Corrective Action Package per SQF Edition 9 §2.5.4 | Retain minimum 2 years per SOP #02"`;
 
-  const findingsEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''}))}));
+  const findingsEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''})),verification:verifMap[r.id]||[]}));
   await streamSingleReport(prompt,wrap,{type:"sqfi-submission",site:currentSite,findings:findingsEv,coverRecords:sel,linkedCapas:ncrLinkedCapas});
 }
 
@@ -5661,7 +5699,6 @@ Owner/Department: ${fld(r.owner)}
 Due Date: ${fld(r.due)}
 Clause: ${fld(r.clause)}
 Objective Evidence: ${fld(r.evidence)}
-${aiFmtRecordSignoffs(r.signatures)}
 ${reportSourceRecordLines(links)}`;
   }));
   const blocks=blockArr.join("\n\n----------\n\n");
@@ -5686,8 +5723,6 @@ ${summaryTable}
 ## CAPA DETAIL
 For each CAPA below, render a "### " detail block titled with the Record ID, containing labeled lines for: Description, Root Cause, Corrective Action, Status, Owner, Due Date, and Objective Evidence. Reproduce every field verbatim; report blank/pending fields exactly as pending. Then, within each detail block, render a "**Source Records**" subsection reproducing the source-record lines provided for that CAPA exactly (source type, source record ID, description, current status) — or the line "No source records linked" when that is what is provided.
 ${blocks}
-
-${AI_RECORD_SIGNOFFS_INSTR}
 
 ${signatoriesPromptSection()}
 
@@ -5794,6 +5829,17 @@ async function downloadReportPDF(){
   const isCapa=rptType==="capa-summary";
   const isAudit=rptType==="audit-report";
   const rMeta=window._lastReportMeta||{};
+  // ── RECORD-LEVEL SIGNATURES ────────────────────────────────────────────────
+  // Map of record id → signatures[] for the records this report covers, drawn as
+  // an inline "Record Signatures" block within each record detail (distinct from
+  // the Report Authorization block appended once at the end). Built from the
+  // report's coverRecords plus, for the Audit Report Summary (whose coverRecords
+  // is the audit session), a recordSignatures map of its findings.
+  const recSigs={};
+  ((rMeta.coverRecords)||[]).forEach(r=>{if(r&&r.id)recSigs[r.id]=Array.isArray(r.signatures)?r.signatures:[];});
+  if(rMeta.recordSignatures&&typeof rMeta.recordSignatures==="object"){
+    for(const k in rMeta.recordSignatures)recSigs[k]=Array.isArray(rMeta.recordSignatures[k])?rMeta.recordSignatures[k]:[];
+  }
   // Exhibit letters (A,B,C…) and appendix numbers run sequentially across the
   // whole report. pdfAppendices collects PDF attachments to append after the
   // signature block, each with its own separator page.
@@ -6038,9 +6084,17 @@ async function downloadReportPDF(){
   }
   // Render the Evidence section for one NCR / CAPA record's attachments.
   async function flushRecordEvidence(rec){
+    // Record-level signatures appear first in every record detail block. For
+    // CAPA they sit after the corrective-action fields (in the body above) and
+    // before the Effectiveness Check section; for NCR/Audit-finding records they
+    // precede the Corrective Action Verification and Evidence sections.
+    if(rec&&rec.id)drawRecordSignaturesSection(recSigs[rec.id]);
     // CAPA reports get a dedicated Effectiveness Check block (drawn after the
     // record's corrective-action fields, before its evidence exhibits).
     if(isCapa&&rec&&rec.id)drawEffectivenessSection(rec.id);
+    // NCR / Audit Finding Summary — corrective action verification (linked CAPA
+    // status, determination and who verified effectiveness) for SQF submission.
+    if(isNCR&&rec)drawCorrectiveActionVerification(rec.verification);
     drawEvidenceHeader('Evidence');
     const items=(rec&&rec.items)||[];
     if(!items.length){drawEvidenceLine('No supporting evidence attached.');return;}
@@ -6153,6 +6207,161 @@ async function downloadReportPDF(){
     drawEffPairs(pairs);
     y+=6;
   }
+  // ── RECORD SIGNATURES — structured PDF block ───────────────────────────────
+  // Renders the signatures captured on a record (people who signed off on that
+  // specific finding/CAPA/record) as a clean two-column grid: the role label on
+  // the left, and on the right either the signer (name · title · signed
+  // timestamp with a green check) or a blank signature line with "Pending"
+  // beneath it. Empty lists show "No signatures recorded." Distinct from the
+  // Report Authorization block appended once at the end of the document.
+  function fmtSigTs(v){
+    if(!v)return '';
+    try{const d=new Date(v);if(isNaN(d))return String(v);
+      const p=n=>String(n).padStart(2,'0');
+      return p(d.getMonth()+1)+'/'+p(d.getDate())+'/'+d.getFullYear()+'  '+p(d.getHours())+':'+p(d.getMinutes());
+    }catch(e){return String(v);}
+  }
+  // Small vector checkmark (drawn from line segments so it never depends on a
+  // glyph the PDF core font may lack).
+  function drawCheck(cx,cy){
+    doc.setDrawColor(56,130,53);doc.setLineWidth(1.1);
+    doc.line(cx,cy,cx+2.4,cy+2.4);
+    doc.line(cx+2.4,cy+2.4,cx+6.6,cy-3);
+  }
+  // Green "verified" badge with a leading checkmark; returns its width.
+  function drawVerifiedBadge(label,x,top){
+    doc.setFontSize(8);doc.setFont('helvetica','bold');
+    const tw=doc.getTextWidth(label),padX=6,bw=tw+padX*2+11,bh=13;
+    doc.setFillColor(226,239,218);
+    if(doc.roundedRect)doc.roundedRect(x,top,bw,bh,2,2,'F');else doc.rect(x,top,bw,bh,'F');
+    drawCheck(x+padX,top+7);
+    doc.setTextColor(56,87,35);doc.text(label,x+padX+11,top+9);
+    doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    return bw;
+  }
+  function drawRecordSignaturesSection(sigs){
+    const list=Array.isArray(sigs)?sigs.filter(s=>s&&(s.name||s.role||s.signedAt)):[];
+    if(y>pageH-70){doc.addPage();y=50;}
+    y+=8;
+    doc.setFillColor(...lightBlue);doc.rect(margin,y,contentW,18,'F');
+    doc.setFontSize(10);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+    doc.text('Record Signatures',margin+8,y+13);
+    y+=22;
+    doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    if(!list.length){
+      doc.setFontSize(9);doc.setFont('helvetica','italic');doc.setTextColor(120,120,140);
+      if(y>pageH-46){doc.addPage();y=50;}
+      doc.text('No signatures recorded.',margin+6,y+8);y+=20;
+      doc.setTextColor(...black);doc.setFont('helvetica','normal');return;
+    }
+    const colW=contentW/2; // left = role label · right = signer / pending
+    const rx=margin+colW;
+    list.forEach(s=>{
+      const signed=!!s.signedAt;
+      const who=signed?((s.name||'—')+(s.title?('  ·  '+s.title):'')+'  ·  Signed: '+fmtSigTs(s.signedAt)):'';
+      doc.setFontSize(8.5);doc.setFont('helvetica','normal');
+      const whoLines=signed?doc.splitTextToSize(who,colW-18):[];
+      const rowH=signed?Math.max(20,12+whoLines.length*10):30;
+      if(y+rowH>pageH-46){doc.addPage();y=50;}
+      const top=y;
+      // Left column — role label.
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+      doc.text(doc.splitTextToSize(String(s.role||'Signatory'),colW-12)[0],margin,top+9);
+      // Right column.
+      if(signed){
+        drawCheck(rx,top+7);
+        doc.setFontSize(8.5);doc.setFont('helvetica','normal');doc.setTextColor(...black);
+        whoLines.forEach((wl,wi)=>{doc.text(wl,rx+11,top+9+wi*10);});
+      }else{
+        doc.setDrawColor(150,150,165);doc.setLineWidth(0.5);
+        doc.line(rx,top+9,rx+colW-18,top+9);
+        doc.setFontSize(8);doc.setFont('helvetica','italic');doc.setTextColor(150,120,0);
+        doc.text('Pending',rx,top+21);
+        doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      }
+      y=top+rowH;
+    });
+    y+=6;
+  }
+  // ── CORRECTIVE ACTION VERIFICATION — structured PDF block (SQF submission) ──
+  // Per-finding block in the NCR / Audit Finding Summary that makes the package
+  // self-contained: it shows the linked CAPA(s), each CAPA's status badge, the
+  // effectiveness determination, and — when the CAPA is Closed — Verified
+  // Effective — who verified it and when; otherwise it states verification is
+  // still pending. Data rides on the finding's report meta (rec.verification).
+  function drawCAVerifyPair(label,value,x,w,top){
+    let yy=top;
+    doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+    doc.text(label,x,yy+8);yy+=12;
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(...black);
+    doc.splitTextToSize(String(value==null||value===''?'—':value),w-8).forEach(wl=>{doc.text(wl,x,yy+8);yy+=12;});
+    return yy;
+  }
+  function drawCorrectiveActionVerification(vlist){
+    const list=Array.isArray(vlist)?vlist:[];
+    if(y>pageH-70){doc.addPage();y=50;}
+    y+=8;
+    doc.setFillColor(...lightBlue);doc.rect(margin,y,contentW,18,'F');
+    doc.setFontSize(10);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+    doc.text('Corrective Action Verification',margin+8,y+13);
+    y+=22;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    if(!list.length){
+      doc.setFontSize(9);doc.setFont('helvetica','italic');doc.setTextColor(120,120,140);
+      if(y>pageH-46){doc.addPage();y=50;}
+      doc.text('No CAPA linked — corrective action not yet tracked for verification.',margin+6,y+8);y+=20;
+      doc.setTextColor(...black);doc.setFont('helvetica','normal');return;
+    }
+    list.forEach((v,i)=>{
+      const verified=/verified effective/i.test(v.status||'');
+      if(i>0){y+=4;doc.setDrawColor(205,210,218);doc.setLineWidth(0.5);doc.line(margin,y,margin+contentW,y);y+=6;}
+      if(y>pageH-60){doc.addPage();y=50;}
+      // Row 1 — CAPA id (left) and status badge (right).
+      const top=y;
+      doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+      doc.text('Linked CAPA',margin,top+8);
+      doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(...black);
+      doc.text(String(v.capaId||'—'),margin,top+20);
+      doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+      doc.text('CAPA Status',margin+contentW/2,top+8);
+      if(verified){drawVerifiedBadge('Verified Effective',margin+contentW/2,top+12);}
+      else{doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(...black);doc.text(String(v.status||'—'),margin+contentW/2,top+20);}
+      y=top+30;
+      // Row 2 — determination + verification provenance.
+      const det=v.determination||(verified?'Effective':(v.effectivenessStatus||'Pending'));
+      let yA=drawCAVerifyPair('Effectiveness Determination',det,margin,contentW/2,y);
+      let yB;
+      if(verified){
+        yB=drawCAVerifyPair('Verified By',(v.verifiedBy||'—')+(v.verifiedAt?('  ·  '+fmtSigTs(v.verifiedAt)):''),margin+contentW/2,contentW/2,y);
+      }else{
+        yB=drawCAVerifyPair('Verification Status',v.effectivenessStatus?('Pending — '+v.effectivenessStatus):'Pending verification',margin+contentW/2,contentW/2,y);
+      }
+      y=Math.max(yA,yB)+4;
+    });
+    y+=4;
+  }
+  // Detect a CAPA / linked-CAPA status line whose value is "Closed — Verified
+  // Effective" within a detail block and render the value as a green checkmarked
+  // badge instead of plain text, so the verified corrective action stands out in
+  // the CAPA Status Summary (3a) and NCR / Audit Finding Summary (3b). Returns
+  // true when it consumed the line.
+  function tryDrawVerifiedStatusLine(clean){
+    if(!/closed\s*[—–-]\s*verified effective/i.test(clean))return false;
+    const m=clean.match(/^\s*((?:CAPA\s+)?Status)\s*:\s*(.+?)\s*$/i);
+    const bare=/^\s*closed\s*[—–-]\s*verified effective\s*$/i.test(clean);
+    if(!m&&!bare)return false;
+    if(y>pageH-30){doc.addPage();y=50;}
+    let x=margin;
+    if(m){
+      const lbl=m[1]+': ';
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+      doc.text(lbl,margin,y+2);
+      x=margin+doc.getTextWidth(lbl)+2;
+      doc.setFont('helvetica','normal');doc.setTextColor(...black);
+    }
+    drawVerifiedBadge('Closed — Verified Effective',x,y-8);
+    y+=17;
+    return true;
+  }
   // Render clause-level evidence for the Audit Report Summary. Images embed
   // inline as exhibits (scaled, captioned); PDFs queue as appendices; Office
   // files are listed as non-embedded references. A structured per-type reference
@@ -6253,7 +6462,7 @@ async function downloadReportPDF(){
         if(!a.dataUrl){items.push({error:true,filename:a.filename});continue;}
         items.push({kind:classifyEv(a.filename,a.contentType),dataUrl:a.dataUrl,filename:a.filename,label:a.label||a.filename,contentType:a.contentType});
       }
-      recEvidence[f.id]={id:f.id,items};
+      recEvidence[f.id]={id:f.id,items,verification:f.verification||[]};
     }
   }
   // CAPA Status Summary — pre-fetch each CAPA's effectiveness_checks row so the
@@ -6329,6 +6538,11 @@ async function downloadReportPDF(){
   // on a shorter prefix (QIS-0001 vs QIS-00010).
   const recList=(isNCR||isCapa)?(rMeta.findings||[]).slice().sort((a,b)=>(b.id||'').length-(a.id||'').length):[];
   let curFinding=null;
+  // Audit Report Summary — its per-finding "### " detail blocks each carry their
+  // own record signatures (keyed by finding id in recSigs). Tracked separately
+  // from the clause-evidence flush. Longest-id-first to avoid prefix collisions.
+  const auditSigIds=(isAudit&&rMeta.recordSignatures)?Object.keys(rMeta.recordSignatures).sort((a,b)=>b.length-a.length):[];
+  let curAuditSig=null;
 
   // Strip any signature/authorization residue the AI may have emitted so the PDF
   // carries exactly one signature block (the Report Authorization appended below).
@@ -6349,10 +6563,21 @@ async function downloadReportPDF(){
       const matched=_isH3?recList.find(f=>f.id&&ht.indexOf(f.id)!==-1):null;
       if(_isH2){ if(curFinding){await flushRecordEvidence(recEvidence[curFinding.id]);curFinding=null;} }
       else if(matched){ if(curFinding)await flushRecordEvidence(recEvidence[curFinding.id]); curFinding=matched; }
-    } else if(isAudit&&_isH2){
-      const ht=line.replace(/^#+\s*/,'').toUpperCase();
-      if(auditPendingClauseFlush){await flushClauseEvidence(clauseEvidence);auditPendingClauseFlush=false;}
-      if(ht.indexOf('CLAUSE-BY-CLAUSE')!==-1||ht.indexOf('CLAUSE BY CLAUSE')!==-1)auditPendingClauseFlush=true;
+    } else if(isAudit&&(_isH2||_isH3)){
+      const ht=line.replace(/^#+\s*/,'');
+      if(_isH3){
+        // Entering a new finding detail block — flush the previous finding's
+        // record signatures, then track this one.
+        const matched=auditSigIds.find(id=>ht.indexOf(id)!==-1);
+        if(matched){ if(curAuditSig)drawRecordSignaturesSection(recSigs[curAuditSig]); curAuditSig=matched; }
+      }else{
+        // A new major section — flush the last finding's signatures and run the
+        // clause-evidence flush bookkeeping.
+        if(curAuditSig){drawRecordSignaturesSection(recSigs[curAuditSig]);curAuditSig=null;}
+        const up=ht.toUpperCase();
+        if(auditPendingClauseFlush){await flushClauseEvidence(clauseEvidence);auditPendingClauseFlush=false;}
+        if(up.indexOf('CLAUSE-BY-CLAUSE')!==-1||up.indexOf('CLAUSE BY CLAUSE')!==-1)auditPendingClauseFlush=true;
+      }
     } else if(isOOSIndividual&&_isH2){
       const ht=line.replace(/^#+\s*/,'').toUpperCase();
       // Leaving a phase section flushes that phase's inline images.
@@ -6425,6 +6650,7 @@ async function downloadReportPDF(){
       y+=8;
     } else if(line.startsWith('- ')||line.startsWith('> ')){
       const bt=line.replace(/^[->\s]+/,'');
+      if((isCapa||isNCR)&&tryDrawVerifiedStatusLine(bt.replace(/\*\*(.*?)\*\*/g,'$1')))continue;
       const wrapped=doc.splitTextToSize('•  '+bt,contentW-14);
       doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
       wrapped.forEach((wl,wi)=>{
@@ -6434,6 +6660,7 @@ async function downloadReportPDF(){
       });
     } else {
       const clean=line.replace(/\*\*(.*?)\*\*/g,'$1');
+      if((isCapa||isNCR)&&tryDrawVerifiedStatusLine(clean))continue;
       const wrapped=doc.splitTextToSize(clean,contentW);
       doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
       wrapped.forEach(wl=>{
@@ -6448,6 +6675,9 @@ async function downloadReportPDF(){
   // Flush the final record's Evidence section (NCR / CAPA) — its detail block is
   // the last thing in the body, so there is no following heading to trigger it.
   if((isNCR||isCapa)&&curFinding){await flushRecordEvidence(recEvidence[curFinding.id]);curFinding=null;}
+  // Flush the final audit finding's record signatures (its ### block may be the
+  // last thing before the signature block).
+  if(isAudit&&curAuditSig){drawRecordSignaturesSection(recSigs[curAuditSig]);curAuditSig=null;}
   // Flush clause evidence if the CLAUSE-BY-CLAUSE section was the last section.
   if(isAudit&&auditPendingClauseFlush){await flushClauseEvidence(clauseEvidence);auditPendingClauseFlush=false;}
   // OOS — flush any unflushed phase images, then General Evidence, all as body
@@ -6457,6 +6687,11 @@ async function downloadReportPDF(){
     else if(oosCurSection==='p2'){await flushOOSImages(oosImgP2,'Phase 2 Evidence');oosCurSection=null;}
     await flushOOSImages(oosImgGen,'General Evidence');
   }
+  // Single-record reports (OOS Individual Event, Crisis After-Action) carry one
+  // record whose signatures render as an inline Record Signatures block at the
+  // end of its detail content, before the Report Authorization block.
+  if(isOOSIndividual&&oosRec&&oosRec.id)drawRecordSignaturesSection(recSigs[oosRec.id]);
+  if(isCrisis&&crisisMeta&&crisisMeta.exerciseId)drawRecordSignaturesSection(recSigs[crisisMeta.exerciseId]);
 
   // ── REPORT AUTHORIZATION ──────────────────────────────────────────────────
   // Exactly one signature block per report, appended after all content (and
@@ -8116,6 +8351,7 @@ function capaEffMetricsHTML(e){
     <div class="rpt-metric"><div class="v">${e.total?e.closureRate+"%":"—"}</div><div class="l">CAPA Closure Rate</div></div>
     <div class="rpt-metric"><div class="v">${e.avgClose===null?"—":e.avgClose+"d"}</div><div class="l">Avg Closure Time</div></div>
     <div class="rpt-metric"><div class="v">${e.pending}</div><div class="l">Pending Eff. Checks</div></div>
+    <div class="rpt-metric"><div class="v">${e.verifiedEffective||0}</div><div class="l">Verified Effective</div></div>
     <div class="rpt-metric"><div class="v">${e.effRate===null?"—":e.effRate+"%"}</div><div class="l">Effectiveness Rate</div></div>
     <div class="rpt-metric ${e.ineffective?"danger":""}"><div class="v">${e.ineffective}</div><div class="l">Ineffective Checks</div></div>
     <div class="rpt-metric"><div class="v">${e.majorLinked}</div><div class="l">Linked to Major</div></div>
@@ -8127,6 +8363,7 @@ function capaEffMetricsMarkdown(e,heading){
   md+=`| CAPA Closure Rate | ${e.total?e.closureRate+"% ("+e.closed+" of "+e.total+")":"— (no CAPA records)"} |\n`;
   md+=`| Average CAPA Closure Time | ${e.avgClose===null?"— (no closed CAPAs with dates)":e.avgClose+" days"} |\n`;
   md+=`| CAPAs Pending Effectiveness Check | ${e.pending}${e.pendingIds.length?" — "+e.pendingIds.join(", "):""} |\n`;
+  md+=`| CAPAs Closed — Verified Effective | ${e.verifiedEffective||0}${e.verifiedEffectiveIds&&e.verifiedEffectiveIds.length?" — "+e.verifiedEffectiveIds.join(", "):""} |\n`;
   md+=`| CAPA Effectiveness Rate | ${e.effRate===null?"— (no completed checks)":e.effRate+"% ("+e.effective+" of "+e.completedChecks+" effective)"} |\n`;
   md+=`| Ineffective Effectiveness Checks | ${e.ineffective}${e.ineffective>0?" (action required)":""} |\n`;
   md+=`| CAPAs Linked to Major Findings | ${e.majorLinked} |\n`;
