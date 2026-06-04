@@ -97,6 +97,7 @@ main{padding:24px 32px 80px;}
 .badge-closed{background:#E2EFDA;color:#375623;border:1px solid #375623;}
 .badge-overdue{background:#FFE0E0;color:#C00000;border:1px solid #C00000;}
 .badge-inprogress{background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6;}
+.badge-amber{background:#FFF2CC;color:#7F6000;border:1px solid #BF9000;}
 .aging-bar{width:52px;height:3px;background:#f4f6f8;border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:5px;}
 .aging-fill{height:100%;border-radius:2px;}
 .empty-state{text-align:center;padding:60px 20px;color:#4a5568;font-size:13px;}
@@ -481,7 +482,7 @@ main{padding:24px 32px 80px;}
     <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-pendingeff" style="color:#fff" title="">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Pending Eff. Checks</div></div>
     <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
-    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-verified" style="color:#fff" title="">0</div><div class="csuite-stat-label" style="color:#E2D5F5">Verified Effective</div></div>
+    <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-verified" style="color:#fff" title="">0</div><div class="csuite-stat-label" style="color:#E2D5F5">EC Verified</div></div>
     <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
     <div class="csuite-stat"><div class="csuite-stat-val" id="cs-capa-effrate" style="color:#fff">--%</div><div class="csuite-stat-label" style="color:#E2D5F5">Effectiveness Rate</div></div>
     <div class="csuite-divider" style="background:rgba(255,255,255,0.3)"></div>
@@ -688,7 +689,7 @@ main{padding:24px 32px 80px;}
       <div class="form-group form-full"><label class="form-label">Root Cause</label><textarea class="form-textarea" id="f-rca" placeholder="Root cause analysis..." style="min-height:56px"></textarea></div>
       <div class="form-group form-full"><label class="form-label">Corrective Action</label><textarea class="form-textarea" id="f-ca" placeholder="Corrective action taken or planned..." style="min-height:56px"></textarea></div>
       <div class="form-group"><label class="form-label">Due Date</label><input class="form-input" id="f-due" type="date"></div>
-      <div class="form-group"><label class="form-label">Status</label><select class="form-select" id="f-status"><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="Closed">Closed</option><option value="Overdue">Overdue</option></select></div>
+      <div class="form-group"><label class="form-label">Status</label><select class="form-select" id="f-status"><option value="Open">Open</option><option value="In Progress">In Progress</option><option value="Closed-Pending EC">Closed-Pending EC</option><option value="Closed-EC Verified">Closed-EC Verified</option></select></div>
       <div class="form-group form-full">
         <label class="form-label">Photo / File Evidence</label>
         <div class="photo-zone" id="photo-drop-zone" onclick="document.getElementById('photo-file-input').click()" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handlePhotoDrop(event)">
@@ -3655,17 +3656,17 @@ function computeCapaEffMetrics(recs,links,oos,crisis){
   // CAPAs pending an effectiveness check.
   const pending=capas.filter(r=>r.effectivenessStatus==="Pending"||r.effectivenessStatus==="In Progress");
   // Completed effectiveness checks → determination derived from the record state
-  // (Effective ⇒ "Closed — Verified Effective"; otherwise Ineffective).
+  // (Effective ⇒ "Closed-EC Verified"; otherwise Ineffective).
   const completed=capas.filter(r=>r.effectivenessStatus==="Completed");
-  const effective=completed.filter(r=>/verified effective/i.test(r.status||""));
+  const effective=completed.filter(r=>/closed-ec verified|verified effective/i.test(r.status||""));
   const ineffective=completed.length-effective.length;
   const effRate=completed.length?Math.round(effective.length/completed.length*100):null;
   // Closure-state split — CAPAs whose corrective action is verified effective are
   // counted separately from those closed but still awaiting their effectiveness
   // check, so the dashboard distinguishes "done and proven" from "closed,
   // verification outstanding".
-  const verifiedEffective=capas.filter(r=>/closed\s*[—–-]\s*verified effective/i.test(r.status||""));
-  const closedPendingEff=capas.filter(r=>/closed\s*[—–-]\s*pending effectiveness/i.test(r.status||""));
+  const verifiedEffective=capas.filter(r=>/closed-ec verified|closed\s*[—–-]\s*verified effective/i.test(r.status||""));
+  const closedPendingEff=capas.filter(r=>/closed-pending ec|closed\s*[—–-]\s*pending effectiveness/i.test(r.status||""));
   // Overdue effectiveness checks.
   const today=new Date().toISOString().slice(0,10);
   const overdue=capas.filter(r=>(r.effectivenessStatus==="Pending"||r.effectivenessStatus==="In Progress")&&r.effectivenessCheckDueDate&&r.effectivenessCheckDueDate<today);
@@ -3694,10 +3695,10 @@ async function updateCapaEffMetrics(){
   set("cs-capa-avgclose",m.avgClose===null?"--":m.avgClose);
   const pe=document.getElementById("cs-capa-pendingeff");
   if(pe){pe.textContent=m.pending;pe.setAttribute("title",m.pendingIds.length?("Pending: "+m.pendingIds.join(", ")):"None pending");}
-  // Verified Effective — CAPAs whose corrective action has been proven effective,
-  // counted apart from those still closed-pending an effectiveness check.
+  // EC Verified — CAPAs whose corrective action has been proven effective
+  // (Closed-EC Verified), counted apart from those still Closed-Pending EC.
   const ve=document.getElementById("cs-capa-verified");
-  if(ve){ve.textContent=m.verifiedEffective;ve.setAttribute("title",m.verifiedEffectiveIds&&m.verifiedEffectiveIds.length?("Verified Effective: "+m.verifiedEffectiveIds.join(", ")):"None verified effective yet");}
+  if(ve){ve.textContent=m.verifiedEffective;ve.setAttribute("title",m.verifiedEffectiveIds&&m.verifiedEffectiveIds.length?("EC Verified: "+m.verifiedEffectiveIds.join(", ")):"None EC verified yet");}
   set("cs-capa-effrate",m.effRate===null?"--%":m.effRate+"%");
   set("cs-capa-ineffective",m.ineffective,m.ineffective>0);
   set("cs-capa-major",m.majorLinked);
@@ -3712,21 +3713,28 @@ function renderTable(f){
   else if(currentFilter==="NCR")list=list.filter(r=>r.type==="NCR");
   else if(currentFilter==="AUDIT")list=list.filter(r=>r.type==="AUDIT");
   else if(currentFilter==="open")list=list.filter(r=>r.status==="Open"||r.status==="In Progress");
-  else if(currentFilter==="overdue")list=list.filter(r=>r.status!=="Closed"&&r.due&&new Date(r.due)<new Date());
-  else if(currentFilter==="closed")list=list.filter(r=>r.status==="Closed");
+  else if(currentFilter==="overdue")list=list.filter(r=>!/^Closed/.test(r.status||"")&&r.due&&new Date(r.due)<new Date());
+  else if(currentFilter==="closed")list=list.filter(r=>/^Closed/.test(r.status||""));
   // Source / Certification Body filter — only Audit Findings carry a source_body,
   // so selecting one narrows the list to those findings with the matching value.
   if(currentSourceFilter)list=list.filter(r=>(r.sourceBody||"")===currentSourceFilter);
   const tbody=document.getElementById("records-tbody");
   if(!list.length){tbody.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📋</div>No records match.</div></td></tr>`;return;}
   tbody.innerHTML=list.map(r=>{
-    const over=r.status!=="Closed"&&r.due&&new Date(r.due)<new Date();
+    const over=!/^Closed/.test(r.status||"")&&r.due&&new Date(r.due)<new Date();
     const dl=r.due?Math.ceil((new Date(r.due)-new Date())/(1000*60*60*24)):null;
     const ac=dl===null?"var(--muted)":dl<0?"var(--danger)":dl<7?"var(--warn)":"var(--accent)";
     const ap=dl===null?0:Math.max(0,Math.min(100,(1-dl/21)*100));
     const photos=r.photos||[];
     const pc=photos.length>0?`<span class="photo-count" onclick="viewPhotos('${r.id}')">📷 ${photos.length}</span>`:`<span style="color:#4a5568;font-size:10px">—</span>`;
-    const sb=over?`badge-overdue">Overdue`:r.status==="Closed"?`badge-closed">Closed`:r.status==="In Progress"?`badge-inprogress">In Progress`:`badge-open">Open`;
+    const st=r.status||"";
+    let sb;
+    if(over)sb=`badge-overdue">Overdue`;
+    else if(/closed-pending ec|closed\s*[—–-]\s*pending effectiveness/i.test(st))sb=`badge-amber">Closed-Pending EC`;
+    else if(/closed-ec verified|closed\s*[—–-]\s*verified effective/i.test(st))sb=`badge-closed">✓ Closed-EC Verified`;
+    else if(/^Closed/.test(st))sb=`badge-closed">${cesc(st)}`;
+    else if(st==="In Progress")sb=`badge-inprogress">In Progress`;
+    else sb=`badge-open">Open`;
     return `<tr>
       <td><span style="font-family:'DM Mono',monospace;font-size:10px;color:#4a5568">${r.id}</span></td>
       <td><span class="badge badge-${(r.type||"").toLowerCase()}">${r.type}</span></td>
@@ -3774,11 +3782,13 @@ function recordSourceType(r){return r.type==="AUDIT"?"Audit Finding":(r.type||"N
 // Badge markup for an arbitrary status string (open / in-progress / closed).
 function anyStatusBadge(s){
   const t=(s||"").toLowerCase();
-  let cls="badge-open";
-  if(t.indexOf("closed")>-1||t.indexOf("verified effective")>-1||t==="complete"||t==="resolved")cls="badge-closed";
+  let cls="badge-open",label=s||"—";
+  if(/closed-pending ec|closed\s*[—–-]\s*pending effectiveness/.test(t)){cls="badge-amber";}        // amber — closed, EC pending
+  else if(/closed-ec verified|closed\s*[—–-]\s*verified effective/.test(t)){cls="badge-closed";label="✓ "+label;} // green + check — EC verified
+  else if(t.indexOf("closed")>-1||t.indexOf("verified effective")>-1||t==="complete"||t==="resolved")cls="badge-closed";
   else if(t.indexOf("progress")>-1||t.indexOf("pending")>-1||t.indexOf("signed")>-1)cls="badge-inprogress";
   else if(t.indexOf("overdue")>-1||t.indexOf("ineffective")>-1)cls="badge-overdue";
-  return `<span class="badge ${cls}">${cesc(s||"—")}</span>`;
+  return `<span class="badge ${cls}">${cesc(label)}</span>`;
 }
 // Badge markup for a capa_links source_type.
 function sourceTypeBadge(type){
@@ -4049,8 +4059,9 @@ async function renderEffectivenessCheck(r){
       <div style="font-size:12px;color:#4a5568">Effectiveness check will be scheduled upon CAPA closure.</div></div>`;
     return;
   }
-  // (b) Closed awaiting effectiveness owner assignment → amber assignment panel.
-  if(!es&&status==="Closed — Awaiting Effectiveness Assignment"){
+  // (b) Closed but no effectiveness owner / status recorded yet → amber
+  // assignment panel (covers legacy rows; new closures arrive with an owner).
+  if(!es&&status.indexOf("Closed")===0){
     host.innerHTML=`<div class="eff-card" style="background:#FFF2CC;border-color:#BF9000">
       <div class="link-card-title" style="color:#7F6000">&#9888; Effectiveness Check — Assignment Required</div>
       <div style="font-size:12px;color:#7F6000;margin-bottom:12px">This CAPA requires an effectiveness check owner to be assigned before closure is complete.</div>
@@ -4155,8 +4166,8 @@ async function effCompleteCheck(capaId){
   const recurred=recEl?recEl.value:"";
   if(!det){toast("Select a determination before completing the check.","red");return;}
   // Step-up re-authentication is required for every determination because each
-  // one changes the CAPA's status (Effective → Closed — Verified Effective;
-  // Ineffective → reopened; Requires Additional Action → check stays in progress).
+  // one changes the CAPA's status server-side (Effective → Closed-EC Verified;
+  // Ineffective → back to In Progress; Requires Additional Action → check stays in progress).
   const reauthAction="Completing effectiveness check — determination: "+det+" for "+capaId;
   if(!(await requireReauth({actionLabel:reauthAction,recordId:capaId})))return;
   try{
@@ -4205,19 +4216,48 @@ function openModal(presetType){
   document.getElementById("modal").classList.add("open");
 }
 
-// Only admins may close a finding. Disable the "Closed" status option for
-// everyone else — unless the record is already Closed, so it still displays.
+// Only admins may close a finding. Disable the closed status options for
+// everyone else — unless the record is already in that closed state, so it
+// still displays.
 function applyCloseGate(currentStatus){
   const sel=document.getElementById("f-status");if(!sel)return;
-  const opt=Array.from(sel.options).find(o=>o.value==="Closed");if(!opt)return;
-  opt.disabled=!isAdminUser&&currentStatus!=="Closed";
+  const isClosed=s=>/^Closed/.test(s||"");
+  Array.from(sel.options).forEach(o=>{
+    o.disabled=isClosed(o.value)&&!isAdminUser&&!isClosed(currentStatus);
+  });
+}
+
+// Allowed status values per record type. CAPAs follow the effectiveness-check
+// lifecycle (Closed-Pending EC → Closed-EC Verified); NCR / Audit findings use
+// a plain Closed. The list also drives the order shown in the dropdown.
+const RECORD_STATUSES={
+  CAPA:["Open","In Progress","Closed-Pending EC","Closed-EC Verified"],
+  NCR:["Open","In Progress","Closed"],
+  AUDIT:["Open","In Progress","Closed"],
+};
+// Rebuild the status dropdown for the given record type, keeping `current`
+// selected. When preserveUnknown is set (editing an existing record) a value
+// that is not in the type's list — e.g. a legacy status — is kept as an option
+// so it still displays; otherwise an out-of-list value falls back to the first.
+function setStatusOptions(type,current,preserveUnknown){
+  const sel=document.getElementById("f-status");if(!sel)return;
+  const opts=(RECORD_STATUSES[type]||RECORD_STATUSES.NCR).slice();
+  if(current&&preserveUnknown&&opts.indexOf(current)===-1)opts.push(current);
+  sel.innerHTML=opts.map(s=>`<option value="${cesc(s)}">${cesc(s)}</option>`).join("");
+  sel.value=(current&&opts.indexOf(current)>-1)?current:opts[0];
 }
 
 // Show the Source / Certification Body selector only for Audit Findings; it
 // drives the record-ID prefix on creation and is stored as source_body.
 function onRecordTypeChange(){
-  const isAudit=document.getElementById("f-type").value==="AUDIT";
+  const type=document.getElementById("f-type").value;
+  const isAudit=type==="AUDIT";
   const sg=document.getElementById("f-source-group");if(sg)sg.style.display=isAudit?"":"none";
+  // Rebuild the status dropdown for the new type, preserving the current choice
+  // when it remains valid (it resets to the type's first status otherwise).
+  const cur=(document.getElementById("f-status")||{}).value||"Open";
+  setStatusOptions(type,cur,false);
+  applyCloseGate((document.getElementById("f-status")||{}).value||"Open");
   onSourceBodyChange();
 }
 // Reveal the 3-letter custom-code input when the source is "Other".
@@ -4245,6 +4285,7 @@ function editRecord(id){
   document.getElementById("f-id-group").style.display="";
   document.getElementById("f-id-text").textContent=r.id||"";
   document.getElementById("f-type").value=r.type;
+  setStatusOptions(r.type,r.status||"Open",true);
   document.getElementById("f-severity").value=r.severity;
   document.getElementById("f-desc").value=r.desc||"";
   document.getElementById("f-clause").value=r.clause||"";
@@ -4265,6 +4306,10 @@ function editRecord(id){
     else{document.getElementById("f-source-body").value="NSF";document.getElementById("f-source-code").value="";}
     onRecordTypeChange();
   })();
+  // Re-assert the status options after onRecordTypeChange so a stored legacy
+  // status value is preserved and stays selected for this existing record.
+  setStatusOptions(r.type,r.status||"Open",true);
+  applyCloseGate(r.status||"Open");
   initSignatureSection("record","record",id,"sig-section-record",r.signatures||[],function(updated){const rr=records.find(x=>x.id===(updated&&updated.id));if(rr&&updated)rr.signatures=updated.signatures;});
   renderRecordLinkage(r);
   document.getElementById("modal").classList.add("open");
@@ -4281,17 +4326,35 @@ async function saveRecord(){
   const editId=editingId;
   const existing=wasEditing?records.find(r=>r.id===editId):null;
   const newStatus=document.getElementById("f-status").value;
-  if(newStatus==="Closed"&&!isAdminUser&&(!existing||existing.status!=="Closed")){
+  const recType=document.getElementById("f-type").value;
+  const wasClosed=existing&&/^Closed/.test(existing.status||"");
+  const isClosing=/^Closed/.test(newStatus)&&!wasClosed;
+  // Only an administrator may move a record into a closed state.
+  if(isClosing&&!isAdminUser){
     toast("Only an administrator can close a finding.","red");return;
   }
-  // Step-up re-auth when transitioning a record into the Closed status.
-  if(newStatus==="Closed"&&(!existing||existing.status!=="Closed")){
-    if(!(await requireReauth({actionLabel:"Set "+(wasEditing?editId:"new record")+" status to Closed",recordId:wasEditing?editId:"(new record)"})))return;
+  // CAPA closing to Closed-Pending EC requires an effectiveness-check owner — if
+  // none is assigned yet, prompt for one before the status change is allowed.
+  let effOwnerToSend="";
+  if(isClosing&&recType==="CAPA"&&newStatus==="Closed-Pending EC"){
+    effOwnerToSend=(existing&&existing.effectivenessCheckOwner)||"";
+    if(!effOwnerToSend){
+      effOwnerToSend=(window.prompt("Assign an effectiveness check owner before closing this CAPA (Closed-Pending EC):","")||"").trim();
+      if(!effOwnerToSend){toast("An effectiveness check owner is required to close this CAPA.","red");return;}
+    }
+  }
+  // Step-up re-auth (password modal) when transitioning a record into a closed
+  // state; for CAPAs this captures the "Closed By" electronic signature server-side.
+  if(isClosing){
+    if(!(await requireReauth({actionLabel:"Set "+(wasEditing?editId:"new record")+" status to "+newStatus,recordId:wasEditing?editId:"(new record)"})))return;
   }
   const isAudit=document.getElementById("f-type").value==="AUDIT";
   const sourceBody=resolveSourceBody();
   if(isAudit&&sourceBody===null)return; // invalid custom code; resolveSourceBody toasted
   const data={user,type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:newStatus,evidence:document.getElementById("f-evidence").value.trim(),photos,site:existing?existing.site:currentSite};
+  // Send the assigned effectiveness-check owner so the server can schedule the
+  // check when the CAPA is closed pending its effectiveness verification.
+  if(effOwnerToSend)data.effectivenessCheckOwner=effOwnerToSend;
   // Only send source_body for Audit Findings (drives the ID prefix on create).
   if(isAudit)data.sourceBody=sourceBody;
   // Record IDs are permanent — the id is never sent in the PUT body.
@@ -5569,7 +5632,7 @@ async function generateFindingSummaryReport(wrap){
     (links||[]).forEach(l=>{if(l.capaId&&ncrLinkedCapas.indexOf(l.capaId)===-1)ncrLinkedCapas.push(l.capaId);});
     // Corrective-action verification detail for the PDF's per-finding block: for
     // each linked CAPA capture its status, effectiveness determination and (when
-    // Closed — Verified Effective) who verified it and when. Effectiveness rows
+    // Closed-EC Verified) who verified it and when. Effectiveness rows
     // are fetched only for CAPAs whose check is Completed.
     verifMap[r.id]=await Promise.all((links||[]).map(async l=>{
       const c=findCapaRecord(l.capaId);
@@ -5740,7 +5803,7 @@ function downloadReport(){if(!window._lastReport)return;const blob=new Blob([win
 // ── PDF COVER PAGE — record opened/closed dates and ownership ───────────────
 // Status values across every QIS module that represent a closed-out record
 // (records: "Closed …" / "Signed"; OOS: "Closed Confirmed/Invalidated";
-// crisis: "Complete" / "Signed"; CAPA effectiveness: "… Verified Effective").
+// crisis: "Complete" / "Signed"; CAPA: "Closed-Pending EC" / "Closed-EC Verified").
 function _coverIsClosed(s){return /closed|complete|signed|effective/i.test(String(s||""));}
 // Format any date-ish value to a readable long date; falls back to a date slice.
 function _coverDate(v){if(!v)return"";const dt=new Date(v);return isNaN(dt)?String(v).slice(0,10):dt.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});}
@@ -6182,8 +6245,8 @@ async function downloadReportPDF(){
     doc.setTextColor(...black);doc.setFont('helvetica','normal');
     // No check scheduled yet.
     if(!es&&status.indexOf('Closed')!==0){drawEffNote('Effectiveness check not yet scheduled — will be assigned upon CAPA closure.');return;}
-    // Closed but the effectiveness owner has not been assigned.
-    if(!es&&status==='Closed — Awaiting Effectiveness Assignment'){drawEffNote('Awaiting effectiveness check owner assignment.');return;}
+    // Closed but the effectiveness owner has not been assigned (legacy rows).
+    if(!es&&status.indexOf('Closed')===0){drawEffNote('Awaiting effectiveness check owner assignment.');return;}
     const completed=es==='Completed';
     const owner=capa.effectivenessCheckOwner||chk.owner||'';
     const due=capa.effectivenessCheckDueDate||chk.dueDate||'';
@@ -6239,6 +6302,17 @@ async function downloadReportPDF(){
     doc.setTextColor(...black);doc.setFont('helvetica','normal');
     return bw;
   }
+  // Amber pill for the "Closed-Pending EC" state — closed, effectiveness check
+  // still outstanding.
+  function drawAmberBadge(label,x,top){
+    doc.setFontSize(8);doc.setFont('helvetica','bold');
+    const tw=doc.getTextWidth(label),padX=6,bw=tw+padX*2,bh=13;
+    doc.setFillColor(255,242,204);
+    if(doc.roundedRect)doc.roundedRect(x,top,bw,bh,2,2,'F');else doc.rect(x,top,bw,bh,'F');
+    doc.setTextColor(127,96,0);doc.text(label,x+padX,top+9);
+    doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    return bw;
+  }
   function drawRecordSignaturesSection(sigs){
     const list=Array.isArray(sigs)?sigs.filter(s=>s&&(s.name||s.role||s.signedAt)):[];
     if(y>pageH-70){doc.addPage();y=50;}
@@ -6286,8 +6360,8 @@ async function downloadReportPDF(){
   // ── CORRECTIVE ACTION VERIFICATION — structured PDF block (SQF submission) ──
   // Per-finding block in the NCR / Audit Finding Summary that makes the package
   // self-contained: it shows the linked CAPA(s), each CAPA's status badge, the
-  // effectiveness determination, and — when the CAPA is Closed — Verified
-  // Effective — who verified it and when; otherwise it states verification is
+  // effectiveness determination, and — when the CAPA is Closed-EC Verified —
+  // who verified it and when; otherwise it states verification is
   // still pending. Data rides on the finding's report meta (rec.verification).
   function drawCAVerifyPair(label,value,x,w,top){
     let yy=top;
@@ -6312,7 +6386,8 @@ async function downloadReportPDF(){
       doc.setTextColor(...black);doc.setFont('helvetica','normal');return;
     }
     list.forEach((v,i)=>{
-      const verified=/verified effective/i.test(v.status||'');
+      const verified=/closed-ec verified|verified effective/i.test(v.status||'');
+      const pendingEC=/closed-pending ec|closed\s*[—–-]\s*pending effectiveness/i.test(v.status||'');
       if(i>0){y+=4;doc.setDrawColor(205,210,218);doc.setLineWidth(0.5);doc.line(margin,y,margin+contentW,y);y+=6;}
       if(y>pageH-60){doc.addPage();y=50;}
       // Row 1 — CAPA id (left) and status badge (right).
@@ -6323,7 +6398,8 @@ async function downloadReportPDF(){
       doc.text(String(v.capaId||'—'),margin,top+20);
       doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
       doc.text('CAPA Status',margin+contentW/2,top+8);
-      if(verified){drawVerifiedBadge('Verified Effective',margin+contentW/2,top+12);}
+      if(verified){drawVerifiedBadge('Closed-EC Verified',margin+contentW/2,top+12);}
+      else if(pendingEC){drawAmberBadge('Closed-Pending EC',margin+contentW/2,top+12);}
       else{doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(...black);doc.text(String(v.status||'—'),margin+contentW/2,top+20);}
       y=top+30;
       // Row 2 — determination + verification provenance.
@@ -6339,15 +6415,18 @@ async function downloadReportPDF(){
     });
     y+=4;
   }
-  // Detect a CAPA / linked-CAPA status line whose value is "Closed — Verified
-  // Effective" within a detail block and render the value as a green checkmarked
-  // badge instead of plain text, so the verified corrective action stands out in
+  // Detect a CAPA / linked-CAPA status line whose value is a closed-EC state
+  // ("Closed-EC Verified" or "Closed-Pending EC") within a detail block and
+  // render it as a coloured badge instead of plain text — green-checkmarked for
+  // verified, amber for pending — so the corrective-action state stands out in
   // the CAPA Status Summary (3a) and NCR / Audit Finding Summary (3b). Returns
   // true when it consumed the line.
   function tryDrawVerifiedStatusLine(clean){
-    if(!/closed\s*[—–-]\s*verified effective/i.test(clean))return false;
+    const isVer=/closed-ec verified|closed\s*[—–-]\s*verified effective/i.test(clean);
+    const isPend=/closed-pending ec|closed\s*[—–-]\s*pending effectiveness/i.test(clean);
+    if(!isVer&&!isPend)return false;
     const m=clean.match(/^\s*((?:CAPA\s+)?Status)\s*:\s*(.+?)\s*$/i);
-    const bare=/^\s*closed\s*[—–-]\s*verified effective\s*$/i.test(clean);
+    const bare=isVer?/^\s*(?:closed-ec verified|closed\s*[—–-]\s*verified effective)\s*$/i.test(clean):/^\s*(?:closed-pending ec|closed\s*[—–-]\s*pending effectiveness(?:\s*check)?)\s*$/i.test(clean);
     if(!m&&!bare)return false;
     if(y>pageH-30){doc.addPage();y=50;}
     let x=margin;
@@ -6358,7 +6437,8 @@ async function downloadReportPDF(){
       x=margin+doc.getTextWidth(lbl)+2;
       doc.setFont('helvetica','normal');doc.setTextColor(...black);
     }
-    drawVerifiedBadge('Closed — Verified Effective',x,y-8);
+    if(isVer)drawVerifiedBadge('Closed-EC Verified',x,y-8);
+    else drawAmberBadge('Closed-Pending EC',x,y-8);
     y+=17;
     return true;
   }
@@ -8351,7 +8431,7 @@ function capaEffMetricsHTML(e){
     <div class="rpt-metric"><div class="v">${e.total?e.closureRate+"%":"—"}</div><div class="l">CAPA Closure Rate</div></div>
     <div class="rpt-metric"><div class="v">${e.avgClose===null?"—":e.avgClose+"d"}</div><div class="l">Avg Closure Time</div></div>
     <div class="rpt-metric"><div class="v">${e.pending}</div><div class="l">Pending Eff. Checks</div></div>
-    <div class="rpt-metric"><div class="v">${e.verifiedEffective||0}</div><div class="l">Verified Effective</div></div>
+    <div class="rpt-metric"><div class="v">${e.verifiedEffective||0}</div><div class="l">EC Verified</div></div>
     <div class="rpt-metric"><div class="v">${e.effRate===null?"—":e.effRate+"%"}</div><div class="l">Effectiveness Rate</div></div>
     <div class="rpt-metric ${e.ineffective?"danger":""}"><div class="v">${e.ineffective}</div><div class="l">Ineffective Checks</div></div>
     <div class="rpt-metric"><div class="v">${e.majorLinked}</div><div class="l">Linked to Major</div></div>
@@ -8363,7 +8443,7 @@ function capaEffMetricsMarkdown(e,heading){
   md+=`| CAPA Closure Rate | ${e.total?e.closureRate+"% ("+e.closed+" of "+e.total+")":"— (no CAPA records)"} |\n`;
   md+=`| Average CAPA Closure Time | ${e.avgClose===null?"— (no closed CAPAs with dates)":e.avgClose+" days"} |\n`;
   md+=`| CAPAs Pending Effectiveness Check | ${e.pending}${e.pendingIds.length?" — "+e.pendingIds.join(", "):""} |\n`;
-  md+=`| CAPAs Closed — Verified Effective | ${e.verifiedEffective||0}${e.verifiedEffectiveIds&&e.verifiedEffectiveIds.length?" — "+e.verifiedEffectiveIds.join(", "):""} |\n`;
+  md+=`| CAPAs Closed-EC Verified | ${e.verifiedEffective||0}${e.verifiedEffectiveIds&&e.verifiedEffectiveIds.length?" — "+e.verifiedEffectiveIds.join(", "):""} |\n`;
   md+=`| CAPA Effectiveness Rate | ${e.effRate===null?"— (no completed checks)":e.effRate+"% ("+e.effective+" of "+e.completedChecks+" effective)"} |\n`;
   md+=`| Ineffective Effectiveness Checks | ${e.ineffective}${e.ineffective>0?" (action required)":""} |\n`;
   md+=`| CAPAs Linked to Major Findings | ${e.majorLinked} |\n`;

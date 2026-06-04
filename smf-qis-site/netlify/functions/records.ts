@@ -388,25 +388,28 @@ export default async (req: Request) => {
         const now = new Date();
 
         if (determination === "Effective") {
+          // Passing the effectiveness check verifies the corrective action: the
+          // parent CAPA moves from Closed-Pending EC to Closed-EC Verified.
           effStatus = "Completed";
-          recordStatus = "Closed — Verified Effective";
+          recordStatus = "Closed-EC Verified";
           verifiedBy = actor;
           verifiedAt = now;
         } else if (determination === "Ineffective") {
+          // The corrective action did not hold — the CAPA is re-opened for a new
+          // investigation and returned to In Progress (never left as Open).
           effStatus = "Completed";
           recordStatus = "In Progress";
           verifiedBy = actor;
           verifiedAt = now;
           failureNote = true;
         } else if (determination === "Requires Additional Action") {
+          // More work is required but the check is not yet conclusive: keep the
+          // effectiveness check In Progress and leave the CAPA Closed-Pending EC.
           effStatus = "In Progress";
-        } else if (!existing.effectivenessStatus && existing.status === "Closed — Awaiting Effectiveness Assignment") {
-          // First assignment of a check owner on a CAPA closed without one:
-          // schedule the check (Pending) and move the record into the
-          // pending-effectiveness state so closure can complete.
-          effStatus = "Pending";
-          recordStatus = "Closed — Pending Effectiveness Check";
+          recordStatus = existing.status;
         }
+        // (No determination supplied → owner / due-date assignment only; the CAPA
+        // status is left unchanged.)
 
         // Upsert the effectiveness_checks row (one per CAPA).
         const [check] = await db
@@ -451,24 +454,48 @@ export default async (req: Request) => {
           });
         }
 
-        const [updated] = await db
+        // Persist the effectiveness-check fields onto the CAPA record.
+        await db
           .update(records)
           .set({
             effectivenessCheckDueDate: dueDate || "",
             effectivenessCheckOwner: owner || "",
             effectivenessStatus: effStatus,
-            status: recordStatus,
             modifiedBy: actor,
             modifiedAt: now,
           })
-          .where(eq(records.id, capaId))
-          .returning();
+          .where(eq(records.id, capaId));
+
+        // Explicitly persist the CAPA status transition in a SEPARATE update so a
+        // completed effectiveness check always moves the parent CAPA out of
+        // Closed-Pending EC (Effective → Closed-EC Verified; Ineffective →
+        // In Progress). Read the row back afterwards to confirm the write landed.
+        if (recordStatus !== existing.status) {
+          await db
+            .update(records)
+            .set({ status: recordStatus, modifiedBy: actor, modifiedAt: now })
+            .where(eq(records.id, capaId));
+          const [verifyRow] = await db
+            .select({ status: records.status })
+            .from(records)
+            .where(eq(records.id, capaId));
+          if (!verifyRow || verifyRow.status !== recordStatus) {
+            return json(500, {
+              error: `CAPA status update did not persist (expected "${recordStatus}", found "${verifyRow ? verifyRow.status : "<missing>"}").`,
+            });
+          }
+        }
+
+        const [updated] = await db.select().from(records).where(eq(records.id, capaId));
 
         if (failureNote) {
-          await logChange(capaId, "effectiveness", "Effectiveness check failed — new investigation required.", actor);
+          await logChange(capaId, "effectiveness", "Effectiveness check failed — re-investigation required; CAPA returned to In Progress.", actor);
         }
         if (existing.status !== recordStatus) {
           await logChange(capaId, "status_change", `Status ${existing.status} → ${recordStatus}`, actor);
+        }
+        if (verifiedBy && verifiedAt) {
+          await logChange(capaId, "effectiveness", `Effectiveness verified by ${verifiedBy}`, actor);
         }
         await logChange(
           capaId,
@@ -597,25 +624,34 @@ export default async (req: Request) => {
       // Record IDs are permanent and non-editable. Any id field in the request
       // body is ignored — the id is never changed by an update.
 
-      // Only admins may close a finding.
-      if (row.status === "Closed" && existing.status !== "Closed" && !admin) {
+      // A transition into any closed state ("Closed" for NCR / Audit findings,
+      // "Closed-Pending EC" / "Closed-EC Verified" for CAPAs) is admin-only.
+      const wasClosed = /^Closed/.test(existing.status || "");
+      const isClosing = /^Closed/.test(row.status || "") && !wasClosed;
+      if (isClosing && !admin) {
         return json(403, { error: "Only an administrator can close a finding." });
       }
 
-      // CAPA close gating: a CAPA cannot reach a plain "Closed" state until an
-      // effectiveness check has been completed. When a CAPA is being closed,
-      // route it through the effectiveness-check lifecycle instead — scheduling
-      // the check (90 days out) if an owner is assigned, or holding it awaiting
-      // owner assignment otherwise.
+      // Map a legacy plain "Closed" request on a CAPA onto the new lifecycle entry
+      // point so older clients keep working.
       if (row.status === "Closed" && existing.type === "CAPA") {
-        const checkOwner = (row.effectivenessCheckOwner || "").trim();
-        if (checkOwner) {
-          row.status = "Closed — Pending Effectiveness Check";
-          row.effectivenessStatus = "Pending";
-          if (!row.effectivenessCheckDueDate) row.effectivenessCheckDueDate = plusDaysISO(90);
-        } else {
-          row.status = "Closed — Awaiting Effectiveness Assignment";
+        row.status = "Closed-Pending EC";
+      }
+
+      // CAPA close gating: moving a CAPA to Closed-Pending EC requires an
+      // effectiveness-check owner. Schedule the check (Pending, 90 days out) and
+      // stamp the "Closed By" electronic signature recording who closed it and when.
+      if (row.status === "Closed-Pending EC" && existing.type === "CAPA" && existing.status !== "Closed-Pending EC") {
+        const checkOwner = (row.effectivenessCheckOwner || existing.effectivenessCheckOwner || "").trim();
+        if (!checkOwner) {
+          return json(400, { error: "Assign an effectiveness check owner before closing this CAPA (Closed-Pending EC)." });
         }
+        row.effectivenessCheckOwner = checkOwner;
+        row.effectivenessStatus = "Pending";
+        if (!row.effectivenessCheckDueDate) row.effectivenessCheckDueDate = plusDaysISO(90);
+        const sigs = Array.isArray(existing.signatures) ? [...existing.signatures] : [];
+        sigs.push({ role: "Closed By", name: actor, signedAt: new Date().toISOString() });
+        (row as any).signatures = sigs;
       }
 
       const [updated] = await db
