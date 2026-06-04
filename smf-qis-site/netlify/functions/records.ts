@@ -11,7 +11,7 @@
 // record's created_by/at and modified_by/at columns, giving a full audit trail.
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
-import { eq, asc, sql } from "drizzle-orm";
+import { eq, and, asc, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { records, auditLog, effectivenessChecks } from "../../db/schema.js";
 
@@ -303,10 +303,24 @@ export default async (req: Request) => {
         });
       }
 
+      // Records list. Filtering by site / type / status is pushed down into the
+      // SQL WHERE clause so it runs against the indexed columns (records_site_idx
+      // and the site/type/status composite indexes) instead of pulling the whole
+      // table back and filtering in JavaScript. A hard LIMIT of 500 caps the
+      // worst case — no list view needs more rows than that at once.
       const site = url.searchParams.get("site");
-      const rows = site
-        ? await db.select().from(records).where(eq(records.site, site)).orderBy(asc(records.id))
-        : await db.select().from(records).orderBy(asc(records.id));
+      const type = url.searchParams.get("type");
+      const status = url.searchParams.get("status");
+      const conditions = [];
+      if (site) conditions.push(eq(records.site, site));
+      if (type) conditions.push(eq(records.type, type));
+      if (status) conditions.push(eq(records.status, status));
+      const rows = await db
+        .select()
+        .from(records)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(asc(records.id))
+        .limit(500);
       return json(200, rows.map(toClient));
     }
 

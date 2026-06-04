@@ -55,6 +55,18 @@ export const records = pgTable(
   },
   (t) => ({
     siteIdx: index("records_site_idx").on(t.site),
+    // Indexes on the columns the list views filter and sort by. The single-column
+    // indexes cover queries that scope by one field; the composite indexes cover
+    // the common site + type / site + status / site + type + status combinations
+    // the front-end uses so those queries never fall back to a full table scan.
+    typeIdx: index("records_type_idx").on(t.type),
+    statusIdx: index("records_status_idx").on(t.status),
+    siteTypeIdx: index("records_site_type_idx").on(t.site, t.type),
+    siteStatusIdx: index("records_site_status_idx").on(t.site, t.status),
+    siteTypeStatusIdx: index("records_site_type_status_idx").on(t.site, t.type, t.status),
+    createdAtIdx: index("records_created_at_idx").on(t.createdAt),
+    dueDateIdx: index("records_due_date_idx").on(t.dueDate),
+    capaIdIdx: index("records_capa_id_idx").on(t.capaId),
   })
 );
 
@@ -78,6 +90,8 @@ export const capaLinks = pgTable(
   (t) => ({
     capaIdx: index("capa_links_capa_idx").on(t.capaId),
     sourceIdx: index("capa_links_source_idx").on(t.sourceId),
+    // Covers the "links for one CAPA of a given source type" lookups.
+    capaSourceTypeIdx: index("capa_links_capa_source_type_idx").on(t.capaId, t.sourceType),
   })
 );
 
@@ -111,6 +125,7 @@ export const effectivenessChecks = pgTable(
   },
   (t) => ({
     capaIdx: index("effectiveness_checks_capa_idx").on(t.capaId),
+    statusIdx: index("effectiveness_checks_status_idx").on(t.status),
   })
 );
 
@@ -150,6 +165,8 @@ export const auditSessions = pgTable(
   },
   (t) => ({
     siteIdx: index("audit_sessions_site_idx").on(t.site),
+    statusIdx: index("audit_sessions_status_idx").on(t.status),
+    scheduledDateIdx: index("audit_sessions_scheduled_date_idx").on(t.scheduledDate),
   })
 );
 
@@ -197,6 +214,7 @@ export const crisisExercises = pgTable(
   },
   (t) => ({
     siteIdx: index("crisis_exercises_site_idx").on(t.site),
+    statusIdx: index("crisis_exercises_status_idx").on(t.status),
   })
 );
 
@@ -236,6 +254,10 @@ export const auditLog = pgTable(
   },
   (t) => ({
     recordIdx: index("audit_log_record_idx").on(t.recordId),
+    // The append-only trail's timestamp column is `changed_at` (there is no
+    // `created_at` on this table); index it so per-record history can be served
+    // newest-first without scanning the whole log.
+    changedAtIdx: index("audit_log_changed_at_idx").on(t.changedAt),
   })
 );
 
@@ -292,6 +314,9 @@ export const oosRecords = pgTable(
   },
   (t) => ({
     siteIdx: index("oos_records_site_idx").on(t.site),
+    statusIdx: index("oos_records_status_idx").on(t.status),
+    siteStatusIdx: index("oos_records_site_status_idx").on(t.site, t.status),
+    createdAtIdx: index("oos_records_created_at_idx").on(t.createdAt),
   })
 );
 

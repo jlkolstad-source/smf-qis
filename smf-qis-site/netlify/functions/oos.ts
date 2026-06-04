@@ -20,7 +20,7 @@
 // table keyed by the OOS id, giving a full audit trail.
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
-import { eq, asc } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { oosRecords, auditLog } from "../../db/schema.js";
 
@@ -237,10 +237,21 @@ export default async (req: Request) => {
         return json(200, toClient(rec));
       }
 
+      // OOS list. site / status filters run against the indexed columns
+      // (oos_records_site_idx, oos_records_status_idx and the site+status
+      // composite) in SQL rather than being filtered in JavaScript, and the
+      // result set is capped at 500 rows.
       const site = url.searchParams.get("site");
-      const rows = site
-        ? await db.select().from(oosRecords).where(eq(oosRecords.site, site)).orderBy(asc(oosRecords.id))
-        : await db.select().from(oosRecords).orderBy(asc(oosRecords.id));
+      const status = url.searchParams.get("status");
+      const conditions = [];
+      if (site) conditions.push(eq(oosRecords.site, site));
+      if (status) conditions.push(eq(oosRecords.status, status));
+      const rows = await db
+        .select()
+        .from(oosRecords)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(asc(oosRecords.id))
+        .limit(500);
       return json(200, rows.map(toClient));
     }
 
