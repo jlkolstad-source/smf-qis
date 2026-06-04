@@ -17,7 +17,7 @@
 // to the shared `audit_log` table keyed by the exercise id.
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
-import { eq, asc } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { crisisExercises, crisisResponseLog, auditLog } from "../../db/schema.js";
 
@@ -201,10 +201,21 @@ export default async (req: Request) => {
         if (!full) return json(404, { error: "Exercise not found." });
         return json(200, full);
       }
+      // Exercise list. site / status filters run against the indexed columns
+      // (crisis_exercises_site_idx, crisis_exercises_status_idx) in SQL, and the
+      // result set is capped at 500 rows. The single-exercise path above pulls
+      // its response log with one indexed query — no per-row fan-out.
       const site = url.searchParams.get("site");
-      const rows = site
-        ? await db.select().from(crisisExercises).where(eq(crisisExercises.site, site)).orderBy(asc(crisisExercises.id))
-        : await db.select().from(crisisExercises).orderBy(asc(crisisExercises.id));
+      const status = url.searchParams.get("status");
+      const conditions = [];
+      if (site) conditions.push(eq(crisisExercises.site, site));
+      if (status) conditions.push(eq(crisisExercises.status, status));
+      const rows = await db
+        .select()
+        .from(crisisExercises)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(asc(crisisExercises.id))
+        .limit(500);
       return json(200, rows.map(toClient));
     }
 

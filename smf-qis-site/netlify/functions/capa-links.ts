@@ -74,15 +74,20 @@ export default async (req: Request) => {
     const actor = actorString(user);
 
     if (req.method === "GET") {
+      // Links are fetched by capa_id or source_id — both indexed columns
+      // (capa_links_capa_idx / capa_links_source_idx) — so each lookup is an
+      // index scan rather than a full-table scan. Every branch is capped at 500
+      // rows; a single CAPA or source never accumulates anywhere near that many
+      // links, and the unfiltered "all" branch is bounded for safety.
       const capaId = url.searchParams.get("capa_id");
       const sourceId = url.searchParams.get("source_id");
       let rows;
       if (capaId) {
-        rows = await db.select().from(capaLinks).where(eq(capaLinks.capaId, capaId)).orderBy(asc(capaLinks.id));
+        rows = await db.select().from(capaLinks).where(eq(capaLinks.capaId, capaId)).orderBy(asc(capaLinks.id)).limit(500);
       } else if (sourceId) {
-        rows = await db.select().from(capaLinks).where(eq(capaLinks.sourceId, sourceId)).orderBy(asc(capaLinks.id));
+        rows = await db.select().from(capaLinks).where(eq(capaLinks.sourceId, sourceId)).orderBy(asc(capaLinks.id)).limit(500);
       } else {
-        rows = await db.select().from(capaLinks).orderBy(asc(capaLinks.id));
+        rows = await db.select().from(capaLinks).orderBy(asc(capaLinks.id)).limit(500);
       }
       return json(200, rows.map(toClient));
     }
