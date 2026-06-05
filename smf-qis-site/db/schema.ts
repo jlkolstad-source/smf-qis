@@ -370,6 +370,9 @@ export const recallExercises = pgTable(
     // Forward | Backward | Both
     recallDirection: text("recall_direction").notNull().default("Both"),
     scenarioDescription: text("scenario_description").notNull().default(""),
+    // Pre-exercise scenario script / inject read to participants at the start of
+    // the exercise (simulated event, affected materials, initial conditions).
+    scenarioScript: text("scenario_script").notNull().default(""),
     governingSop: text("governing_sop").notNull().default("SOP #21 — Trace and Recall"),
     // Stage 3 assessment metrics (stored as text so units / "%" travel with them).
     totalQuantityAffected: text("total_quantity_affected").notNull().default(""),
@@ -422,6 +425,9 @@ export const recallNodes = pgTable(
     responsiblePerson: text("responsible_person").notNull().default(""),
     documentsReferenced: text("documents_referenced").notNull().default(""),
     notes: text("notes").notNull().default(""),
+    // Optional first-person narrative account of what was done at this stage,
+    // in the responsible person's own words — woven into the AI narrative report.
+    statement: text("statement").notNull().default(""),
     // Traceable | Gap Identified | Cannot Trace
     traceabilityStatus: text("traceability_status").notNull().default(""),
     // [{ key, filename, contentType, size, description, uploadedBy, uploadedAt }]
