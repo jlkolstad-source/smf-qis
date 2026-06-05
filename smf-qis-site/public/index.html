@@ -227,6 +227,41 @@ main{padding:24px 32px 80px;}
 .crisis-disc-q{background:#f4f6f8;border:1px solid #c0c8d2;border-radius:6px;padding:12px 14px;margin-bottom:10px;}
 .crisis-resp{background:#fff;border-left:3px solid #2E75B6;padding:6px 10px;margin-top:6px;border-radius:3px;font-size:12px;}
 .crisis-resp .who{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;}
+/* ── Mock Recall / Traceability Exercise ── */
+.recall-card{position:relative;background:#ffffff;border:1px solid #d0d6de;border-left:4px solid #1F6F6B;border-radius:4px;padding:16px;cursor:pointer;transition:all 0.2s;}
+.recall-card:hover{background:#E3F1EF;border-left-color:#0F4A46;}
+.recall-card.completed{border-left-color:#385723;}
+.recall-card-id{font-family:'DM Mono',monospace;font-size:11px;color:#1F6F6B;letter-spacing:1px;margin-bottom:5px;font-weight:700;}
+.recall-block{background:#ffffff;border:1px solid var(--border2);border-radius:8px;padding:16px 18px;margin-bottom:14px;}
+.recall-block-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:#1F6F6B;font-weight:700;margin-bottom:12px;border-bottom:1px solid #cfe5e2;padding-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+.recall-meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+.recall-input{background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif;box-sizing:border-box;}
+.recall-input:focus{border-color:#1F6F6B;background:#fff;}
+.recall-tbl{width:100%;border-collapse:collapse;}
+.recall-tbl th{text-align:left;padding:7px 9px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#fff;background:#1F6F6B;}
+.recall-tbl td{padding:7px 9px;border-bottom:1px solid #e8ecf0;font-size:12px;vertical-align:top;color:#1a1a2e;}
+/* Stage progress indicator */
+.recall-stages{display:flex;align-items:center;gap:0;margin-bottom:18px;flex-wrap:wrap;}
+.recall-stage{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:120px;}
+.recall-stage-dot{width:30px;height:30px;border-radius:50%;background:#e2e8ee;color:#4a5568;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:'DM Mono',monospace;border:2px solid #cdd6e0;flex-shrink:0;transition:all .2s;}
+.recall-stage.active .recall-stage-dot{background:#1F6F6B;color:#fff;border-color:#1F6F6B;}
+.recall-stage.done .recall-stage-dot{background:#385723;color:#fff;border-color:#385723;}
+.recall-stage-label{font-size:11px;font-weight:600;color:#4a5568;letter-spacing:.3px;}
+.recall-stage.active .recall-stage-label{color:#1F6F6B;}
+.recall-stage-bar{flex:1;height:2px;background:#cdd6e0;min-width:10px;margin:0 4px;}
+.recall-stage-bar.done{background:#385723;}
+/* Traceability vertical timeline */
+.recall-timeline{position:relative;border-left:2px solid #1F6F6B;margin-left:8px;padding-left:0;}
+.recall-node{position:relative;padding:0 0 16px 22px;}
+.recall-node:before{content:'';position:absolute;left:-9px;top:4px;width:14px;height:14px;border-radius:50%;background:#1F6F6B;border:2px solid #fff;box-shadow:0 0 0 1px #1F6F6B;}
+.recall-node.gap:before{background:#BF9000;box-shadow:0 0 0 1px #BF9000;}
+.recall-node.cannot:before{background:#C00000;box-shadow:0 0 0 1px #C00000;}
+.recall-node-card{background:#fff;border:1px solid #d0d6de;border-radius:6px;padding:11px 13px;}
+.recall-node-origin{background:#E3F1EF;border:1px dashed #1F6F6B;border-radius:6px;padding:10px 13px;margin-bottom:6px;margin-left:8px;}
+.recall-type-badge{display:inline-block;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.5px;text-transform:uppercase;background:#1F3864;color:#fff;padding:2px 7px;border-radius:3px;}
+.recall-progressbar{height:14px;background:#e2e8ee;border-radius:7px;overflow:hidden;}
+.recall-progressbar > div{height:100%;background:linear-gradient(90deg,#1F6F6B,#385723);transition:width .3s;}
+.recall-attach-chip{display:inline-flex;align-items:center;gap:5px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px;padding:2px 8px;font-size:10px;margin:3px 4px 0 0;}
 .ai-output{background:#f4f6f8;border:1px solid #c0c8d2;border-radius:6px;padding:16px;font-size:12px;line-height:1.8;white-space:pre-wrap;min-height:180px;max-height:480px;overflow-y:auto;color:#1a1a2e;}
 .ai-thinking{display:flex;align-items:center;gap:8px;color:#1F4E79;font-size:11px;font-family:'DM Mono',monospace;padding:20px;}
 .dot-pulse{display:flex;gap:4px;}
@@ -337,6 +372,7 @@ main{padding:24px 32px 80px;}
         <div class="site-menu-item" onclick="globalCreate('AUDIT_SESSION')">Audit Session</div>
         <div class="site-menu-item" onclick="globalCreate('OOS')">OOS Event</div>
         <div class="site-menu-item" onclick="globalCreate('CRISIS')">Crisis Management Exercise</div>
+        <div class="site-menu-item" onclick="globalCreate('RECALL')">Mock Recall Exercise</div>
       </div>
     </div>
   </div>
@@ -347,6 +383,7 @@ main{padding:24px 32px 80px;}
   <div class="tab" onclick="switchTab('audit-program',this)">&#9998; Audit Program</div>
   <div class="tab" onclick="switchTab('csuite',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#C8956C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>C-Suite View</div>
   <div class="tab" onclick="switchTab('crisis',this)">&#9888; Crisis Exercise</div>
+  <div class="tab" onclick="switchTab('recall',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F6F6B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Recall</div>
   <div class="tab" onclick="switchTab('oos',this)">&#129514; OOS</div>
   <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
 </nav>
@@ -533,6 +570,18 @@ main{padding:24px 32px 80px;}
     </div>
   </div>
   <div id="crisis-content"></div>
+</div>
+
+<!-- RECALL EXERCISE (Mock Recall / Traceability — SOP #21) -->
+<div class="section" id="recall">
+  <div class="table-header">
+    <div class="section-title">Mock Recall &amp; Traceability Exercise · SOP #21 — Trace and Recall</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-ghost" id="recall-back-btn" onclick="showRecallList()" style="display:none">&#8592; All Recall Exercises</button>
+      <button class="btn" onclick="openNewRecallModal()" style="background:#1F6F6B">+ New Recall Exercise</button>
+    </div>
+  </div>
+  <div id="recall-content"></div>
 </div>
 
 <!-- OOS (OUT OF SPECIFICATION) -->
@@ -902,6 +951,59 @@ main{padding:24px 32px 80px;}
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeNewCrisisModal()">Cancel</button>
       <button class="btn" style="background:#C00000" onclick="createCrisisExercise()">Create Exercise</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW RECALL EXERCISE MODAL -->
+<div class="modal-overlay" id="new-recall-modal">
+  <div class="modal" style="border-top:3px solid #1F6F6B;max-width:640px">
+    <div class="modal-title" style="color:#1F6F6B">&#128279; New Mock Recall Exercise</div>
+    <div style="background:#E3F1EF;border:1px solid #1F6F6B;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;font-family:'DM Mono',monospace;color:#0F4A46">
+      GOVERNING: SOP #21 — Trace and Recall · Initiated-by auto-filled from your login · ID auto-generated RCL-[SITE]-YYYY-####
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">Exercise ID</label><input class="form-input" id="nr-id" value="Auto-generated (RCL-SITE-YYYY-####)" disabled style="opacity:0.7"></div>
+      <div class="form-group"><label class="form-label">Initiated By</label><input class="form-input" id="nr-initiator" disabled style="opacity:0.7"></div>
+      <div class="form-group">
+        <label class="form-label">Exercise Type</label>
+        <select class="form-select" id="nr-type">
+          <option>Mock Recall</option>
+          <option>Real Recall</option>
+          <option>Traceability Verification</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Site</label>
+        <select class="form-select" id="nr-site"><option value="Lindon">Lindon</option><option value="Layton">Layton</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Starting Material Type</label>
+        <select class="form-select" id="nr-material">
+          <option>Finished Good</option>
+          <option>Raw Material</option>
+          <option>Packaging-Label</option>
+          <option>Packaging-Bottle</option>
+          <option>Packaging-Lid</option>
+          <option>Packaging-Other</option>
+          <option>In-Process Material</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Starting Lot Number</label><input class="form-input" id="nr-lot" placeholder="e.g. FG-24-0413"></div>
+      <div class="form-group">
+        <label class="form-label">Recall Direction</label>
+        <select class="form-select" id="nr-direction">
+          <option>Both</option>
+          <option>Forward</option>
+          <option>Backward</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Governing SOP</label><input class="form-input" id="nr-sop" value="SOP #21 — Trace and Recall"></div>
+      <div class="form-group form-full"><label class="form-label">Scenario Description</label><textarea class="form-input" id="nr-scenario" style="min-height:70px" placeholder="Describe the recall scenario being simulated (trigger, suspected defect, regulatory context)..."></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeNewRecallModal()">Cancel</button>
+      <button class="btn" style="background:#1F6F6B" onclick="createRecallExercise()">Create Exercise</button>
     </div>
   </div>
 </div>
@@ -3221,6 +3323,10 @@ let records=[], editingId=null, currentFilter="all", currentSourceFilter="", act
 // back to this source record in capa_links once it is saved. Shape:
 // { sourceType, sourceId }.
 let _pendingCapaSourceLink=null;
+// When a new CAPA is being created from a specific recall finding, this holds
+// { recallId, findingId } so the new CAPA id can be written back onto that
+// finding (recall_findings.capa_id) once the CAPA is saved.
+let _pendingRecallFindingLink=null;
 // Clause rows currently rendered in the audit checklist (for the active session).
 let CLAUSES_FOR_ACTIVE_AUDIT=[];
 // Debounce handle for persisting in-progress audit session edits to the API.
@@ -3456,6 +3562,10 @@ async function globalCreate(kind){
   if(kind==="CRISIS"){
     // The new-exercise modal is independent of the list content, so no race.
     gotoTab("crisis");openNewCrisisModal();return;
+  }
+  if(kind==="RECALL"){
+    // The new-recall modal is independent of the list content, so no race.
+    gotoTab("recall");openNewRecallModal();return;
   }
   if(kind==="AUDIT_SESSION"){
     // Open the audit program and start the schedule-new-audit flow.
@@ -3792,7 +3902,7 @@ function anyStatusBadge(s){
 }
 // Badge markup for a capa_links source_type.
 function sourceTypeBadge(type){
-  const map={"NCR":"badge-ncr","Audit Finding":"badge-audit","OOS":"badge-major","Crisis Exercise":"badge-capa"};
+  const map={"NCR":"badge-ncr","Audit Finding":"badge-audit","OOS":"badge-major","Crisis Exercise":"badge-capa","Recall Exercise":"badge-minor"};
   return `<span class="badge ${map[type]||"badge-minor"}">${cesc(type||"—")}</span>`;
 }
 // Determination badge for effectiveness checks.
@@ -3809,6 +3919,7 @@ function resolveSourceRecord(type,id){
   let rec=null;
   if(type==="OOS"){rec=(oosRecords||[]).find(o=>o.id===id);if(rec)return{desc:rec.productName||rec.testAnalyte||rec.id,status:rec.status||"",severity:rec.classification||""};}
   else if(type==="Crisis Exercise"){rec=(crisisList||[]).find(c=>c.id===id);if(rec)return{desc:rec.scenarioName||rec.scenarioType||rec.id,status:rec.status||"",severity:""};}
+  else if(type==="Recall Exercise"){rec=(recallList||[]).find(c=>c.id===id);if(rec)return{desc:(rec.exerciseType||"Recall Exercise")+" — "+(rec.startingLotNumber||rec.startingMaterialType||rec.id),status:rec.status||"",severity:""};}
   else{rec=(records||[]).find(r=>r.id===id);if(rec)return{desc:rec.desc||"",status:rec.status||"",severity:rec.severity||""};}
   return{desc:"",status:"",severity:""};
 }
@@ -3922,6 +4033,7 @@ function startCapaFromSource(sourceType,sourceId,prefill){
   if(!prefill){
     if(sourceType==="OOS"){const o=(oosRecords||[]).find(x=>x.id===sourceId);if(o)prefill={desc:o.productName||o.testAnalyte||"",clause:"",owner:o.initiatedBy||""};}
     else if(sourceType==="Crisis Exercise"){const c=(crisisList||[]).find(x=>x.id===sourceId);if(c)prefill={desc:(c.scenarioName||c.scenarioType||"")+" — lessons-learned corrective action",clause:c.governingSop||"",owner:c.facilitator||""};}
+    else if(sourceType==="Recall Exercise"){const c=(recallList||[]).find(x=>x.id===sourceId);if(c)prefill={desc:(c.exerciseType||"Recall")+" "+sourceId+" — traceability finding corrective action",clause:c.governingSop||"SOP #21 — Trace and Recall",owner:c.initiatedBy||""};}
     else{const rec=(records||[]).find(x=>x.id===sourceId);if(rec)prefill={desc:rec.desc||"",clause:rec.clause||"",owner:rec.owner||""};}
   }
   prefill=prefill||{desc:"",clause:"",owner:""};
@@ -3945,7 +4057,8 @@ const CAPA_SRC_TABS=[
   {key:"NCR",label:"NCR"},
   {key:"Audit Finding",label:"Audit Findings"},
   {key:"OOS",label:"OOS Events"},
-  {key:"Crisis Exercise",label:"Crisis Exercise Lessons Learned"}
+  {key:"Crisis Exercise",label:"Crisis Exercise Lessons Learned"},
+  {key:"Recall Exercise",label:"Recall Exercise Findings"}
 ];
 async function renderCapaSourceRecords(r){
   const host=document.getElementById("capa-linkage-section");if(!host)return;
@@ -3995,6 +4108,7 @@ function capaSourceCandidates(tab){
   else if(tab==="Audit Finding")list=(records||[]).filter(x=>x.type==="AUDIT").map(x=>({id:x.id,desc:x.desc||"",status:x.status||"",owner:x.owner||""}));
   else if(tab==="OOS")list=(oosRecords||[]).map(x=>({id:x.id,desc:x.productName||x.testAnalyte||"",status:x.status||"",owner:x.initiatedBy||""}));
   else if(tab==="Crisis Exercise")list=(crisisList||[]).map(x=>({id:x.id,desc:x.scenarioName||x.scenarioType||"",status:x.status||"",owner:x.facilitator||""}));
+  else if(tab==="Recall Exercise")list=(recallList||[]).map(x=>({id:x.id,desc:(x.exerciseType||"Recall")+" "+(x.startingLotNumber||""),status:x.status||"",owner:x.initiatedBy||""}));
   return list.filter(x=>!linkedKey.has(tab+"|"+x.id));
 }
 function toggleSourceRecordPicker(){
@@ -4195,7 +4309,7 @@ async function reopenRecordAfterEff(capaId){
 }
 
 function openModal(presetType){
-  editingId=null;currentPhotos=[];_pendingCapaSourceLink=null;
+  editingId=null;currentPhotos=[];_pendingCapaSourceLink=null;_pendingRecallFindingLink=null;
   document.getElementById("modal-title").textContent="New Record";
   ["f-desc","f-clause","f-owner","f-rca","f-ca","f-due","f-evidence"].forEach(i=>{const el=document.getElementById(i);if(el)el.value="";});
   document.getElementById("f-type").value=(presetType==="CAPA"||presetType==="NCR"||presetType==="AUDIT")?presetType:"CAPA";
@@ -4315,7 +4429,7 @@ function editRecord(id){
   document.getElementById("modal").classList.add("open");
 }
 
-function closeModal(){document.getElementById("modal").classList.remove("open");editingId=null;currentPhotos=[];_pendingCapaSourceLink=null;}
+function closeModal(){document.getElementById("modal").classList.remove("open");editingId=null;currentPhotos=[];_pendingCapaSourceLink=null;_pendingRecallFindingLink=null;}
 
 async function saveRecord(){
   const desc=document.getElementById("f-desc").value.trim();
@@ -4368,17 +4482,27 @@ async function saveRecord(){
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     // When a new CAPA was created from a source record, link it back automatically.
     let linkMsg="";
-    if(!wasEditing&&_pendingCapaSourceLink){
+    const recallFindingLink=_pendingRecallFindingLink;
+    let createdCapa=null;
+    if(!wasEditing&&(_pendingCapaSourceLink||recallFindingLink)){
+      try{createdCapa=await res.json();}catch(_){createdCapa=null;}
+    }
+    if(!wasEditing&&_pendingCapaSourceLink&&createdCapa&&createdCapa.id){
       try{
-        const created=await res.json();
-        if(created&&created.id){
-          await capaLinkCreate(created.id,_pendingCapaSourceLink.sourceType,_pendingCapaSourceLink.sourceId);
-          linkMsg=" and linked to "+_pendingCapaSourceLink.sourceType+" "+_pendingCapaSourceLink.sourceId;
-        }
+        await capaLinkCreate(createdCapa.id,_pendingCapaSourceLink.sourceType,_pendingCapaSourceLink.sourceId);
+        linkMsg=" and linked to "+_pendingCapaSourceLink.sourceType+" "+_pendingCapaSourceLink.sourceId;
       }catch(le){linkMsg=" (link failed: "+le.message+")";}
+    }
+    // A CAPA created from a recall finding is also written back onto that finding
+    // (recall_findings.capa_id) so the finding row shows the linked CAPA badge.
+    if(!wasEditing&&recallFindingLink&&createdCapa&&createdCapa.id){
+      try{await recallLinkFindingCapa(recallFindingLink.recallId,recallFindingLink.findingId,createdCapa.id);}catch(le){}
     }
     closeModal();
     await refresh();
+    if(!wasEditing&&recallFindingLink&&createdCapa&&createdCapa.id&&activeRecall&&activeRecall.id===recallFindingLink.recallId&&recallStage===4&&document.getElementById("recall-stage-body")){
+      renderRecallStageBody();
+    }
     toast(wasEditing?"Record updated.":("Record saved"+linkMsg+"."),"green");
   }catch(e){toast("Save failed: "+e.message,"red");}
 }
@@ -5463,6 +5587,7 @@ function reportSourceRecordLines(links){
 async function reportEnsureSourceData(){
   try{if(typeof oosRecords==="undefined"||!oosRecords.length){if(typeof loadOOS==="function")await loadOOS();}}catch(e){}
   try{if(typeof crisisList==="undefined"||!crisisList.length){if(typeof loadCrisisList==="function")await loadCrisisList();}}catch(e){}
+  try{if(typeof recallList==="undefined"||!recallList.length){if(typeof loadRecallList==="function")await loadRecallList();}}catch(e){}
 }
 
 async function generateAuditReportSummary(auditId,wrap){
@@ -6979,6 +7104,7 @@ function switchTab(id,el){
   if(id==="audit-program")showAuditList();
   if(id==="oos")showOOSList();
   if(id==="crisis"){stopCrisisPoll();showCrisisList();}else{stopCrisisPoll();}
+  if(id==="recall")showRecallList();
   if(id==="ai-report")onReportTypeChange();
 }
 
@@ -7363,7 +7489,7 @@ async function refreshCrisisActive(){
 // `sign` action. The server stamps the signer's name, title and timestamp from
 // the signed-in identity, so a user can only ever sign as themselves.
 const SIG_ROLES=["Prepared By","Reviewed By","Approved By","Quality Manager","VP Quality","SQF Practitioner"];
-const SIG_ENDPOINTS={record:"/api/records",oos:"/api/oos",crisis:"/api/crisis",audit:"/api/audits"};
+const SIG_ENDPOINTS={record:"/api/records",oos:"/api/oos",crisis:"/api/crisis",audit:"/api/audits",recall:"/api/recall"};
 const sigState={}; // ctxKey -> {kind,id,hostId,signatures:[],pending:[],onChange}
 
 function initSignatureSection(ctxKey,kind,id,hostId,signatures,onChange){
@@ -7863,6 +7989,570 @@ async function saveCrisis(quiet){
 }
 
 document.getElementById("new-crisis-modal").addEventListener("click",e=>{if(e.target===document.getElementById("new-crisis-modal"))closeNewCrisisModal();});
+
+// ── MOCK RECALL / TRACEABILITY EXERCISE (SOP #21 — Trace and Recall) ─────────
+// A five-stage workflow (Setup → Traceability Chain → Assessment → Findings →
+// Complete). The exercise header, rolled-up assessment metrics, facilitator
+// notes and signatures persist on the recall_exercises row; the chain nodes and
+// findings live in their own tables. All data persists via /api/recall.
+const RECALL_API="/api/recall";
+const RECALL_EX_TYPES=["Mock Recall","Real Recall","Traceability Verification"];
+const RECALL_MATERIAL_TYPES=["Finished Good","Raw Material","Packaging-Label","Packaging-Bottle","Packaging-Lid","Packaging-Other","In-Process Material"];
+const RECALL_DIRECTIONS=["Both","Forward","Backward"];
+const RECALL_NODE_TYPES=["Raw Material Receipt","Weigh/Dispense","Blending/Manufacturing","In-Process Testing","Packaging","Finished Good Release","Distribution/Shipment","Customer/Retailer","On Hand Inventory","Returned/Rejected"];
+const RECALL_TRACE_STATUS=["Traceable","Gap Identified","Cannot Trace"];
+const RECALL_SCOPES=["Mock Exercise Only","Class I — Health Hazard","Class II — Remote Health Hazard","Class III — Unlikely Health Hazard","Market Withdrawal"];
+const RECALL_ASSESSMENTS=["","Satisfactory","Needs Improvement","Unsatisfactory"];
+const RECALL_QTY_UNITS=["","units","bottles","cases","kg","g","lb","L","mL","pallets","each"];
+const RECALL_STAGE_LABELS=["Setup","Traceability Chain","Assessment","Findings","Complete"];
+let recallList=[], activeRecall=null, recallStage=1, recallEditingNodeId=null;
+
+function recallStatusBadge(s){
+  const cls=s==="Completed"?"badge-closed":(s==="In Progress"?"badge-inprogress":"badge-open");
+  return `<span class="badge ${cls}">${cesc(s||"Draft")}</span>`;
+}
+function recallTraceBadge(s){
+  let bg="#E2EFDA",fg="#375623",bd="#A9D08E";
+  if(s==="Gap Identified"){bg="#FFF2CC";fg="#7F6000";bd="#BF9000";}
+  else if(s==="Cannot Trace"){bg="#FCE4E4";fg="#7a0000";bd="#C00000";}
+  return `<span class="badge" style="background:${bg};color:${fg};border:1px solid ${bd}">${cesc(s||"Traceable")}</span>`;
+}
+function recallMaterialBadge(mt){
+  let bg="#e8ecf0",fg="#1a1a2e",bd="#c9d2dc";
+  if(mt==="Finished Good"){bg="#DEEAF1";fg="#1F3864";bd="#2E75B6";}
+  else if(mt==="Raw Material"){bg="#FCE4D6";fg="#7a3b00";bd="#E8A87C";}
+  else if(mt&&mt.indexOf("Packaging")===0){bg="#EDE7F6";fg="#4527A0";bd="#B39DDB";}
+  else if(mt==="In-Process Material"){bg="#FFF2CC";fg="#7F6000";bd="#D8B43A";}
+  return `<span class="badge" style="background:${bg};color:${fg};border:1px solid ${bd}">${cesc(mt||"—")}</span>`;
+}
+function recallRatePct(v){const n=parseFloat(String(v||"").replace(/[^0-9.]/g,""));return isNaN(n)?null:Math.max(0,Math.min(100,Math.round(n)));}
+function recallRateCell(v){
+  const p=recallRatePct(v);
+  if(p===null)return '<span style="color:#4a5568;font-size:11px">—</span>';
+  return `<div class="recall-progressbar" style="width:90px;display:inline-block;vertical-align:middle"><div style="width:${p}%"></div></div> <span style="font-size:10px;font-family:'DM Mono',monospace">${p}%</span>`;
+}
+
+async function loadRecallList(){
+  try{
+    const res=await fetch(RECALL_API+"?site="+encodeURIComponent(currentSite));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    recallList=await res.json();
+  }catch(e){recallList=[];toast("Could not load recall exercises: "+e.message,"red");}
+}
+
+async function showRecallList(){
+  activeRecall=null;recallStage=1;recallEditingNodeId=null;
+  const back=document.getElementById("recall-back-btn");if(back)back.style.display="none";
+  await loadRecallList();
+  const c=document.getElementById("recall-content");if(!c)return;
+  const rows=recallList.map(e=>`<tr style="cursor:pointer" onclick="openRecallExercise('${cesc(e.id)}')">
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:#1F6F6B;white-space:nowrap">${cesc(e.id)}</td>
+    <td>${cesc(e.exerciseType)||"—"}</td>
+    <td>${recallMaterialBadge(e.startingMaterialType)}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${cesc(e.startingLotNumber)||"—"}</td>
+    <td>${cesc(e.recallDirection)||"—"}</td>
+    <td>${recallStatusBadge(e.status)}</td>
+    <td style="min-width:130px">${recallRateCell(e.traceabilityRate)}</td>
+  </tr>`).join("");
+  c.innerHTML=`
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th>Recall ID</th><th>Type</th><th>Starting Material</th><th>Lot Number</th><th>Direction</th><th>Status</th><th>Traceability</th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="7" style="text-align:center;color:#4a5568;padding:26px">No recall exercises yet for ${cesc(currentSite)}. Click <b>+ New Recall Exercise</b> to start one per SOP #21.</td></tr>`}</tbody>
+    </table></div>
+    <div style="margin-top:14px;padding:12px 16px;background:#E3F1EF;border:1px solid #1F6F6B;border-radius:8px;font-size:11px;color:#0F4A46;font-family:'DM Mono',monospace;text-align:center">Mock recall exercises trace a starting lot through the full supply chain to verify the SMF Trace &amp; Recall program (SOP #21). All nodes, findings and signatures persist to the shared database with a full audit trail.</div>`;
+}
+
+async function deleteRecallExercise(id){
+  if(!isAdminUser){toast("Only an administrator can delete exercises.","red");return;}
+  if(!confirm("Delete recall exercise "+id+"? This permanently removes it, its traceability chain and its findings. This cannot be undone."))return;
+  if(!(await requireReauth({actionLabel:"Delete Recall Exercise "+id,recordId:id})))return;
+  try{
+    const res=await fetch(RECALL_API+"?id="+encodeURIComponent(id),{method:"DELETE"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    await showRecallList();
+    toast("Exercise "+id+" deleted.","green");
+  }catch(e){toast("Delete failed: "+e.message,"red");}
+}
+
+function openNewRecallModal(){
+  document.getElementById("nr-initiator").value=userIdentityLabel()||"—";
+  document.getElementById("nr-id").value="Auto-generated (RCL-SITE-YYYY-####)";
+  document.getElementById("nr-type").value=RECALL_EX_TYPES[0];
+  document.getElementById("nr-site").value=(currentSite==="Lindon"||currentSite==="Layton")?currentSite:"Lindon";
+  document.getElementById("nr-material").value=RECALL_MATERIAL_TYPES[0];
+  document.getElementById("nr-lot").value="";
+  document.getElementById("nr-direction").value="Both";
+  document.getElementById("nr-sop").value="SOP #21 — Trace and Recall";
+  document.getElementById("nr-scenario").value="";
+  document.getElementById("new-recall-modal").classList.add("open");
+}
+function closeNewRecallModal(){document.getElementById("new-recall-modal").classList.remove("open");}
+
+async function createRecallExercise(){
+  const body={
+    exerciseType:document.getElementById("nr-type").value,
+    site:document.getElementById("nr-site").value,
+    startingMaterialType:document.getElementById("nr-material").value,
+    startingLotNumber:document.getElementById("nr-lot").value.trim(),
+    recallDirection:document.getElementById("nr-direction").value,
+    governingSop:document.getElementById("nr-sop").value.trim()||"SOP #21 — Trace and Recall",
+    scenarioDescription:document.getElementById("nr-scenario").value.trim(),
+  };
+  try{
+    const res=await fetch(RECALL_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRecall=await res.json();
+    closeNewRecallModal();
+    recallStage=1;recallEditingNodeId=null;
+    renderRecallEditor();
+    toast("Recall exercise "+activeRecall.id+" created.","green");
+  }catch(e){toast("Could not create recall exercise: "+e.message,"red");}
+}
+
+async function openRecallExercise(id){
+  try{
+    const res=await fetch(RECALL_API+"?id="+encodeURIComponent(id));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    activeRecall=await res.json();
+    recallStage=1;recallEditingNodeId=null;
+    renderRecallEditor();
+  }catch(e){toast("Could not open recall exercise: "+e.message,"red");}
+}
+
+// Shared POST helper — every recall mutation returns the full refreshed object.
+async function recallPost(action,body){
+  const res=await fetch(RECALL_API+"?id="+encodeURIComponent(activeRecall.id)+(action?("&action="+action):""),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});
+  if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+  return await res.json();
+}
+
+function gotoRecallStage(n){recallStage=n;recallEditingNodeId=null;renderRecallEditor();}
+
+function renderRecallEditor(){
+  const e=activeRecall;if(!e)return;
+  const back=document.getElementById("recall-back-btn");if(back)back.style.display="";
+  const c=document.getElementById("recall-content");if(!c)return;
+  const stages=RECALL_STAGE_LABELS.map((lbl,i)=>{
+    const n=i+1;
+    const cls=n===recallStage?"active":(n<recallStage?"done":"");
+    const bar=i<RECALL_STAGE_LABELS.length-1?`<div class="recall-stage-bar ${n<recallStage?"done":""}"></div>`:"";
+    return `<div class="recall-stage ${cls}" onclick="gotoRecallStage(${n})"><div class="recall-stage-dot">${n<recallStage?"&#10003;":n}</div><span class="recall-stage-label">${cesc(lbl)}</span></div>${bar}`;
+  }).join("");
+  c.innerHTML=`
+    <div class="recall-block" style="border-left:4px solid #1F6F6B">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div><span class="recall-card-id">${cesc(e.id)}</span> · ${recallStatusBadge(e.status)} <span style="font-size:11px;color:#4a5568;margin-left:6px">${cesc(e.exerciseType)} · ${cesc(e.site)}</span></div>
+        ${isAdminUser?`<button class="btn-danger" title="Delete exercise (admin)" onclick="deleteRecallExercise('${e.id}')" style="padding:3px 10px">✕ Delete</button>`:""}
+      </div>
+      <div class="recall-stages">${stages}</div>
+      <div id="recall-stage-body"></div>
+    </div>`;
+  renderRecallStageBody();
+}
+function renderRecallStageBody(){
+  if(recallStage===1)renderRecallSetup();
+  else if(recallStage===2)renderRecallChain();
+  else if(recallStage===3)renderRecallAssessment();
+  else if(recallStage===4)renderRecallFindings();
+  else renderRecallComplete();
+}
+
+// ── Stage 1 · Setup ──
+function renderRecallSetup(){
+  const e=activeRecall;const host=document.getElementById("recall-stage-body");if(!host)return;
+  host.innerHTML=`
+    <div class="recall-block-title">Stage 1 · Setup</div>
+    <div class="recall-meta-grid">
+      <div><label class="form-label">Exercise ID</label><div class="recall-input" style="display:flex;align-items:center;gap:6px;opacity:.85" title="Record IDs are permanent"><span>&#128274;</span><span>${cesc(e.id)}</span></div></div>
+      <div><label class="form-label">Exercise Type</label><select class="recall-input" id="rc-type">${optList(RECALL_EX_TYPES,e.exerciseType)}</select></div>
+      <div><label class="form-label">Site</label><select class="recall-input" id="rc-site">${optList(SITES,e.site)}</select></div>
+      <div><label class="form-label">Starting Material Type</label><select class="recall-input" id="rc-material">${optList(RECALL_MATERIAL_TYPES,e.startingMaterialType)}</select></div>
+      <div><label class="form-label">Starting Lot Number</label><input class="recall-input" id="rc-lot" value="${cesc(e.startingLotNumber)}" placeholder="e.g. FG-24-0413"></div>
+      <div><label class="form-label">Recall Direction</label><select class="recall-input" id="rc-direction">${optList(RECALL_DIRECTIONS,e.recallDirection)}</select></div>
+      <div><label class="form-label">Initiated By</label><div class="recall-input" style="opacity:.85">${cesc(e.initiatedBy||"—")}</div></div>
+      <div><label class="form-label">Date Initiated</label><div class="recall-input" style="opacity:.85">${cesc(cfmtTs(e.dateInitiated))}</div></div>
+      <div><label class="form-label">Governing SOP</label><input class="recall-input" id="rc-sop" value="${cesc(e.governingSop)}"></div>
+    </div>
+    <div style="margin-top:10px"><label class="form-label">Scenario Description</label><textarea class="recall-input" id="rc-scenario" style="min-height:80px" placeholder="Describe the recall scenario being simulated...">${cesc(e.scenarioDescription)}</textarea></div>
+    <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" style="background:#1F6F6B" onclick="saveRecallSetup()">&#128190; Save Setup</button>
+      <button class="btn" style="background:#1F3864" onclick="saveRecallSetup(true)">Save &amp; Next →</button>
+    </div>`;
+}
+async function saveRecallSetup(next){
+  const e=activeRecall;if(!e)return;
+  function v(id){const el=document.getElementById(id);return el?el.value:"";}
+  const body={
+    exerciseType:v("rc-type"),site:v("rc-site"),startingMaterialType:v("rc-material"),
+    startingLotNumber:v("rc-lot"),recallDirection:v("rc-direction"),
+    governingSop:v("rc-sop")||"SOP #21 — Trace and Recall",scenarioDescription:v("rc-scenario"),
+  };
+  try{
+    activeRecall=await recallPost("save-setup",body);
+    toast("Setup saved.","green");
+    if(next)recallStage=2;
+    renderRecallEditor();
+  }catch(e2){toast("Could not save setup: "+e2.message,"red");}
+}
+
+// ── Stage 2 · Traceability Chain ──
+function renderRecallChain(){
+  const e=activeRecall;const host=document.getElementById("recall-stage-body");if(!host)return;
+  const nodes=e.nodes||[];
+  const origin=`<div class="recall-node-origin"><div style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;color:#1F6F6B;margin-bottom:3px">&#9678; ORIGIN POINT</div><div style="font-size:12px"><b>${cesc(e.startingMaterialType||"—")}</b> · Lot <span style="font-family:'DM Mono',monospace">${cesc(e.startingLotNumber||"—")}</span> · Direction: ${cesc(e.recallDirection||"—")}</div></div>`;
+  const tl=nodes.length?`<div class="recall-timeline">${nodes.map((n,i)=>recallNodeHTML(n,i,nodes.length)).join("")}</div>`:`<div style="font-size:11px;color:#4a5568;padding:14px;background:#f4f6f8;border:1px dashed #c0c8d2;border-radius:6px;margin-left:8px">No nodes in the chain yet. Click <b>+ Add Node</b> to trace the material through each step.</div>`;
+  host.innerHTML=`
+    <div class="recall-block-title">Stage 2 · Traceability Chain <button class="btn" style="background:#1F6F6B" onclick="addRecallNode()">+ Add Node</button></div>
+    ${origin}
+    ${tl}
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:space-between">
+      <button class="btn-ghost" onclick="gotoRecallStage(1)">← Setup</button>
+      <button class="btn" style="background:#1F3864" onclick="gotoRecallStage(3)">Assessment →</button>
+    </div>`;
+}
+function recallNodeHTML(n,i,total){
+  const editing=recallEditingNodeId===n.id;
+  const cls=n.traceabilityStatus==="Gap Identified"?"gap":(n.traceabilityStatus==="Cannot Trace"?"cannot":"");
+  if(editing)return `<div class="recall-node ${cls}">${recallNodeForm(n)}</div>`;
+  const attach=(n.attachments||[]).map(a=>`<span class="recall-attach-chip">&#128206; <a href="${RECALL_API}?id=${encodeURIComponent(activeRecall.id)}&file=${encodeURIComponent(a.key)}" target="_blank" rel="noopener" style="color:#1F6F6B;text-decoration:none">${cesc(a.filename)}</a> <span style="cursor:pointer;color:#C00000" title="Remove" onclick="removeRecallAttach('${cesc(n.id)}','${cesc(a.key)}')">✕</span></span>`).join("");
+  return `<div class="recall-node ${cls}">
+    <div class="recall-node-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+        <div><span class="recall-type-badge">${cesc(n.nodeType||"—")}</span> <span style="font-size:10px;color:#4a5568;font-family:'DM Mono',monospace;margin-left:4px">${cesc(n.nodeDate||"")}</span></div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          ${recallTraceBadge(n.traceabilityStatus)}
+          <button class="btn-ghost" title="Move up" onclick="moveRecallNode(${i},-1)" ${i===0?"disabled":""} style="padding:2px 7px">▲</button>
+          <button class="btn-ghost" title="Move down" onclick="moveRecallNode(${i},1)" ${i===total-1?"disabled":""} style="padding:2px 7px">▼</button>
+          <button class="btn-ghost" onclick="editRecallNode('${cesc(n.id)}')" style="padding:2px 8px">✎ Edit</button>
+          <button class="btn-ghost" style="color:#C00000;padding:2px 8px" title="Delete node" onclick="deleteRecallNode('${cesc(n.id)}')">✕</button>
+        </div>
+      </div>
+      <div style="margin-top:7px;font-size:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 14px">
+        <div><b>Lot/Batch:</b> ${cesc(n.lotBatchNumber)||"—"}</div>
+        <div><b>Quantity:</b> ${cesc(n.quantity)||"—"} ${cesc(n.quantityUnit)}</div>
+        <div><b>Location:</b> ${cesc(n.location)||"—"}</div>
+        <div><b>Responsible:</b> ${cesc(n.responsiblePerson)||"—"}</div>
+      </div>
+      ${n.documentsReferenced?`<div style="margin-top:5px;font-size:11px"><b>Docs:</b> ${cesc(n.documentsReferenced)}</div>`:""}
+      ${n.notes?`<div style="margin-top:5px;font-size:11px;color:#4a5568">${cesc(n.notes)}</div>`:""}
+      <div style="margin-top:7px;display:flex;align-items:center;flex-wrap:wrap;gap:2px">
+        ${attach}
+        <label class="btn-ghost" style="cursor:pointer;font-size:10px;padding:2px 8px;margin-left:4px">&#128206; Attach File<input type="file" style="display:none" onchange="uploadRecallNodeFile('${cesc(n.id)}',this)"></label>
+      </div>
+    </div>
+  </div>`;
+}
+function recallNodeForm(n){
+  return `<div class="recall-node-card" style="border-color:#1F6F6B">
+    <div style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;color:#1F6F6B;margin-bottom:8px">EDIT NODE</div>
+    <div class="recall-meta-grid">
+      <div><label class="form-label">Node Type</label><select class="recall-input" id="rn-type">${optList(RECALL_NODE_TYPES,n.nodeType||RECALL_NODE_TYPES[0])}</select></div>
+      <div><label class="form-label">Date</label><input type="date" class="recall-input" id="rn-date" value="${cesc(n.nodeDate)}"></div>
+      <div><label class="form-label">Lot / Batch Number</label><input class="recall-input" id="rn-lot" value="${cesc(n.lotBatchNumber)}"></div>
+      <div><label class="form-label">Quantity</label><div style="display:flex;gap:5px"><input class="recall-input" id="rn-qty" value="${cesc(n.quantity)}" placeholder="0"><select class="recall-input" id="rn-unit" style="max-width:95px">${optList(RECALL_QTY_UNITS,n.quantityUnit)}</select></div></div>
+      <div><label class="form-label">Location</label><input class="recall-input" id="rn-loc" value="${cesc(n.location)}"></div>
+      <div><label class="form-label">Responsible Person</label><input class="recall-input" id="rn-resp" value="${cesc(n.responsiblePerson)}"></div>
+      <div><label class="form-label">Traceability Status</label><select class="recall-input" id="rn-trace">${optList(RECALL_TRACE_STATUS,n.traceabilityStatus||RECALL_TRACE_STATUS[0])}</select></div>
+      <div><label class="form-label">Documents Referenced</label><input class="recall-input" id="rn-docs" value="${cesc(n.documentsReferenced)}" placeholder="batch record, BOL, CoA..."></div>
+    </div>
+    <div style="margin-top:8px"><label class="form-label">Notes</label><textarea class="recall-input" id="rn-notes" style="min-height:50px">${cesc(n.notes)}</textarea></div>
+    <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-ghost" onclick="cancelRecallNodeEdit()">Cancel</button>
+      <button class="btn" style="background:#1F6F6B" onclick="saveRecallNode('${cesc(n.id)}')">Save Node</button>
+    </div>
+  </div>`;
+}
+async function addRecallNode(){
+  try{
+    activeRecall=await recallPost("save-node",{nodeType:RECALL_NODE_TYPES[0],traceabilityStatus:"Traceable"});
+    const nodes=activeRecall.nodes||[];
+    recallEditingNodeId=nodes.length?nodes[nodes.length-1].id:null;
+    renderRecallStageBody();
+  }catch(e){toast("Could not add node: "+e.message,"red");}
+}
+function editRecallNode(id){recallEditingNodeId=id;renderRecallStageBody();}
+function cancelRecallNodeEdit(){recallEditingNodeId=null;renderRecallStageBody();}
+async function saveRecallNode(id){
+  function v(x){const el=document.getElementById(x);return el?el.value:"";}
+  const body={id,nodeType:v("rn-type"),nodeDate:v("rn-date"),lotBatchNumber:v("rn-lot"),quantity:v("rn-qty"),quantityUnit:v("rn-unit"),location:v("rn-loc"),responsiblePerson:v("rn-resp"),traceabilityStatus:v("rn-trace"),documentsReferenced:v("rn-docs"),notes:v("rn-notes")};
+  try{
+    activeRecall=await recallPost("save-node",body);
+    recallEditingNodeId=null;
+    renderRecallStageBody();
+    toast("Node saved.","green");
+  }catch(e){toast("Could not save node: "+e.message,"red");}
+}
+async function deleteRecallNode(id){
+  if(!confirm("Remove this node from the traceability chain?"))return;
+  try{
+    activeRecall=await recallPost("delete-node",{nodeId:id});
+    if(recallEditingNodeId===id)recallEditingNodeId=null;
+    renderRecallStageBody();
+    toast("Node removed.","green");
+  }catch(e){toast("Could not remove node: "+e.message,"red");}
+}
+async function moveRecallNode(i,dir){
+  const nodes=(activeRecall.nodes||[]).slice();
+  const j=i+dir;if(j<0||j>=nodes.length)return;
+  const tmp=nodes[i];nodes[i]=nodes[j];nodes[j]=tmp;
+  try{
+    activeRecall=await recallPost("reorder-nodes",{order:nodes.map(n=>n.id)});
+    renderRecallStageBody();
+  }catch(e){toast("Could not reorder: "+e.message,"red");}
+}
+async function uploadRecallNodeFile(nodeId,input){
+  const f=input.files&&input.files[0];if(!f){return;}
+  try{
+    const dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("read error"));r.readAsDataURL(f);});
+    activeRecall=await recallPost("attach-node",{nodeId,filename:f.name,contentType:f.type||"application/octet-stream",data:dataUrl});
+    renderRecallStageBody();
+    toast("File attached.","green");
+  }catch(e){toast("Upload failed: "+e.message,"red");}
+  input.value="";
+}
+async function removeRecallAttach(nodeId,key){
+  if(!confirm("Remove this attachment?"))return;
+  try{
+    activeRecall=await recallPost("delete-attach",{nodeId,key});
+    renderRecallStageBody();
+    toast("Attachment removed.","green");
+  }catch(e){toast("Could not remove: "+e.message,"red");}
+}
+
+// ── Stage 3 · Assessment ──
+function recallElapsed(iso){
+  if(!iso)return "";
+  const start=new Date(iso);if(isNaN(start))return "";
+  let ms=Date.now()-start.getTime();if(ms<0)ms=0;
+  const h=Math.floor(ms/3600000);const m=Math.floor((ms%3600000)/60000);
+  if(h>=24){const d=Math.floor(h/24);return d+"d "+(h%24)+"h";}
+  return h+"h "+m+"m";
+}
+function recallNum(id){const el=document.getElementById(id);return el?parseFloat(String(el.value).replace(/[^0-9.\-]/g,"")):NaN;}
+function recallRecalc(){
+  const aff=recallNum("ra-affected");const acc=recallNum("ra-accounted");
+  const un=document.getElementById("ra-unaccounted");
+  let unacc="";
+  if(!isNaN(aff)&&!isNaN(acc))unacc=String(Math.max(0,aff-acc));
+  if(un)un.value=unacc;
+  let pct=null;
+  if(!isNaN(aff)&&aff>0&&!isNaN(acc))pct=Math.max(0,Math.min(100,Math.round((acc/aff)*100)));
+  const bar=document.getElementById("ra-rate-bar");const txt=document.getElementById("ra-rate-text");
+  if(bar)bar.style.width=(pct===null?0:pct)+"%";
+  if(txt)txt.textContent=pct===null?"—":(pct+"%");
+}
+function recallToggleCustCount(){
+  const v=document.getElementById("ra-cust").value;
+  const wrap=document.getElementById("ra-cust-count-wrap");if(wrap)wrap.style.display=(v==="Yes")?"":"none";
+}
+function renderRecallAssessment(){
+  const e=activeRecall;const host=document.getElementById("recall-stage-body");if(!host)return;
+  host.innerHTML=`
+    <div class="recall-block-title">Stage 3 · Assessment</div>
+    <div class="recall-meta-grid">
+      <div><label class="form-label">Total Quantity Affected</label><input class="recall-input" id="ra-affected" value="${cesc(e.totalQuantityAffected)}" oninput="recallRecalc()" placeholder="0"></div>
+      <div><label class="form-label">Quantity Accounted For</label><input class="recall-input" id="ra-accounted" value="${cesc(e.quantityAccountedFor)}" oninput="recallRecalc()" placeholder="0"></div>
+      <div><label class="form-label">Quantity Unaccounted</label><input class="recall-input" id="ra-unaccounted" value="${cesc(e.quantityUnaccounted)}" readonly style="opacity:.8"></div>
+    </div>
+    <div style="margin-top:12px">
+      <label class="form-label">Traceability Rate <span style="color:#4a5568;font-weight:400">(accounted ÷ affected)</span></label>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="recall-progressbar" style="flex:1"><div id="ra-rate-bar" style="width:0%"></div></div>
+        <span id="ra-rate-text" style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:#1F6F6B;min-width:48px;text-align:right">—</span>
+      </div>
+    </div>
+    <div class="recall-meta-grid" style="margin-top:14px">
+      <div><label class="form-label">Recall Scope</label><select class="recall-input" id="ra-scope">${optList(RECALL_SCOPES,e.recallScope)}</select></div>
+      <div><label class="form-label">Regulatory Notification Required</label><select class="recall-input" id="ra-reg">${optList(["","Yes","No"],e.regulatoryNotificationRequired)}</select></div>
+      <div><label class="form-label">Customer Notification Required</label><select class="recall-input" id="ra-cust" onchange="recallToggleCustCount()">${optList(["","Yes","No"],e.customerNotificationRequired)}</select></div>
+      <div id="ra-cust-count-wrap" style="${e.customerNotificationRequired==="Yes"?"":"display:none"}"><label class="form-label">Customers to Notify (count)</label><input class="recall-input" id="ra-cust-count" value="${cesc(e.customerNotificationCount)}" placeholder="0"></div>
+      <div><label class="form-label">Time to Complete</label><input class="recall-input" id="ra-time" value="${cesc(e.timeToComplete)}" readonly style="opacity:.8"><div style="font-size:9px;color:#4a5568;margin-top:2px">auto-calculated from date initiated</div></div>
+      <div><label class="form-label">Overall Assessment</label><select class="recall-input" id="ra-overall">${optList(RECALL_ASSESSMENTS,e.overallAssessment)}</select></div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:space-between">
+      <button class="btn-ghost" onclick="gotoRecallStage(2)">← Chain</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" style="background:#1F6F6B" onclick="saveRecallAssessment()">&#128190; Save Assessment</button>
+        <button class="btn" style="background:#1F3864" onclick="saveRecallAssessment(true)">Save &amp; Next →</button>
+      </div>
+    </div>`;
+  document.getElementById("ra-time").value=recallElapsed(e.dateInitiated);
+  recallRecalc();
+}
+async function saveRecallAssessment(next){
+  const e=activeRecall;if(!e)return;
+  const rateTxt=(document.getElementById("ra-rate-text")||{}).textContent||"";
+  const custReq=document.getElementById("ra-cust").value;
+  const body={
+    totalQuantityAffected:document.getElementById("ra-affected").value.trim(),
+    quantityAccountedFor:document.getElementById("ra-accounted").value.trim(),
+    quantityUnaccounted:document.getElementById("ra-unaccounted").value.trim(),
+    traceabilityRate:(rateTxt&&rateTxt!=="—")?rateTxt:"",
+    recallScope:document.getElementById("ra-scope").value,
+    regulatoryNotificationRequired:document.getElementById("ra-reg").value,
+    customerNotificationRequired:custReq,
+    customerNotificationCount:custReq==="Yes"?document.getElementById("ra-cust-count").value.trim():"",
+    timeToComplete:document.getElementById("ra-time").value,
+    overallAssessment:document.getElementById("ra-overall").value,
+  };
+  try{
+    activeRecall=await recallPost("save-assessment",body);
+    toast("Assessment saved.","green");
+    if(next)recallStage=4;
+    renderRecallEditor();
+  }catch(e2){toast("Could not save assessment: "+e2.message,"red");}
+}
+
+// ── Stage 4 · Findings ──
+function recallUserList(){
+  const set=new Set();
+  if(currentUser)set.add(currentUser);
+  (records||[]).forEach(r=>{if(r.owner)set.add(r.owner);});
+  (recallList||[]).forEach(r=>{if(r.initiatedBy)set.add(r.initiatedBy);});
+  return Array.from(set).filter(Boolean).sort();
+}
+function recallUserOptions(sel){
+  const users=recallUserList();
+  if(sel&&!users.includes(sel))users.unshift(sel);
+  return `<option value="" ${sel?"":"selected"}>— owner —</option>`+users.map(u=>`<option ${u===sel?"selected":""}>${cesc(u)}</option>`).join("");
+}
+function renderRecallFindings(){
+  const e=activeRecall;const host=document.getElementById("recall-stage-body");if(!host)return;
+  const findings=e.findings||[];
+  const rows=findings.length?findings.map(f=>`<tr>
+    <td><input class="recall-input" value="${cesc(f.findingDescription)}" onchange="updateRecallFinding('${cesc(f.id)}','findingDescription',this.value)" placeholder="Describe the traceability gap..."></td>
+    <td><select class="recall-input" onchange="updateRecallFinding('${cesc(f.id)}','owner',this.value)">${recallUserOptions(f.owner)}</select></td>
+    <td><input type="date" class="recall-input" value="${cesc(f.targetDate)}" onchange="updateRecallFinding('${cesc(f.id)}','targetDate',this.value)"></td>
+    <td><select class="recall-input" onchange="updateRecallFinding('${cesc(f.id)}','capaRequired',this.value)">${optList(["No","Yes"],f.capaRequired==="Yes"?"Yes":"No")}</select></td>
+    <td style="text-align:center">${f.capaRequired==="Yes"?(f.capaId?`<span class="badge badge-capa" style="cursor:pointer" title="Open CAPA" onclick="openLessonNCR('${cesc(f.capaId)}')">${cesc(f.capaId)}</span>`:`<button class="btn-ghost" style="font-size:10px;padding:3px 8px" onclick="recallFindingCapa('${cesc(f.id)}')">&#128279; CAPA</button>`):`<span style="color:#4a5568;font-size:10px">—</span>`}</td>
+    <td style="text-align:center">${f.ncrId?`<span class="badge badge-capa" style="cursor:pointer" title="Open NCR" onclick="openLessonNCR('${cesc(f.ncrId)}')">${cesc(f.ncrId)}</span>`:`<button class="ncr-btn" onclick="recallFindingNCR('${cesc(f.id)}')">+ NCR</button>`}</td>
+    <td><button class="btn-ghost" style="color:#C00000" title="Remove finding" onclick="deleteRecallFinding('${cesc(f.id)}')">✕</button></td>
+  </tr>`).join(""):`<tr><td colspan="7" style="color:#4a5568;font-size:11px">No findings yet. Click <b>+ Add Finding</b> to record an identified gap.</td></tr>`;
+  host.innerHTML=`
+    <div class="recall-block-title">Stage 4 · Findings <button class="btn" style="background:#1F6F6B" onclick="addRecallFinding()">+ Add Finding</button></div>
+    <div style="overflow-x:auto"><table class="recall-tbl">
+      <thead><tr><th>Gap / Finding Description</th><th style="width:150px">Owner</th><th style="width:130px">Target Date</th><th style="width:80px">CAPA?</th><th style="width:110px">CAPA</th><th style="width:90px">NCR</th><th style="width:36px"></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div style="margin-top:14px" id="recall-capa-linkage"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:space-between">
+      <button class="btn-ghost" onclick="gotoRecallStage(3)">← Assessment</button>
+      <button class="btn" style="background:#1F3864" onclick="gotoRecallStage(5)">Complete →</button>
+    </div>`;
+  if(activeRecall&&activeRecall.id&&document.getElementById("recall-capa-linkage"))renderLinkedCapas("recall-capa-linkage","Recall Exercise",activeRecall.id);
+}
+async function addRecallFinding(){
+  try{
+    activeRecall=await recallPost("save-finding",{findingDescription:"",capaRequired:"No",status:"Open"});
+    renderRecallStageBody();
+  }catch(e){toast("Could not add finding: "+e.message,"red");}
+}
+async function updateRecallFinding(id,field,value){
+  const f=(activeRecall.findings||[]).find(x=>x.id===id);if(!f)return;
+  f[field]=value;
+  try{
+    activeRecall=await recallPost("save-finding",f);
+    if(field==="capaRequired")renderRecallStageBody();
+  }catch(e){toast("Could not save finding: "+e.message,"red");}
+}
+async function deleteRecallFinding(id){
+  if(!confirm("Remove this finding?"))return;
+  try{
+    activeRecall=await recallPost("delete-finding",{findingId:id});
+    renderRecallStageBody();
+    toast("Finding removed.","green");
+  }catch(e){toast("Could not remove finding: "+e.message,"red");}
+}
+// Create a new CAPA from a finding — mirrors the Crisis Exercise lessons-learned
+// pattern (the linkage card below also offers "+ Link Existing CAPA"). The new
+// CAPA is linked to the recall exercise (capa_links) and written back onto the
+// finding (recall_findings.capa_id) once it is saved.
+function recallFindingCapa(id){
+  const f=(activeRecall.findings||[]).find(x=>x.id===id);if(!f)return;
+  startCapaFromSource("Recall Exercise",activeRecall.id,{
+    desc:(f.findingDescription||"Recall traceability gap")+" — corrective action",
+    clause:activeRecall.governingSop||"SOP #21 — Trace and Recall",
+    owner:f.owner||"",
+  });
+  // Set after startCapaFromSource (which calls openModal and resets this) so the
+  // save handler knows which finding to update with the new CAPA id.
+  _pendingRecallFindingLink={recallId:activeRecall.id,findingId:id};
+}
+// Write a newly created CAPA id back onto a recall finding so it shows the linked
+// CAPA badge. Refreshes the in-memory exercise from the server response.
+async function recallLinkFindingCapa(recallId,findingId,capaId){
+  const f=(activeRecall&&activeRecall.id===recallId)?(activeRecall.findings||[]).find(x=>x.id===findingId):null;
+  const body=f?{...f,capaId:capaId,capaRequired:"Yes"}:{id:findingId,capaId:capaId,capaRequired:"Yes"};
+  const res=await fetch(RECALL_API+"?id="+encodeURIComponent(recallId)+"&action=save-finding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+  const updated=await res.json();
+  if(activeRecall&&activeRecall.id===recallId)activeRecall=updated;
+  return updated;
+}
+// Issue a self-assigned NCR from a finding — mirrors createLessonNCR.
+async function recallFindingNCR(id){
+  const f=(activeRecall.findings||[]).find(x=>x.id===id);if(!f)return;
+  if(f.ncrId){openLessonNCR(f.ncrId);return;}
+  const item=(f.findingDescription||"").trim();
+  if(!item){toast("Enter the finding description before issuing an NCR.","red");return;}
+  const data={
+    user:ensureUser(),type:"NCR",severity:"Minor",
+    clause:activeRecall.id,desc:item,owner:(f.owner||"").trim(),
+    due:f.targetDate||"",status:"Open",
+    site:activeRecall.site||currentSite,selfAssigned:true,
+    evidence:"Recall Exercise — generated from "+activeRecall.id+" (SOP #21 Trace and Recall)",
+  };
+  try{
+    const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const created=await res.json();
+    f.ncrId=created.id;
+    activeRecall=await recallPost("save-finding",f);
+    await loadData();render();
+    renderRecallStageBody();
+    toast("NCR "+created.id+" issued and linked to this finding.","green");
+  }catch(e){toast("Could not issue NCR: "+e.message,"red");}
+}
+
+// ── Stage 5 · Complete ──
+function renderRecallComplete(){
+  const e=activeRecall;const host=document.getElementById("recall-stage-body");if(!host)return;
+  const done=e.status==="Completed";
+  host.innerHTML=`
+    <div class="recall-block-title">Stage 5 · Complete</div>
+    <div><label class="form-label">Facilitator Notes</label><textarea class="recall-input" id="rc-notes" style="min-height:90px" placeholder="Summary of the exercise, observations and conclusions...">${cesc(e.facilitatorNotes)}</textarea></div>
+    <div style="margin-top:10px;text-align:right"><button class="btn-ghost" onclick="saveRecallNotes()">Save Notes</button></div>
+    <div class="recall-block-title" style="margin-top:18px">Signatures</div>
+    <div id="sig-section-recall"></div>
+    <div style="margin-top:18px;padding:14px;background:${done?"#E2EFDA":"#E3F1EF"};border:1px solid ${done?"#548235":"#1F6F6B"};border-radius:8px;text-align:center">
+      ${done?`<div style="color:#375623;font-weight:700">&#9989; This recall exercise is Completed and locked as the final traceability record.</div>`:`
+      <div style="font-size:11px;color:#0F4A46;margin-bottom:10px">Completing the exercise marks it as the final traceability record. Requires at least one electronic signature and password re-authentication.</div>
+      <button class="btn" style="background:#1F6F6B;padding:10px 26px" onclick="completeRecall()">&#9989; Complete Exercise</button>`}
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:space-between">
+      <button class="btn-ghost" onclick="gotoRecallStage(4)">← Findings</button>
+      <button class="btn-ghost" onclick="showRecallList()">Close</button>
+    </div>`;
+  initSignatureSection("recall","recall",e.id,"sig-section-recall",e.signatures||[],function(updated){if(activeRecall&&updated)activeRecall.signatures=updated.signatures;});
+}
+async function saveRecallNotes(){
+  try{
+    activeRecall=await recallPost("save-assessment",{facilitatorNotes:document.getElementById("rc-notes").value});
+    toast("Notes saved.","green");
+  }catch(e){toast("Could not save notes: "+e.message,"red");}
+}
+async function completeRecall(){
+  const e=activeRecall;if(!e)return;
+  if(!(e.signatures||[]).some(s=>s.signedAt)){toast("Add and apply at least one signature before completing.","red");return;}
+  if(!(await requireReauth({actionLabel:"Complete Recall Exercise "+e.id,recordId:e.id})))return;
+  try{
+    const notesEl=document.getElementById("rc-notes");
+    activeRecall=await recallPost("complete",{facilitatorNotes:notesEl?notesEl.value:e.facilitatorNotes});
+    renderRecallEditor();
+    toast("Recall exercise "+e.id+" completed.","green");
+  }catch(e2){toast("Could not complete: "+e2.message,"red");}
+}
+
+document.getElementById("new-recall-modal").addEventListener("click",e=>{if(e.target===document.getElementById("new-recall-modal"))closeNewRecallModal();});
 
 // ── OUT OF SPECIFICATION (OOS) INVESTIGATIONS ───────────────────────────────
 // 21 CFR Part 111 + SQF Edition 9. Records and file attachments persist via the
