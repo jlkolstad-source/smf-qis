@@ -724,6 +724,20 @@ main{padding:24px 32px 80px;}
   </div>
 </div>
 
+<!-- REAL RECALL CONFIRMATION -->
+<div class="modal-overlay" id="real-recall-modal">
+  <div class="modal" style="border-top:3px solid #C00000;max-width:480px">
+    <div class="modal-title" style="color:#7a0000">You have selected Real Recall</div>
+    <div style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#7a0000;line-height:1.5">
+      Documents generated from this exercise will <b>NOT</b> contain a MOCK EXERCISE watermark and are intended for actual regulatory submission. Please confirm this is a real recall event.
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" onclick="realRecallCancel()">Cancel</button>
+      <button type="button" class="btn" id="real-recall-confirm-btn" style="background:#C00000" onclick="realRecallConfirm()">Confirm — Real Recall</button>
+    </div>
+  </div>
+</div>
+
 <!-- RECORD MODAL -->
 <div class="modal-overlay" id="modal">
   <div class="modal">
@@ -972,7 +986,7 @@ main{padding:24px 32px 80px;}
       <div class="form-group"><label class="form-label">Initiated By</label><input class="form-input" id="nr-initiator" disabled style="opacity:0.7"></div>
       <div class="form-group">
         <label class="form-label">Exercise Type</label>
-        <select class="form-select" id="nr-type">
+        <select class="form-select" id="nr-type" onchange="onExerciseTypeChange(this)">
           <option>Mock Recall</option>
           <option>Real Recall</option>
           <option>Traceability Verification</option>
@@ -3427,6 +3441,29 @@ function _reauthFinish(ok){
   if(r)r(ok);
 }
 function reauthCancel(){_reauthFinish(false);}
+
+// ── Real Recall confirmation ──
+// Choosing "Real Recall" as the exercise type produces submission-ready
+// documents with no MOCK EXERCISE watermark, so it must be deliberately
+// confirmed. When a dropdown changes to Real Recall we hold that <select> and
+// prompt: Cancel reverts it to Mock Recall, Confirm leaves Real Recall set.
+let _realRecallSelect=null;
+function onExerciseTypeChange(sel){
+  if(!sel)return;
+  if((sel.value||"").trim().toLowerCase()==="real recall"){
+    _realRecallSelect=sel;
+    document.getElementById("real-recall-modal").classList.add("open");
+  }
+}
+function realRecallCancel(){
+  if(_realRecallSelect)_realRecallSelect.value="Mock Recall";
+  _realRecallSelect=null;
+  document.getElementById("real-recall-modal").classList.remove("open");
+}
+function realRecallConfirm(){
+  _realRecallSelect=null;
+  document.getElementById("real-recall-modal").classList.remove("open");
+}
 async function reauthConfirm(ev){
   if(ev&&ev.preventDefault)ev.preventDefault();
   const btn=document.getElementById("reauth-confirm-btn");
@@ -6207,6 +6244,23 @@ async function downloadReportPDF(){
     doc.text('Page '+pageNum+' of '+total,pageW-margin,pageH-9,{align:'right'});
   }
 
+  // Diagonal, semi-transparent "MOCK EXERCISE" watermark drawn across the full
+  // page. Applied to every page (cover, body and notification appendices) when
+  // the recall exercise type is Mock Recall; a no-op for Real Recall,
+  // Traceability Verification and all non-recall report types. Drawn after the
+  // header/footer so it overlays the page content at 30% opacity.
+  function drawMockWatermark(){
+    if(!isMockRecall)return;
+    doc.saveGraphicsState();
+    try{doc.setGState(new doc.GState({opacity:0.30}));}catch(e){/* opacity unsupported — skip rather than draw a solid block */ doc.restoreGraphicsState();return;}
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(72);
+    doc.setTextColor(255,0,0);
+    doc.text('MOCK EXERCISE',pageW/2,pageH/2,{align:'center',angle:45});
+    doc.restoreGraphicsState();
+    doc.setTextColor(...black);doc.setFont('helvetica','normal');
+  }
+
   // ── COVER PAGE ──────────────────────────────────────────────────────────
   let y=60;
   // Title block
@@ -6232,6 +6286,10 @@ async function downloadReportPDF(){
   const crisisMeta=window._lastReportMeta&&window._lastReportMeta.type==="crisis-exercise"?window._lastReportMeta:null;
   const recallMeta=window._lastReportMeta&&window._lastReportMeta.type==="recall-exercise"?window._lastReportMeta:null;
   const recallRec=recallMeta&&recallMeta.record?recallMeta.record:null;
+  // Mock Recall exercises get the diagonal MOCK EXERCISE watermark on every page
+  // and a "not for submission" notice on every notification appendix; Real Recall
+  // and Traceability Verification exercises do not.
+  const isMockRecall=isRecall&&!!recallRec&&(recallRec.exerciseType||'').trim().toLowerCase()==='mock recall';
   const oosRec=oosMeta&&oosMeta.record?oosMeta.record:null;
   // Cover linkage row for the non-OOS / non-crisis report types. The Audit
   // Report Summary keeps the Audit / Session field; CAPA Status Summary shows
@@ -7037,7 +7095,179 @@ async function downloadReportPDF(){
   }
   y=pdfBuilderSignatureBlock(doc,getReportSignatories(),getReportPreparedBy(),navy,white,black,margin,contentW,pageW,pageH,y+12);
 
-  // ── OOS INDIVIDUAL EVENT REPORT — APPENDICES ──────────────────────────────
+  // ── RECALL EXERCISE — REGULATORY NOTIFICATION APPENDICES ──────────────────
+  // When the exercise requires regulatory notification, three formal
+  // notification documents are appended after the signature block, each preceded
+  // by its own separator page: (A) FDA voluntary recall notification, (B) SQF
+  // certification body notification, (C) customer recall notification letter.
+  // Generation is driven solely by Regulatory Notification Required being "Yes" —
+  // the Recall Scope (including "Mock Exercise Only") never suppresses the
+  // appendices. The mock treatment is driven solely by the exercise type: on a
+  // Mock Recall every appendix page carries the simulated-document red banner
+  // (and the global MOCK EXERCISE watermark); on a Real Recall the appendices are
+  // clean, submission-ready documents with no banners or watermark. These two
+  // conditions are independent and do not affect each other.
+  if(isRecall&&recallRec&&(recallRec.regulatoryNotificationRequired||'').trim().toLowerCase()==='yes'){
+    const R=recallRec;
+    const rNodes=Array.isArray(R.nodes)?R.nodes:[];
+    const rFindings=Array.isArray(R.findings)?R.findings:[];
+    const val=v=>(v===undefined||v===null?'':String(v)).trim();
+    const orDash=v=>{const s=val(v);return s===''?'—':s;};
+    const BLANK='____________________';
+    const facilityName='Somafina UST';
+    const siteName=val(R.site)||'Lindon';
+    const facilityAddr=[facilityName,siteName+' Facility',siteName+', Utah'];
+    const nodeLots=[...new Set(rNodes.map(n=>val(n.lotBatchNumber)).filter(Boolean))];
+    const allLots=[...new Set([val(R.startingLotNumber),...nodeLots].filter(Boolean))];
+    const lotsStr=allLots.length?allLots.join(', '):'(see exercise record)';
+    const product=orDash(R.startingMaterialType);
+
+    // Simulated-document red banner drawn at the top of every appendix page
+    // (separator and content) on a Mock Recall; nothing on a Real Recall. The
+    // banner is driven by the exercise type only — never by the recall scope.
+    const apxTopNotice=()=>{
+      if(!isMockRecall)return;
+      const msg='THIS IS A SIMULATED DOCUMENT PREPARED FOR MOCK RECALL EXERCISE '+orDash(R.id)+' — NOT FOR ACTUAL SUBMISSION.';
+      doc.setFont('helvetica','bold');doc.setFontSize(8.5);
+      const lines=doc.splitTextToSize(msg,contentW-14);
+      const bh=10+lines.length*10;
+      doc.setFillColor(192,0,0);doc.setDrawColor(150,0,0);doc.setLineWidth(1);
+      doc.rect(margin,y,contentW,bh,'FD');
+      doc.setTextColor(...white);
+      let yy=y+12;lines.forEach(wl=>{doc.text(wl,margin+7,yy);yy+=10;});
+      y+=bh+10;
+      doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    };
+    const apxNewPage=()=>{doc.addPage();y=50;apxTopNotice();};
+    const apxEnsure=h=>{if(y+h>pageH-46)apxNewPage();};
+    const apxText=(t,o)=>{o=o||{};const size=o.size||10,style=o.style||'normal',color=o.color||black,lh=o.lh||13,ind=o.indent||0;doc.setFontSize(size);doc.setFont('helvetica',style);doc.setTextColor(...color);doc.splitTextToSize(String(t==null?'':t),contentW-ind).forEach(wl=>{apxEnsure(lh);doc.text(wl,margin+ind,y);y+=lh;});doc.setTextColor(...black);doc.setFont('helvetica','normal');};
+    const apxGap=h=>{y+=(h==null?8:h);};
+    const apxField=(label,value)=>apxText(label+':  '+orDash(value));
+    const apxLineField=(label,value)=>apxText(label+':  '+(val(value)||BLANK));
+    const apxHeading=t=>{apxGap(4);apxEnsure(16);apxText(t,{size:10,style:'bold',color:navy});};
+    // Separator page: navy title bar + the standard generation note.
+    const apxSeparator=title=>{
+      doc.addPage();y=50;apxTopNotice();
+      doc.setFillColor(...navy);doc.rect(margin,y,contentW,24,'F');
+      doc.setFontSize(12);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+      doc.text(title.toUpperCase(),margin+8,y+16);
+      y+=36;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      apxText('This document was generated as part of recall exercise '+orDash(R.id)+' on '+today+'.',{style:'italic',color:[90,90,110],size:9.5});
+    };
+
+    // ── Appendix A — FDA Voluntary Recall Notification ──────────────────────
+    apxSeparator('Appendix A — FDA Voluntary Recall Notification');
+    apxNewPage();
+    apxText('Note: This notification was prepared in accordance with 21 CFR Part 7 Subpart C.',{style:'italic',color:midBlue,size:9});
+    apxGap(8);
+    apxText('Date:  '+today);
+    apxGap(4);
+    apxText('To:  U.S. Food and Drug Administration');
+    apxText('Office of Compliance — District Recall Coordinator');
+    apxGap(8);
+    apxText('Re:  Voluntary Recall — '+product+'  (Lot(s): '+lotsStr+')',{style:'bold'});
+    apxGap(8);
+    apxText('From:',{style:'bold'});
+    facilityAddr.forEach(l=>apxText(l));
+    apxGap(8);
+    apxHeading('Product Description');
+    apxText(product);
+    apxField('Lot Number(s) Affected',lotsStr);
+    apxGap(6);
+    apxHeading('Reason for Recall');
+    apxText(orDash(R.scenarioDescription));
+    apxGap(6);
+    apxHeading('Health Hazard Assessment');
+    apxText(orDash(R.recallScope));
+    apxGap(6);
+    apxHeading('Distribution Pattern');
+    if(rNodes.length){rNodes.forEach(n=>{apxText('•  '+orDash(n.location||n.responsiblePerson)+' — Quantity: '+orDash(val(n.quantity)?(val(n.quantity)+(val(n.quantityUnit)?(' '+val(n.quantityUnit)):'')):'')+' — Lot/Batch: '+orDash(n.lotBatchNumber),{indent:6});});}
+    else apxText('Distribution detail not recorded in the traceability chain.',{style:'italic',color:[120,120,140]});
+    apxGap(6);
+    apxField('Total Quantity Affected',R.totalQuantityAffected);
+    apxField('Quantity Accounted For',R.quantityAccountedFor);
+    apxGap(6);
+    apxHeading('Recall Strategy');
+    apxText('Recall classification / depth: '+orDash(R.recallScope)+'. Recall direction: '+orDash(R.recallDirection)+'. The firm will notify affected customers, arrange return or destruction of the affected product, and conduct effectiveness checks in accordance with 21 CFR Part 7.');
+    apxGap(8);
+    apxHeading('Contact Information');
+    apxField('Recall Coordinator',R.initiatedBy);
+    apxLineField('Title','');
+    apxLineField('Telephone','');
+    apxLineField('Email','');
+
+    // ── Appendix B — SQF Certification Body Notification ────────────────────
+    apxSeparator('Appendix B — SQF Certification Body Notification');
+    apxNewPage();
+    apxText('Date:  '+today);
+    apxGap(4);
+    apxText('To:  SQF Certification Body — FoodChain ID');
+    apxGap(8);
+    apxText('Re:  Notification of Product Recall Event — '+facilityName+' ('+siteName+')',{style:'bold'});
+    apxGap(8);
+    apxText('This letter notifies FoodChain ID, our SQF Certification Body, of a recall event at the facility identified below, in accordance with the crisis-management requirements of the SQF Code.');
+    apxGap(8);
+    apxHeading('Company & Certification');
+    apxField('Company',facilityName);
+    apxLineField('SQF Certification Number','');
+    apxGap(4);
+    apxHeading('Facility Address');
+    facilityAddr.forEach(l=>apxText(l));
+    apxGap(6);
+    apxHeading('Recall Details');
+    apxField('Product Affected',product);
+    apxField('Lot Number(s)',lotsStr);
+    apxField('Recall Classification',R.recallScope);
+    apxGap(6);
+    apxHeading('Corrective Actions Initiated');
+    if(rFindings.length){rFindings.forEach(f=>{apxText('•  '+orDash(f.findingDescription)+'  (Owner: '+orDash(f.owner)+' — Status: '+orDash(f.status)+(val(f.targetDate)?(' — Target: '+val(f.targetDate)):'')+')',{indent:6});});}
+    else apxText('No corrective actions recorded at the time of this notification.',{style:'italic',color:[120,120,140]});
+    apxGap(6);
+    const apxClosure=(()=>{const ds=rFindings.map(f=>val(f.targetDate)).filter(Boolean).sort();return ds.length?ds[ds.length-1]:'';})();
+    apxLineField('Expected Closure Date',apxClosure);
+    apxGap(8);
+    apxText('Reference:  SQF Code Edition 9 §2.6.4 — Crisis Management.',{style:'italic',color:midBlue,size:9});
+    apxGap(8);
+    apxHeading('Contact Information');
+    apxField('SQF Practitioner / Contact',R.initiatedBy);
+    apxLineField('Telephone','');
+    apxLineField('Email','');
+
+    // ── Appendix C — Customer Recall Notification Letter ────────────────────
+    apxSeparator('Appendix C — Customer Recall Notification Letter');
+    apxNewPage();
+    doc.setFillColor(192,0,0);doc.rect(margin,y,contentW,22,'F');
+    doc.setFontSize(12);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+    doc.text('URGENT: PRODUCT RECALL NOTICE',margin+8,y+15);
+    y+=32;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    apxText('Date:  '+today);
+    apxText('To:  Our Valued Distributors and Customers');
+    apxGap(8);
+    apxHeading('Product');
+    apxField('Product Name / Description',product);
+    apxField('Affected Lot Number(s)',lotsStr);
+    apxGap(6);
+    apxHeading('Reason for Recall');
+    apxText(orDash(R.scenarioDescription));
+    apxGap(6);
+    apxField('Health Hazard Classification',R.recallScope);
+    apxGap(6);
+    apxHeading('Instructions to Customers');
+    apxText('•  Immediately QUARANTINE all affected product identified by the lot number(s) above.',{indent:6});
+    apxText('•  DO NOT distribute, sell, or use the affected product.',{indent:6});
+    apxText('•  RETURN or DESTROY the affected product per the instructions below.',{indent:6});
+    apxGap(6);
+    apxHeading('Return / Credit Instructions');
+    apxText('Please contact us using the information below to arrange return of the affected product for full credit, or to receive authorization and instructions for on-site destruction with certification. Credit will be issued upon confirmation of the returned or destroyed quantities.');
+    apxGap(8);
+    apxHeading('Contact Information');
+    apxField('Recall Coordinator',R.initiatedBy);
+    apxLineField('Telephone','');
+    apxLineField('Email','');
+    apxGap(6);
+    apxText('We sincerely apologize for any inconvenience and appreciate your prompt cooperation in this matter.');
+  }
+
   // Image attachments are embedded inline on their own appendix pages; PDF
   // attachments are stitched in as appended pages after the signature block;
   // Excel/Word/other files are listed as reference documents.
@@ -7124,9 +7354,10 @@ async function downloadReportPDF(){
     ap.sepPage=doc.getNumberOfPages()-1; // 0-based index of this separator's last page
   }
 
-  // Apply header/footer to every base page.
+  // Apply header/footer to every base page, plus the MOCK EXERCISE watermark
+  // (no-op unless this is a Mock Recall exercise) on top of each page.
   const total=doc.getNumberOfPages();
-  for(let p=1;p<=total;p++){doc.setPage(p);drawHeaderFooter(p,total);}
+  for(let p=1;p<=total;p++){doc.setPage(p);drawHeaderFooter(p,total);drawMockWatermark();}
 
   const fname='SMF_'+rptType+'_'+new Date().toISOString().slice(0,10)+'.pdf';
 
@@ -8289,7 +8520,7 @@ function renderRecallSetup(){
     <div class="recall-block-title">Stage 1 · Setup</div>
     <div class="recall-meta-grid">
       <div><label class="form-label">Exercise ID</label><div class="recall-input" style="display:flex;align-items:center;gap:6px;opacity:.85" title="Record IDs are permanent"><span>&#128274;</span><span>${cesc(e.id)}</span></div></div>
-      <div><label class="form-label">Exercise Type</label><select class="recall-input" id="rc-type">${optList(RECALL_EX_TYPES,e.exerciseType)}</select></div>
+      <div><label class="form-label">Exercise Type</label><select class="recall-input" id="rc-type" onchange="onExerciseTypeChange(this)">${optList(RECALL_EX_TYPES,e.exerciseType)}</select></div>
       <div><label class="form-label">Site</label><select class="recall-input" id="rc-site">${optList(SITES,e.site)}</select></div>
       <div><label class="form-label">Starting Material Type</label><select class="recall-input" id="rc-material">${optList(RECALL_MATERIAL_TYPES,e.startingMaterialType)}</select></div>
       <div><label class="form-label">Starting Lot Number</label><input class="recall-input" id="rc-lot" value="${cesc(e.startingLotNumber)}" placeholder="e.g. FG-24-0413"></div>
