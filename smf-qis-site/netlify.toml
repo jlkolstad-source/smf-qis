@@ -30,3 +30,8 @@
   from = "/api/capa-links"
   to = "/.netlify/functions/capa-links"
   status = 200
+
+[[redirects]]
+  from = "/api/recall"
+  to = "/.netlify/functions/recall"
+  status = 200
