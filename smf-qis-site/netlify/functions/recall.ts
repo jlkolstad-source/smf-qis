@@ -118,6 +118,7 @@ function toClient(r: typeof recallExercises.$inferSelect) {
     startingLotNumber: r.startingLotNumber || "",
     recallDirection: r.recallDirection || "",
     scenarioDescription: r.scenarioDescription || "",
+    scenarioScript: r.scenarioScript || "",
     governingSop: r.governingSop || "",
     totalQuantityAffected: r.totalQuantityAffected || "",
     quantityAccountedFor: r.quantityAccountedFor || "",
@@ -153,6 +154,7 @@ function nodeToClient(n: typeof recallNodes.$inferSelect) {
     responsiblePerson: n.responsiblePerson || "",
     documentsReferenced: n.documentsReferenced || "",
     notes: n.notes || "",
+    statement: n.statement || "",
     traceabilityStatus: n.traceabilityStatus || "",
     attachments: arr(n.attachments),
     createdAt: toISO(n.createdAt),
@@ -329,6 +331,7 @@ export default async (req: Request) => {
             startingLotNumber: (body.startingLotNumber ?? ex.startingLotNumber) || "",
             recallDirection: (body.recallDirection ?? ex.recallDirection) || "Both",
             scenarioDescription: (body.scenarioDescription ?? ex.scenarioDescription) || "",
+            scenarioScript: (body.scenarioScript ?? ex.scenarioScript) || "",
             governingSop: (body.governingSop ?? ex.governingSop) || "SOP #21 — Trace and Recall",
             status: ex.status === "Draft" ? "In Progress" : ex.status,
             modifiedBy: actor,
@@ -354,6 +357,7 @@ export default async (req: Request) => {
           responsiblePerson: (n.responsiblePerson || "").toString(),
           documentsReferenced: (n.documentsReferenced || "").toString(),
           notes: (n.notes || "").toString(),
+          statement: (n.statement || "").toString(),
           traceabilityStatus: (n.traceabilityStatus || "").toString(),
         };
         let saved;

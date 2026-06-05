@@ -608,6 +608,7 @@ main{padding:24px 32px 80px;}
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="sqfi-submission" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> NCR / Audit Finding — CA Package</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="capa-summary" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> CAPA Status Summary</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="crisis-exercise" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#9888; Crisis Exercise After-Action (SOP-20-EX-001)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="recall-exercise" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#128279; Recall Exercise Narrative Report (SOP #21)</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="oos-individual" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#129514; OOS Individual Event Report</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="oos-summary" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#129514; OOS Summary Report</label>
         </div>
@@ -615,6 +616,10 @@ main{padding:24px 32px 80px;}
       <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-crisis-picker">
         <div class="chart-title" style="margin-bottom:10px">Crisis Exercise</div>
         <div class="form-group"><label class="form-label">Select Exercise</label><select class="form-select" id="ai-crisis-id"><option value="">— choose an exercise —</option></select></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-recall-picker">
+        <div class="chart-title" style="margin-bottom:10px">Recall Exercise</div>
+        <div class="form-group"><label class="form-label">Select Recall Exercise</label><select class="form-select" id="ai-recall-id"><option value="">— choose a recall exercise —</option></select></div>
       </div>
       <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-oos-picker">
         <div class="chart-title" style="margin-bottom:10px">OOS Investigation</div>
@@ -5007,12 +5012,14 @@ function onReportTypeChange(){
   const t=document.querySelector("input[name='rpt-type']:checked")?.value;
   const show=(id,cond)=>{const el=document.getElementById(id);if(el)el.style.display=cond?"":"none";};
   show("ai-crisis-picker",t==="crisis-exercise");
+  show("ai-recall-picker",t==="recall-exercise");
   show("ai-oos-picker",t==="oos-individual");
   show("ai-oos-filters",t==="oos-summary");
   show("ai-audit-picker",t==="audit-report");
   show("ai-ncr-picker",t==="sqfi-submission");
   show("ai-capa-picker",t==="capa-summary");
   if(t==="crisis-exercise")populateCrisisReportPicker();
+  if(t==="recall-exercise")populateRecallReportPicker();
   if(t==="oos-individual")populateOOSReportPicker();
   if(t==="oos-summary")populateOOSReportFilters();
   if(t==="audit-report")populateAuditReportPicker();
@@ -5339,7 +5346,110 @@ Use formal SQF-compliant regulatory language throughout, matching the measured, 
   }
 }
 
-// Stream a single-call AI report (used by the OOS report generators below).
+// Populate the Recall Exercise report selector with this site's exercises.
+async function populateRecallReportPicker(){
+  const sel=document.getElementById("ai-recall-id");if(!sel)return;
+  const prev=sel.value;
+  try{
+    const res=await fetch(RECALL_API+"?site="+encodeURIComponent(currentSite));
+    const list=res.ok?await res.json():[];
+    sel.innerHTML='<option value="">— choose a recall exercise —</option>'+list.map(e=>`<option value="${cesc(e.id)}">${cesc(e.id)} · ${cesc(e.exerciseType||"Recall")} — ${cesc(e.startingLotNumber||e.startingMaterialType||"")}</option>`).join("");
+    if(prev)sel.value=prev;
+  }catch(e){}
+}
+
+// Build a narrative-driven report for one recall / traceability exercise
+// (SOP #21). The AI weaves the participants' first-person node statements into a
+// single chronological account, falling back to the structured node data where a
+// statement is absent. All exercise data — scenario script, every node with its
+// statement, the Stage 3 assessment, findings/CAPA linkage and the electronic
+// sign-offs — is passed to the model.
+async function generateRecallReport(recallId,context,wrap){
+  if(!recallId){
+    wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Select a recall exercise to generate its narrative report.</div>';
+    toast("Select a recall exercise first.","red");return;
+  }
+  let e;
+  try{
+    const res=await fetch(RECALL_API+"?id="+encodeURIComponent(recallId));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    e=await res.json();
+  }catch(err){
+    wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Could not load recall exercise: ${err.message}</div>`;return;
+  }
+  const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not yet completed)":s;};
+  const nodes=e.nodes||[];
+  const findings=e.findings||[];
+  const sigs=Array.isArray(e.signatures)?e.signatures:[];
+  // One detailed block per traceability node, in chain order, carrying both the
+  // structured fields and the verbatim first-person statement (or a marker when
+  // none was provided so the AI knows to fall back to the structured data).
+  const nodeBlocks=nodes.length?nodes.map((n,i)=>{
+    const stmt=(n.statement||"").trim();
+    return `NODE ${i+1} — ${fld(n.nodeType)} [${fld(n.nodeDate)}]
+  Lot/Batch: ${fld(n.lotBatchNumber)} | Quantity: ${fld(n.quantity)} ${n.quantityUnit||""} | Location: ${fld(n.location)}
+  Responsible Person: ${fld(n.responsiblePerson)} | Traceability Status: ${fld(n.traceabilityStatus)}
+  Documents Referenced: ${fld(n.documentsReferenced)}
+  Notes: ${fld(n.notes)}
+  First-Person Statement: ${stmt?stmt:"(no statement provided — reconstruct this step from the structured node data above)"}`;
+  }).join("\n\n"):"(no traceability nodes recorded)";
+  const findingsBlock=findings.length?findings.map(f=>`- ${fld(f.findingDescription)} | Owner: ${fld(f.owner)} | Target: ${fld(f.targetDate)} | CAPA Required: ${fld(f.capaRequired)} | CAPA ID: ${f.capaId?fld(f.capaId):"—"} | Linked NCR: ${f.ncrId?fld(f.ncrId):"—"} | Status: ${fld(f.status)}`).join("\n"):"(no findings recorded)";
+  const sigBlock=sigs.length?sigs.map(s=>`- ${fld(s.name)}${s.title?(", "+s.title):""} — ${fld(s.role)} — ${s.signedAt?fld(s.signedAt):"NOT SIGNED"}`).join("\n"):"(no electronic sign-offs captured)";
+
+  const prompt=`You are a quality and regulatory affairs expert producing a formal MOCK RECALL / TRACEABILITY EXERCISE NARRATIVE REPORT for Somafina UST (SOMAFINA UST — a dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111), governed by SOP #21 (Trace and Recall). Mark the document CONFIDENTIAL.
+
+DATA INTEGRITY: Use ONLY the exact data provided below. Never invent timestamps, names, lot numbers, quantities, actions, document references, or regulatory citations. If a field is pending or blank, state it as pending — do not fabricate. Preserve every name, title, lot number and quantity verbatim.
+
+OUTPUT FORMAT: Markdown. Use "# " for the report title, "## " for the major section headings (ALL CAPS), "### " for sub-headings, "| ... |" GitHub tables where indicated, and "- " for lists.
+
+Produce the report in this exact section order:
+
+# SOMAFINA UST | MOCK RECALL & TRACEABILITY EXERCISE — NARRATIVE REPORT
+
+## EXERCISE HEADER
+Render as a two-column field table: Exercise ID (${fld(e.id)}), Exercise Type (${fld(e.exerciseType)}), Site (${fld(e.site)}), Governing SOP (${fld(e.governingSop)}), Initiated By (${fld(e.initiatedBy)}), Date Initiated (${fld(e.dateInitiated)}), Starting Material Type (${fld(e.startingMaterialType)}), Starting Lot Number (${fld(e.startingLotNumber)}), Recall Direction (${fld(e.recallDirection)}), Status (${fld(e.status)}), Retention (2 years per SOP #02).
+
+## SCENARIO SCRIPT
+Reproduce the pre-exercise scenario script that was read to participants at the start of the exercise, exactly as provided. If no script was provided, render the Scenario Description instead. Scenario Script:
+${fld(e.scenarioScript)}
+
+Scenario Description (supporting context):
+${fld(e.scenarioDescription)}
+
+## EXECUTIVE NARRATIVE
+Generate a professional narrative account of this recall exercise in chronological order. Use the first-person statements provided by each participant verbatim where available, attributed as [Name, Title]: statement. Fill in transitions and context using the structured node data. The narrative should read as a complete story of the recall response from initiation to completion. Do not invent facts not present in the data.
+
+Attribute each statement to its node's Responsible Person (use their name; include their title where it appears in the sign-off data below). Weave the nodes together in the order given so the account flows from the origin material through every step of the traceability chain to its conclusion. Where a node has no first-person statement, narrate that step factually from its structured data.
+
+Traceability chain nodes (in chronological/chain order):
+${nodeBlocks}
+
+## TRACEABILITY CHAIN
+Render the structured node data as a table with columns: # | Node Type | Date | Lot/Batch | Quantity | Location | Responsible Person | Traceability Status. One row per node, in the order above.
+
+## ASSESSMENT SUMMARY
+Render as a field table reproducing the Stage 3 assessment: Total Quantity Affected (${fld(e.totalQuantityAffected)}), Quantity Accounted For (${fld(e.quantityAccountedFor)}), Quantity Unaccounted (${fld(e.quantityUnaccounted)}), Traceability Rate (${fld(e.traceabilityRate)}), Recall Scope (${fld(e.recallScope)}), Regulatory Notification Required (${fld(e.regulatoryNotificationRequired)}), Customer Notification Required (${fld(e.customerNotificationRequired)}), Customer Notification Count (${fld(e.customerNotificationCount)}), Time to Complete (${fld(e.timeToComplete)}), Overall Assessment (${fld(e.overallAssessment)}). Then add a "### Facilitator Notes" sub-heading reproducing: ${fld(e.facilitatorNotes)}.
+
+## FINDINGS & CAPA LINKAGE
+Render as a table with columns: Finding / Gap Identified | Owner | Target Date | CAPA Required? | CAPA ID | Linked NCR | Status. Provided findings:
+${findingsBlock}
+
+## REGULATORY CITATIONS
+Cite SOP #21 (Trace and Recall), SQF Code Edition 9 traceability and recall requirements, 21 CFR Part 111, and SOP #02 (record retention — minimum 2 years). Cite only the SMF documents and clauses referenced in the data above; do not invent additional citations.
+
+${signatoriesPromptSection()}
+
+Electronic sign-offs captured on this exercise (for attribution of titles only — do NOT render a signature block):
+${sigBlock}
+
+${context?"ADDITIONAL CONTEXT:\n"+context+"\n":""}
+Close the document with the footer line exactly: "SOP #21 | Mock Recall & Traceability Exercise | Retain minimum 2 years per SOP #02 | SOMAFINA UST — CONFIDENTIAL".
+Use formal SQF-compliant regulatory language throughout, with an audit-ready tone.`;
+
+  await streamSingleReport(prompt,wrap,{type:"recall-exercise",recallId:e.id,site:e.site,record:e,coverRecords:[e]});
+}
+
+
 async function streamSingleReport(prompt,wrap,meta){
   try{
     wrap.innerHTML='<div class="ai-output" id="ai-stream-out"></div>';
@@ -5522,6 +5632,7 @@ async function generateAIReport(){
   document.getElementById("dl-pdf-btn").style.display="none";
   // Each report type drives its own generation path off a record selector.
   if(rptType==="crisis-exercise")return generateCrisisReport(document.getElementById("ai-crisis-id").value,"",wrap);
+  if(rptType==="recall-exercise")return generateRecallReport(document.getElementById("ai-recall-id").value,"",wrap);
   if(rptType==="oos-individual")return generateOOSIndividualReport(document.getElementById("ai-oos-id").value,"",wrap);
   if(rptType==="oos-summary")return generateOOSSummaryReport("",wrap);
   if(rptType==="audit-report")return generateAuditReportSummary(document.getElementById("ai-audit-id").value,wrap);
@@ -5998,9 +6109,10 @@ async function downloadReportPDF(){
   const lightBlue=[222,234,241];
   const pageW=612,pageH=792,margin=54,contentW=612-54*2;
   const rptType=document.querySelector("input[name='rpt-type']:checked")?.value||'';
-  const rptLabels={"sqfi-submission":"NCR / Audit Finding Corrective Action Package","audit-report":"Audit Report Summary","capa-summary":"CAPA Status Summary","crisis-exercise":"Crisis Exercise After-Action Report","oos-individual":"OOS Individual Event Report","oos-summary":"OOS Summary Report"};
+  const rptLabels={"sqfi-submission":"NCR / Audit Finding Corrective Action Package","audit-report":"Audit Report Summary","capa-summary":"CAPA Status Summary","crisis-exercise":"Crisis Exercise After-Action Report","recall-exercise":"Recall Exercise Narrative Report","oos-individual":"OOS Individual Event Report","oos-summary":"OOS Summary Report"};
   const rptLabel=rptLabels[rptType]||'Audit Report';
   const isCrisis=rptType==="crisis-exercise";
+  const isRecall=rptType==="recall-exercise";
   const oosMeta=window._lastReportMeta&&(window._lastReportMeta.type==="oos-individual"||window._lastReportMeta.type==="oos-summary")?window._lastReportMeta:null;
   const isOOS=!!oosMeta;
   const isOOSIndividual=window._lastReportMeta&&window._lastReportMeta.type==="oos-individual";
@@ -6101,7 +6213,7 @@ async function downloadReportPDF(){
   doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');
   y+=18;
   doc.setFontSize(22);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
-  doc.text(isCrisis?'CRISIS MANAGEMENT EXERCISE':(isOOS?'OUT OF SPECIFICATION (OOS)':'INTERNAL AUDIT REPORT'),pageW/2,y,{align:'center'});
+  doc.text(isCrisis?'CRISIS MANAGEMENT EXERCISE':(isRecall?'MOCK RECALL & TRACEABILITY EXERCISE':(isOOS?'OUT OF SPECIFICATION (OOS)':'INTERNAL AUDIT REPORT')),pageW/2,y,{align:'center'});
   y+=28;
   doc.setFontSize(13);doc.setTextColor(...midBlue);doc.setFont('helvetica','normal');
   doc.text(rptLabel,pageW/2,y,{align:'center'});
@@ -6118,6 +6230,8 @@ async function downloadReportPDF(){
   doc.text('Document Information',margin+8,y+15);
   y+=22;
   const crisisMeta=window._lastReportMeta&&window._lastReportMeta.type==="crisis-exercise"?window._lastReportMeta:null;
+  const recallMeta=window._lastReportMeta&&window._lastReportMeta.type==="recall-exercise"?window._lastReportMeta:null;
+  const recallRec=recallMeta&&recallMeta.record?recallMeta.record:null;
   const oosRec=oosMeta&&oosMeta.record?oosMeta.record:null;
   // Cover linkage row for the non-OOS / non-crisis report types. The Audit
   // Report Summary keeps the Audit / Session field; CAPA Status Summary shows
@@ -6170,6 +6284,17 @@ async function downloadReportPDF(){
     ['Governing Standard','SQF Edition 9 — Clause 2.6.4 Crisis Management'],
     ['Governing SOP','SOP #20 — Crisis Management  |  Form SOP-20-EX-001'],
     ['Next Exercise Date',crisisMeta&&crisisMeta.nextExerciseDate?crisisMeta.nextExerciseDate:'(see report)'],
+  ]:isRecall?[
+    ['Report Type',rptLabel],
+    ['Exercise ID',recallRec&&recallRec.id?recallRec.id:'RCL'],
+    ['Exercise Type',recallRec&&recallRec.exerciseType?recallRec.exerciseType:'Mock Recall'],
+    ['Starting Material',recallRec&&recallRec.startingMaterialType?recallRec.startingMaterialType:'—'],
+    ['Starting Lot',recallRec&&recallRec.startingLotNumber?recallRec.startingLotNumber:'—'],
+    ['Prepared By',auditor],
+    ['Site',(recallMeta&&recallMeta.site?recallMeta.site:'Lindon')+', Utah  ·  Somafina UST'],
+    ['Generated',today],
+    ['Governing Standard','SQF Edition 9  ·  21 CFR Part 111  —  Traceability & Recall'],
+    ['Governing SOP',(recallRec&&recallRec.governingSop)?recallRec.governingSop:'SOP #21 — Trace and Recall'],
   ]:[
     ['Report Type',rptLabel],
     coverLinkRow,
@@ -8174,6 +8299,7 @@ function renderRecallSetup(){
       <div><label class="form-label">Governing SOP</label><input class="recall-input" id="rc-sop" value="${cesc(e.governingSop)}"></div>
     </div>
     <div style="margin-top:10px"><label class="form-label">Scenario Description</label><textarea class="recall-input" id="rc-scenario" style="min-height:80px" placeholder="Describe the recall scenario being simulated...">${cesc(e.scenarioDescription)}</textarea></div>
+    <div style="margin-top:10px"><label class="form-label">Scenario Script / Inject Description</label><textarea class="recall-input" id="rc-script" style="min-height:110px" placeholder="Enter the scenario script that will be read to participants at the start of the exercise — include the simulated event, affected materials, and initial conditions.">${cesc(e.scenarioScript)}</textarea></div>
     <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end">
       <button class="btn" style="background:#1F6F6B" onclick="saveRecallSetup()">&#128190; Save Setup</button>
       <button class="btn" style="background:#1F3864" onclick="saveRecallSetup(true)">Save &amp; Next →</button>
@@ -8185,7 +8311,7 @@ async function saveRecallSetup(next){
   const body={
     exerciseType:v("rc-type"),site:v("rc-site"),startingMaterialType:v("rc-material"),
     startingLotNumber:v("rc-lot"),recallDirection:v("rc-direction"),
-    governingSop:v("rc-sop")||"SOP #21 — Trace and Recall",scenarioDescription:v("rc-scenario"),
+    governingSop:v("rc-sop")||"SOP #21 — Trace and Recall",scenarioDescription:v("rc-scenario"),scenarioScript:v("rc-script"),
   };
   try{
     activeRecall=await recallPost("save-setup",body);
@@ -8235,6 +8361,7 @@ function recallNodeHTML(n,i,total){
       </div>
       ${n.documentsReferenced?`<div style="margin-top:5px;font-size:11px"><b>Docs:</b> ${cesc(n.documentsReferenced)}</div>`:""}
       ${n.notes?`<div style="margin-top:5px;font-size:11px;color:#4a5568">${cesc(n.notes)}</div>`:""}
+      ${n.statement?`<div style="margin-top:6px;font-size:11px;color:#1a1a2e;background:#F3F8F7;border-left:3px solid #1F6F6B;border-radius:0 4px 4px 0;padding:6px 9px"><span style="font-size:9px;font-family:'DM Mono',monospace;letter-spacing:.5px;color:#1F6F6B;display:block;margin-bottom:2px">FIRST-PERSON ACCOUNT${n.responsiblePerson?" · "+cesc(n.responsiblePerson):""}</span>${cesc(n.statement)}</div>`:""}
       <div style="margin-top:7px;display:flex;align-items:center;flex-wrap:wrap;gap:2px">
         ${attach}
         <label class="btn-ghost" style="cursor:pointer;font-size:10px;padding:2px 8px;margin-left:4px">&#128206; Attach File<input type="file" style="display:none" onchange="uploadRecallNodeFile('${cesc(n.id)}',this)"></label>
@@ -8256,6 +8383,7 @@ function recallNodeForm(n){
       <div><label class="form-label">Documents Referenced</label><input class="recall-input" id="rn-docs" value="${cesc(n.documentsReferenced)}" placeholder="batch record, BOL, CoA..."></div>
     </div>
     <div style="margin-top:8px"><label class="form-label">Notes</label><textarea class="recall-input" id="rn-notes" style="min-height:50px">${cesc(n.notes)}</textarea></div>
+    <div style="margin-top:8px"><label class="form-label">Node Statement / First-Person Account <span style="font-weight:400;color:#4a5568">(optional but encouraged)</span></label><textarea class="recall-input" id="rn-statement" style="min-height:64px" placeholder="Describe what you did at this stage in your own words — include specific actions taken, quantities handled, decisions made, and any issues observed.">${cesc(n.statement)}</textarea></div>
     <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
       <button class="btn-ghost" onclick="cancelRecallNodeEdit()">Cancel</button>
       <button class="btn" style="background:#1F6F6B" onclick="saveRecallNode('${cesc(n.id)}')">Save Node</button>
@@ -8274,7 +8402,7 @@ function editRecallNode(id){recallEditingNodeId=id;renderRecallStageBody();}
 function cancelRecallNodeEdit(){recallEditingNodeId=null;renderRecallStageBody();}
 async function saveRecallNode(id){
   function v(x){const el=document.getElementById(x);return el?el.value:"";}
-  const body={id,nodeType:v("rn-type"),nodeDate:v("rn-date"),lotBatchNumber:v("rn-lot"),quantity:v("rn-qty"),quantityUnit:v("rn-unit"),location:v("rn-loc"),responsiblePerson:v("rn-resp"),traceabilityStatus:v("rn-trace"),documentsReferenced:v("rn-docs"),notes:v("rn-notes")};
+  const body={id,nodeType:v("rn-type"),nodeDate:v("rn-date"),lotBatchNumber:v("rn-lot"),quantity:v("rn-qty"),quantityUnit:v("rn-unit"),location:v("rn-loc"),responsiblePerson:v("rn-resp"),traceabilityStatus:v("rn-trace"),documentsReferenced:v("rn-docs"),notes:v("rn-notes"),statement:v("rn-statement")};
   try{
     activeRecall=await recallPost("save-node",body);
     recallEditingNodeId=null;
