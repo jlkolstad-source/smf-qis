@@ -7160,7 +7160,7 @@ async function downloadReportPDF(){
 
     // ── Appendix A — FDA Voluntary Recall Notification ──────────────────────
     apxSeparator('Appendix A — FDA Voluntary Recall Notification');
-    apxNewPage();
+    apxGap(10);
     apxText('Note: This notification was prepared in accordance with 21 CFR Part 7 Subpart C.',{style:'italic',color:midBlue,size:9});
     apxGap(8);
     apxText('Date:  '+today);
@@ -7201,7 +7201,7 @@ async function downloadReportPDF(){
 
     // ── Appendix B — SQF Certification Body Notification ────────────────────
     apxSeparator('Appendix B — SQF Certification Body Notification');
-    apxNewPage();
+    apxGap(10);
     apxText('Date:  '+today);
     apxGap(4);
     apxText('To:  SQF Certification Body — FoodChain ID');
@@ -7238,7 +7238,8 @@ async function downloadReportPDF(){
 
     // ── Appendix C — Customer Recall Notification Letter ────────────────────
     apxSeparator('Appendix C — Customer Recall Notification Letter');
-    apxNewPage();
+    apxGap(10);
+    apxEnsure(40);
     doc.setFillColor(192,0,0);doc.rect(margin,y,contentW,22,'F');
     doc.setFontSize(12);doc.setTextColor(...white);doc.setFont('helvetica','bold');
     doc.text('URGENT: PRODUCT RECALL NOTICE',margin+8,y+15);
@@ -7280,7 +7281,7 @@ async function downloadReportPDF(){
     // red banner and global MOCK EXERCISE watermark as every other appendix.
     const dateInit=(()=>{const d=R.dateInitiated?new Date(R.dateInitiated):null;return (d&&!isNaN(d))?d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):today;})();
     const apxCertNotification=cfg=>{
-      apxNewPage();
+      apxGap(8);
       apxText('Date:  '+dateInit);
       apxGap(6);
       apxText('To:  '+cfg.org,{style:'bold'});
