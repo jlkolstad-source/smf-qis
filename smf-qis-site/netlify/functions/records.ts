@@ -17,6 +17,28 @@ import { records, auditLog, effectivenessChecks } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+// ── Risk matrix (Likelihood × Severity) ───────────────────────────────────
+// Both inputs are 1-5. The product (1-25) is bucketed into a qualitative level:
+//   1-4 = Low · 5-9 = Medium · 10-16 = High · 17-25 = Critical.
+// An incomplete pair (either value missing / out of range) is treated as
+// "not yet scored": score 0, empty level, inputs preserved as supplied.
+export function computeRisk(likelihood: any, severity: any) {
+  const L = parseInt(String(likelihood ?? "").trim(), 10);
+  const S = parseInt(String(severity ?? "").trim(), 10);
+  const valid = Number.isFinite(L) && Number.isFinite(S) && L >= 1 && L <= 5 && S >= 1 && S <= 5;
+  if (!valid) {
+    return {
+      likelihood: String(likelihood ?? "").trim(),
+      riskSeverity: String(severity ?? "").trim(),
+      riskScore: 0,
+      riskLevel: "",
+    };
+  }
+  const score = L * S;
+  const level = score >= 17 ? "Critical" : score >= 10 ? "High" : score >= 5 ? "Medium" : "Low";
+  return { likelihood: String(L), riskSeverity: String(S), riskScore: score, riskLevel: level };
+}
+
 function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
 }
@@ -76,6 +98,11 @@ function toClient(r: typeof records.$inferSelect) {
     id: r.id,
     type: r.type,
     severity: r.severity,
+    // Risk matrix fields (distinct from the qualitative `severity` above).
+    likelihood: r.likelihood || "",
+    riskSeverity: r.riskSeverity || "",
+    riskScore: r.riskScore || 0,
+    riskLevel: r.riskLevel || "",
     clause: r.clause,
     status: r.status,
     due: r.dueDate || "",
@@ -204,9 +231,14 @@ async function nextAuditId(prefix: string, site: string, year: string): Promise<
 
 // Normalise an incoming record payload into DB column values.
 function toRow(r: any) {
+  const risk = computeRisk(r.likelihood, r.riskSeverity ?? r.risk_severity);
   return {
     type: r.type || "CAPA",
     severity: r.severity || "Minor",
+    likelihood: risk.likelihood,
+    riskSeverity: risk.riskSeverity,
+    riskScore: risk.riskScore,
+    riskLevel: risk.riskLevel,
     clause: (r.clause || "").trim(),
     status: r.status || "Open",
     dueDate: r.due || "",
@@ -621,6 +653,24 @@ export default async (req: Request) => {
       // Preserve the certification-body source unless explicitly supplied.
       if (!bodyHas(body, "sourceBody", "source_body")) row.sourceBody = existing.sourceBody;
 
+      // Risk matrix: recompute risk_score / risk_level only when BOTH likelihood
+      // and severity are supplied (and non-empty) in this request; otherwise the
+      // existing risk fields are preserved untouched through the update.
+      const riskL = String(body.likelihood ?? "").trim();
+      const riskS = String(body.riskSeverity ?? body.risk_severity ?? "").trim();
+      if (riskL !== "" && riskS !== "") {
+        const risk = computeRisk(riskL, riskS);
+        row.likelihood = risk.likelihood;
+        row.riskSeverity = risk.riskSeverity;
+        row.riskScore = risk.riskScore;
+        row.riskLevel = risk.riskLevel;
+      } else {
+        row.likelihood = existing.likelihood;
+        row.riskSeverity = existing.riskSeverity;
+        row.riskScore = existing.riskScore;
+        row.riskLevel = existing.riskLevel;
+      }
+
       // Record IDs are permanent and non-editable. Any id field in the request
       // body is ignored — the id is never changed by an update.
 
@@ -664,6 +714,7 @@ export default async (req: Request) => {
       const tracked: [string, any, any][] = [
         ["type", existing.type, updated.type],
         ["severity", existing.severity, updated.severity],
+        ["risk_level", existing.riskLevel, updated.riskLevel],
         ["clause", existing.clause, updated.clause],
         ["status", existing.status, updated.status],
         ["due_date", existing.dueDate, updated.dueDate],

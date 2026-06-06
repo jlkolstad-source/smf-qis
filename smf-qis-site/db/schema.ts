@@ -14,6 +14,15 @@ export const records = pgTable(
     id: text("id").primaryKey(),
     type: text("type").notNull().default("CAPA"),
     severity: text("severity").notNull().default("Minor"),
+    // ── Risk matrix (Likelihood × Severity) ──────────────────────────────────
+    // The existing `severity` column above remains the qualitative
+    // classification (Minor / Major / Critical). The risk matrix adds a separate
+    // numeric 1-5 likelihood and 1-5 severity whose product drives risk_score /
+    // risk_level. Stored as text so the empty "" default = "not yet scored".
+    likelihood: text("likelihood").notNull().default(""),
+    riskSeverity: text("risk_severity").notNull().default(""),
+    riskScore: integer("risk_score").notNull().default(0),
+    riskLevel: text("risk_level").notNull().default(""),
     clause: text("clause").notNull().default(""),
     status: text("status").notNull().default("Open"),
     dueDate: text("due_date").notNull().default(""),
@@ -196,6 +205,10 @@ export const crisisExercises = pgTable(
     discussion: jsonb("discussion").$type<any[]>().notNull().default([]),
     // [{ item, owner, targetDate, capaRequired, capaId }]
     lessonsLearned: jsonb("lessons_learned").$type<any[]>().notNull().default([]),
+    // Aggregated risk data rolled up from the lessons-learned rows' risk scores
+    // (e.g. { counts: { Critical, High, Medium, Low }, highest, items: [...] }).
+    // Recomputed server-side whenever lessons learned change.
+    findingsRiskSummary: jsonb("findings_risk_summary").$type<Record<string, any>>().notNull().default({}),
     // [{ name, title, qualifications, role, signoffAt }]
     attendees: jsonb("attendees").$type<any[]>().notNull().default([]),
     // Electronic sign-offs. Each entry: { role, name, title, signedAt }.
@@ -291,6 +304,13 @@ export const oosRecords = pgTable(
     units: text("units").notNull().default(""),
     passFail: text("pass_fail").notNull().default(""),
     classification: text("classification").notNull().default(""),
+    // ── Risk matrix (Likelihood × Severity) ──────────────────────────────────
+    // 1-5 likelihood and 1-5 severity whose product drives risk_score /
+    // risk_level. Empty "" default = "not yet scored".
+    likelihood: text("likelihood").notNull().default(""),
+    riskSeverity: text("risk_severity").notNull().default(""),
+    riskScore: integer("risk_score").notNull().default(0),
+    riskLevel: text("risk_level").notNull().default(""),
     phase1Notes: text("phase1_notes").notNull().default(""),
     phase2Notes: text("phase2_notes").notNull().default(""),
     rootCause: text("root_cause").notNull().default(""),
@@ -448,6 +468,13 @@ export const recallFindings = pgTable(
     id: text("id").primaryKey(),
     recallId: text("recall_id").notNull().default(""),
     findingDescription: text("finding_description").notNull().default(""),
+    // ── Risk matrix (Likelihood × Severity) ──────────────────────────────────
+    // 1-5 likelihood and 1-5 severity whose product drives risk_score /
+    // risk_level. Empty "" default = "not yet scored".
+    likelihood: text("likelihood").notNull().default(""),
+    riskSeverity: text("risk_severity").notNull().default(""),
+    riskScore: integer("risk_score").notNull().default(0),
+    riskLevel: text("risk_level").notNull().default(""),
     owner: text("owner").notNull().default(""),
     targetDate: text("target_date").notNull().default(""),
     capaRequired: text("capa_required").notNull().default(""),
