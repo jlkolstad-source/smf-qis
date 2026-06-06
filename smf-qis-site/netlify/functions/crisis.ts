@@ -23,6 +23,49 @@ import { crisisExercises, crisisResponseLog, auditLog } from "../../db/schema.js
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+// ── Risk matrix (Likelihood × Severity) ───────────────────────────────────
+// Both inputs are 1-5. The product (1-25) is bucketed into a qualitative level:
+//   1-4 = Low · 5-9 = Medium · 10-16 = High · 17-25 = Critical.
+export function computeRisk(likelihood: any, severity: any) {
+  const L = parseInt(String(likelihood ?? "").trim(), 10);
+  const S = parseInt(String(severity ?? "").trim(), 10);
+  const valid = Number.isFinite(L) && Number.isFinite(S) && L >= 1 && L <= 5 && S >= 1 && S <= 5;
+  if (!valid) {
+    return {
+      likelihood: String(likelihood ?? "").trim(),
+      riskSeverity: String(severity ?? "").trim(),
+      riskScore: 0,
+      riskLevel: "",
+    };
+  }
+  const score = L * S;
+  const level = score >= 17 ? "Critical" : score >= 10 ? "High" : score >= 5 ? "Medium" : "Low";
+  return { likelihood: String(L), riskSeverity: String(S), riskScore: score, riskLevel: level };
+}
+
+// Recompute the risk fields on every lessons-learned row from its likelihood /
+// severity, and roll the results up into an aggregate summary stored on the
+// crisis_exercises.findings_risk_summary column. The summary carries the per-
+// level counts, the single highest score / level and a compact list of the
+// scored rows so reports can render a risk profile without re-deriving it.
+function applyLessonsRisk(lessons: any[]): { lessons: any[]; summary: Record<string, any> } {
+  const counts: Record<string, number> = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  const items: any[] = [];
+  let highest = 0;
+  let highestLevel = "";
+  const out = (Array.isArray(lessons) ? lessons : []).map((l: any) => {
+    const r = computeRisk(l?.likelihood, l?.riskSeverity ?? l?.risk_severity);
+    const row = { ...l, likelihood: r.likelihood, riskSeverity: r.riskSeverity, riskScore: r.riskScore, riskLevel: r.riskLevel };
+    if (r.riskLevel) {
+      counts[r.riskLevel] = (counts[r.riskLevel] || 0) + 1;
+      items.push({ item: l?.item || "", riskScore: r.riskScore, riskLevel: r.riskLevel, likelihood: r.likelihood, riskSeverity: r.riskSeverity });
+      if (r.riskScore > highest) { highest = r.riskScore; highestLevel = r.riskLevel; }
+    }
+    return row;
+  });
+  return { lessons: out, summary: { counts, highest, highestLevel, items } };
+}
+
 function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
 }
@@ -89,6 +132,7 @@ function toClient(r: typeof crisisExercises.$inferSelect) {
     objectives: arr(r.objectives),
     discussion: arr(r.discussion),
     lessonsLearned: arr(r.lessonsLearned),
+    findingsRiskSummary: (r.findingsRiskSummary && typeof r.findingsRiskSummary === "object") ? r.findingsRiskSummary : {},
     attendees: arr(r.attendees),
     outcome: r.outcome || "",
     responseAdequate: r.responseAdequate || "",
@@ -328,12 +372,15 @@ export default async (req: Request) => {
       const row = toRow(body);
       // Facilitator defaults to the signed-in user when not supplied.
       if (!row.facilitator) row.facilitator = name;
+      // Score any lessons supplied at creation and roll up the risk summary.
+      const { lessons: seedLessons, summary: seedSummary } = applyLessonsRisk(row.lessonsLearned);
+      row.lessonsLearned = seedLessons;
       // Id year is the current year at time of creation (per record-id policy).
       const year = String(new Date().getFullYear());
       const newId = await nextExerciseId(row.site, year);
       const [created] = await db
         .insert(crisisExercises)
-        .values({ id: newId, ...row, createdBy: actor, createdAt: now, modifiedBy: actor, modifiedAt: now })
+        .values({ id: newId, ...row, findingsRiskSummary: seedSummary, createdBy: actor, createdAt: now, modifiedBy: actor, modifiedAt: now })
         .onConflictDoNothing()
         .returning();
       if (!created) return json(409, { error: "Exercise id collision, please retry." });
@@ -361,7 +408,11 @@ export default async (req: Request) => {
         return json(403, { error: "Only an administrator can mark an exercise Complete." });
       }
 
-      await db.update(crisisExercises).set({ ...row, modifiedBy: actor, modifiedAt: now }).where(eq(crisisExercises.id, id));
+      // Recompute per-lesson risk scores and the rolled-up risk summary.
+      const { lessons: scoredLessons, summary: riskSummary } = applyLessonsRisk(row.lessonsLearned);
+      row.lessonsLearned = scoredLessons;
+
+      await db.update(crisisExercises).set({ ...row, findingsRiskSummary: riskSummary, modifiedBy: actor, modifiedAt: now }).where(eq(crisisExercises.id, id));
       if (existing.status !== row.status) {
         await logChange(id, "status_change", `Status ${existing.status} → ${row.status}`, actor);
       }

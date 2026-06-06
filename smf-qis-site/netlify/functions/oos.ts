@@ -26,6 +26,27 @@ import { oosRecords, auditLog } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+// ── Risk matrix (Likelihood × Severity) ───────────────────────────────────
+// Both inputs are 1-5. The product (1-25) is bucketed into a qualitative level:
+//   1-4 = Low · 5-9 = Medium · 10-16 = High · 17-25 = Critical.
+// An incomplete pair (either value missing / out of range) is "not yet scored".
+export function computeRisk(likelihood: any, severity: any) {
+  const L = parseInt(String(likelihood ?? "").trim(), 10);
+  const S = parseInt(String(severity ?? "").trim(), 10);
+  const valid = Number.isFinite(L) && Number.isFinite(S) && L >= 1 && L <= 5 && S >= 1 && S <= 5;
+  if (!valid) {
+    return {
+      likelihood: String(likelihood ?? "").trim(),
+      riskSeverity: String(severity ?? "").trim(),
+      riskScore: 0,
+      riskLevel: "",
+    };
+  }
+  const score = L * S;
+  const level = score >= 17 ? "Critical" : score >= 10 ? "High" : score >= 5 ? "Medium" : "Low";
+  return { likelihood: String(L), riskSeverity: String(S), riskScore: score, riskLevel: level };
+}
+
 function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
 }
@@ -114,6 +135,10 @@ function toClient(r: typeof oosRecords.$inferSelect) {
     disposition: r.disposition || "Pending",
     capaId: r.capaId || "",
     status: r.status || "Open",
+    likelihood: r.likelihood || "",
+    riskSeverity: r.riskSeverity || "",
+    riskScore: r.riskScore || 0,
+    riskLevel: r.riskLevel || "",
     initiatedBy: r.initiatedBy || "",
     closedBy: r.closedBy || "",
     closedDate: r.closedDate || "",
@@ -157,6 +182,7 @@ async function nextOosId(site: string, year: string) {
 // Normalise an incoming OOS payload into column values. Only client-editable
 // fields are copied; identity / audit / closure columns are stamped separately.
 function toRow(r: any) {
+  const risk = computeRisk(r.likelihood, r.riskSeverity ?? r.risk_severity);
   return {
     site: r.site || "Lindon",
     materialType: r.materialType || "",
@@ -182,6 +208,10 @@ function toRow(r: any) {
     disposition: r.disposition || "Pending",
     capaId: r.capaId || "",
     status: r.status || "Open",
+    likelihood: risk.likelihood,
+    riskSeverity: risk.riskSeverity,
+    riskScore: risk.riskScore,
+    riskLevel: risk.riskLevel,
   };
 }
 
@@ -367,6 +397,23 @@ export default async (req: Request) => {
       const now = new Date();
       const row = toRow(body);
       if (!body.site) row.site = existing.site;
+
+      // Risk matrix: recompute only when BOTH likelihood and severity are
+      // supplied (and non-empty) in this request; otherwise preserve existing.
+      const riskL = String(body.likelihood ?? "").trim();
+      const riskS = String(body.riskSeverity ?? body.risk_severity ?? "").trim();
+      if (riskL !== "" && riskS !== "") {
+        const risk = computeRisk(riskL, riskS);
+        row.likelihood = risk.likelihood;
+        row.riskSeverity = risk.riskSeverity;
+        row.riskScore = risk.riskScore;
+        row.riskLevel = risk.riskLevel;
+      } else {
+        row.likelihood = existing.likelihood;
+        row.riskSeverity = existing.riskSeverity;
+        row.riskScore = existing.riskScore;
+        row.riskLevel = existing.riskLevel;
+      }
 
       // OOS record IDs are permanent and non-editable. Any id field in the
       // request body is ignored — the id is never changed by an update.

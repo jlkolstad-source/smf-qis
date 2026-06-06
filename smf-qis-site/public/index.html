@@ -450,13 +450,14 @@ main{padding:24px 32px 80px;}
     <div class="filter-chip ncr" onclick="filterRecords('NCR',this)">NCR</div>
     <div class="filter-chip audit" onclick="filterRecords('AUDIT',this)">Audit Finding</div>
     <select class="form-select" id="rec-source-filter" onchange="onSourceFilterChange()" title="Filter Audit Findings by certification body / source" style="margin-left:auto;width:auto;min-width:170px;padding:6px 10px;font-size:11px"><option value="">All Certification Bodies</option></select>
+    <select class="form-select" id="rec-risk-filter" onchange="onRiskFilterChange()" title="Filter records by risk level" style="width:auto;min-width:130px;padding:6px 10px;font-size:11px"><option value="">All Risk Levels</option><option value="Critical">Critical</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option><option value="none">Not Scored</option></select>
     <div class="filter-chip" onclick="filterRecords('open',this)">Open</div>
     <div class="filter-chip" onclick="filterRecords('overdue',this)">Overdue</div>
     <div class="filter-chip" onclick="filterRecords('closed',this)">Closed</div>
   </div>
   <div class="scroll-wrap">
     <table class="data-table">
-      <thead><tr><th>ID</th><th>Type</th><th>Sev</th><th>Description</th><th>Clause</th><th>Owner</th><th>Due</th><th>Photos</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>ID</th><th>Type</th><th>Sev</th><th style="cursor:pointer" onclick="toggleRiskSort()" title="Sort by risk score">Risk <span id="risk-sort-caret" style="font-size:9px;color:#4a5568"></span></th><th>Description</th><th>Clause</th><th>Owner</th><th>Due</th><th>Photos</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody id="records-tbody"></tbody>
     </table>
   </div>
@@ -751,6 +752,9 @@ main{padding:24px 32px 80px;}
       <div class="form-group"><label class="form-label">Severity</label><select class="form-select" id="f-severity"><option value="Minor">Minor</option><option value="Major">Major</option><option value="Critical">Critical</option><option value="Observation">Observation</option></select></div>
       <div class="form-group" id="f-source-group" style="display:none"><label class="form-label">Source / Certification Body</label><select class="form-select" id="f-source-body" onchange="onSourceBodyChange()"><option value="NSF">NSF</option><option value="SQF">SQF</option><option value="Other">Other</option></select></div>
       <div class="form-group" id="f-source-code-group" style="display:none"><label class="form-label">3-Letter Code</label><input class="form-input" id="f-source-code" type="text" maxlength="3" placeholder="e.g. ISO" oninput="this.value=this.value.toUpperCase().replace(/[^A-Z]/g,'')"></div>
+      <div class="form-group"><label class="form-label">Risk Likelihood</label><select class="form-select" id="f-likelihood" onchange="updateRiskDisplay('f-likelihood','f-risk-severity','f-risk-display')"><option value="">—</option><option value="1">1 Rare</option><option value="2">2 Unlikely</option><option value="3">3 Possible</option><option value="4">4 Probable</option><option value="5">5 Almost Certain</option></select></div>
+      <div class="form-group"><label class="form-label">Risk Severity</label><select class="form-select" id="f-risk-severity" onchange="updateRiskDisplay('f-likelihood','f-risk-severity','f-risk-display')"><option value="">—</option><option value="1">1 Negligible</option><option value="2">2 Minor</option><option value="3">3 Moderate</option><option value="4">4 Major</option><option value="5">5 Critical</option></select></div>
+      <div class="form-group form-full"><label class="form-label">Risk Score (Likelihood × Severity)</label><div id="f-risk-display" style="display:flex;align-items:center;gap:10px;min-height:38px;padding:7px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-muted,#f7f8fa)"></div></div>
       <div class="form-group form-full"><label class="form-label">Description</label><textarea class="form-textarea" id="f-desc" placeholder="Describe the finding or non-conformance..."></textarea></div>
       <div class="form-group"><label class="form-label">SQF Clause</label><input class="form-input" id="f-clause" placeholder="e.g. 17.4.1.1" type="text"></div>
       <div class="form-group"><label class="form-label">Owner</label><input class="form-input" id="f-owner" placeholder="Name or role" type="text"></div>
@@ -788,6 +792,9 @@ main{padding:24px 32px 80px;}
     <div class="form-grid">
       <div class="form-group"><label class="form-label">NCR Number</label><input class="form-input" id="qncr-num" type="text"></div>
       <div class="form-group"><label class="form-label">Classification</label><select class="form-select" id="qncr-class"><option>Minor</option><option>Major</option><option>Observation</option><option>Critical</option></select></div>
+      <div class="form-group"><label class="form-label">Risk Likelihood</label><select class="form-select" id="qncr-likelihood" onchange="updateRiskDisplay('qncr-likelihood','qncr-risk-severity','qncr-risk-display')"><option value="">—</option><option value="1">1 Rare</option><option value="2">2 Unlikely</option><option value="3">3 Possible</option><option value="4">4 Probable</option><option value="5">5 Almost Certain</option></select></div>
+      <div class="form-group"><label class="form-label">Risk Severity</label><select class="form-select" id="qncr-risk-severity" onchange="updateRiskDisplay('qncr-likelihood','qncr-risk-severity','qncr-risk-display')"><option value="">—</option><option value="1">1 Negligible</option><option value="2">2 Minor</option><option value="3">3 Moderate</option><option value="4">4 Major</option><option value="5">5 Critical</option></select></div>
+      <div class="form-group form-full"><label class="form-label">Risk Score (Likelihood × Severity)</label><div id="qncr-risk-display" style="display:flex;align-items:center;gap:10px;min-height:38px;padding:7px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-muted,#f7f8fa)"></div></div>
       <div class="form-group form-full"><label class="form-label">Finding Description</label><textarea class="form-textarea" id="qncr-desc" placeholder="Exactly what was missing or non-compliant..."></textarea></div>
       <div class="form-group form-full"><label class="form-label">Root Cause</label><textarea class="form-textarea" id="qncr-root" style="min-height:52px" placeholder="Why did this gap occur?"></textarea></div>
       <div class="form-group form-full"><label class="form-label">Corrective Action Required</label><textarea class="form-textarea" id="qncr-ca" style="min-height:52px" placeholder="What needs to be done to close?"></textarea></div>
@@ -1045,6 +1052,64 @@ main{padding:24px 32px 80px;}
   </span>
 </div>
 <script>
+// ══════════════════ RISK MATRIX (Likelihood × Severity) ════════════════════
+// Shared, dependency-free helpers used by every record form, list view and PDF
+// report. Likelihood and Severity are each 1-5; their product (1-25) is bucketed
+// into a qualitative level. Empty / incomplete input is treated as "not scored".
+const RISK_LIKELIHOOD=[["1","1 Rare"],["2","2 Unlikely"],["3","3 Possible"],["4","4 Probable"],["5","5 Almost Certain"]];
+const RISK_SEVERITY=[["1","1 Negligible"],["2","2 Minor"],["3","3 Moderate"],["4","4 Major"],["5","5 Critical"]];
+const RISK_COLORS={Low:{bg:"#E3F4E8",fg:"#1B7A3D",bd:"#1B7A3D"},Medium:{bg:"#FFF4D6",fg:"#9A6A00",bd:"#C99700"},High:{bg:"#FFE6CC",fg:"#B5510A",bd:"#D8650F"},Critical:{bg:"#F6D5D5",fg:"#7A0E0E",bd:"#8B0000"}};
+function riskScoreOf(l,s){const L=parseInt(l,10),S=parseInt(s,10);if(!Number.isFinite(L)||!Number.isFinite(S)||L<1||L>5||S<1||S>5)return 0;return L*S;}
+function riskLevelFromScore(n){n=+n||0;if(n<=0)return "";if(n>=17)return "Critical";if(n>=10)return "High";if(n>=5)return "Medium";return "Low";}
+function riskLevelOf(l,s){return riskLevelFromScore(riskScoreOf(l,s));}
+function riskLabel(kind,v){const arr=kind==="L"?RISK_LIKELIHOOD:RISK_SEVERITY;const hit=arr.find(o=>o[0]===String(v));return hit?hit[1]:"";}
+// Inline badge for a risk level. Returns an empty-ish "pending" badge when unscored.
+function riskBadge(level,opts){
+  opts=opts||{};const lv=level||"";
+  if(!lv)return `<span class="badge" style="background:#F2F2F2;color:#4a5568;border:1px solid #d0d6de;font-size:${opts.size||10}px">Not Scored</span>`;
+  const c=RISK_COLORS[lv]||RISK_COLORS.Low;
+  return `<span class="badge" style="background:${c.bg};color:${c.fg};border:1px solid ${c.bd};font-weight:700;font-size:${opts.size||10}px">${cesc(lv)}${opts.score?(" · "+opts.score):""}</span>`;
+}
+// <option> markup for a likelihood/severity select, marking `sel` selected.
+function riskOptions(kind,sel){
+  const arr=kind==="L"?RISK_LIKELIHOOD:RISK_SEVERITY;
+  return `<option value="">—</option>`+arr.map(o=>`<option value="${o[0]}"${String(sel)===o[0]?" selected":""}>${o[1]}</option>`).join("");
+}
+// The three form fields (Likelihood, Severity, live Risk Score/Level) for a
+// modal form. ids are derived from the prefix: <p>-likelihood, <p>-risk-severity
+// and <p>-risk-display. onchange recomputes the displayed score/badge in place.
+function riskFieldsHTML(prefix,lVal,sVal){
+  const lId=prefix+"-likelihood",sId=prefix+"-risk-severity",outId=prefix+"-risk-display";
+  const oc=`updateRiskDisplay('${lId}','${sId}','${outId}')`;
+  return `
+    <div class="form-group"><label class="form-label">Risk Likelihood</label>
+      <select class="form-select" id="${lId}" onchange="${oc}">${riskOptions("L",lVal)}</select></div>
+    <div class="form-group"><label class="form-label">Risk Severity</label>
+      <select class="form-select" id="${sId}" onchange="${oc}">${riskOptions("S",sVal)}</select></div>
+    <div class="form-group form-full"><label class="form-label">Risk Score (Likelihood × Severity)</label>
+      <div id="${outId}" style="display:flex;align-items:center;gap:10px;min-height:38px;padding:7px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-muted,#f7f8fa)"></div></div>`;
+}
+// Recompute and paint the live score + level badge for a form's risk fields.
+function updateRiskDisplay(lId,sId,outId){
+  const out=document.getElementById(outId);if(!out)return;
+  const l=(document.getElementById(lId)||{}).value||"";
+  const s=(document.getElementById(sId)||{}).value||"";
+  const score=riskScoreOf(l,s),level=riskLevelFromScore(score);
+  if(!score){out.innerHTML=`<span style="color:#4a5568;font-size:12px">Select both Likelihood and Severity to calculate the risk score.</span>`;return;}
+  out.innerHTML=`<span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700">${score}</span><span style="font-size:11px;color:#4a5568">= ${l} × ${s}</span>${riskBadge(level,{size:11})}`;
+}
+// Read a form's risk selects into a {likelihood,riskSeverity} payload fragment.
+function readRiskFields(prefix){
+  return {likelihood:(document.getElementById(prefix+"-likelihood")||{}).value||"",riskSeverity:(document.getElementById(prefix+"-risk-severity")||{}).value||""};
+}
+// One-line plain-text risk summary for report prompts / detail blocks. Falls back
+// to "Risk assessment pending" when the record has not been fully scored.
+function riskLineText(l,s,score,level){
+  score=+score||riskScoreOf(l,s);level=level||riskLevelFromScore(score);
+  if(!score||!level)return "Risk assessment pending";
+  return `Likelihood ${l} ${riskLabel("L",l)} × Severity ${s} ${riskLabel("S",s)} = Score ${score} (${level})`;
+}
+
 const SEED_FINDINGS=[
   {type:"AUDIT",severity:"Minor",clause:"2.4.3.2",desc:"Supplier approval records not maintained for three packaging suppliers (third party certification and food grade materials usage information).",owner:"Purchasing",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
   {type:"AUDIT",severity:"Minor",clause:"2.4.8.1",desc:"Environmental monitoring plan is not risk based. Zones established but no testing in zone 2 and 4. Schedule not well descriptive.",owner:"Quality",status:"Open",due:"2026-06-18",rca:"",ca:"",photos:[],evidence:"",created:"2026-05-19"},
@@ -3337,7 +3402,7 @@ const API="/api/records";
 // CAPA linkage REST endpoint (capa_links rows).
 const CAPA_LINKS_API="/api/capa-links";
 
-let records=[], editingId=null, currentFilter="all", currentSourceFilter="", activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
+let records=[], editingId=null, currentFilter="all", currentSourceFilter="", currentRiskFilter="", riskSortDir=0, activeAuditId=null, qncrClause=null, currentPhotos=[], qncrPhotos=[];
 // When set, the next record created via the record modal is automatically linked
 // back to this source record in capa_links once it is saved. Shape:
 // { sourceType, sourceId }.
@@ -3870,8 +3935,13 @@ function renderTable(f){
   // Source / Certification Body filter — only Audit Findings carry a source_body,
   // so selecting one narrows the list to those findings with the matching value.
   if(currentSourceFilter)list=list.filter(r=>(r.sourceBody||"")===currentSourceFilter);
+  // Risk Level filter (Critical / High / Medium / Low / Not Scored).
+  if(currentRiskFilter==="none")list=list.filter(r=>!(r.riskLevel||""));
+  else if(currentRiskFilter)list=list.filter(r=>(r.riskLevel||"")===currentRiskFilter);
+  // Sort by risk score when the Risk column header has been toggled.
+  if(riskSortDir!==0)list.sort((a,b)=>riskSortDir*(((b.riskScore||0))-((a.riskScore||0))));
   const tbody=document.getElementById("records-tbody");
-  if(!list.length){tbody.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📋</div>No records match.</div></td></tr>`;return;}
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">📋</div>No records match.</div></td></tr>`;return;}
   tbody.innerHTML=list.map(r=>{
     const over=!/^Closed/.test(r.status||"")&&r.due&&new Date(r.due)<new Date();
     const dl=r.due?Math.ceil((new Date(r.due)-new Date())/(1000*60*60*24)):null;
@@ -3891,6 +3961,7 @@ function renderTable(f){
       <td><span style="font-family:'DM Mono',monospace;font-size:10px;color:#4a5568">${r.id}</span></td>
       <td><span class="badge badge-${(r.type||"").toLowerCase()}">${r.type}</span></td>
       <td><span class="badge ${r.severity==="Major"||r.severity==="Critical"?"badge-major":"badge-minor"}">${r.severity}</span></td>
+      <td>${riskBadge(r.riskLevel,{score:r.riskScore||0})}</td>
       <td style="max-width:190px;font-size:12px;line-height:1.4">${(r.desc||"").substring(0,85)}${(r.desc||"").length>85?"…":""}</td>
       <td><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent3)">${r.clause||"—"}</span></td>
       <td style="font-size:12px">${r.owner||"—"}</td>
@@ -4356,6 +4427,9 @@ function openModal(presetType){
   ["f-desc","f-clause","f-owner","f-rca","f-ca","f-due","f-evidence"].forEach(i=>{const el=document.getElementById(i);if(el)el.value="";});
   document.getElementById("f-type").value=(presetType==="CAPA"||presetType==="NCR"||presetType==="AUDIT")?presetType:"CAPA";
   document.getElementById("f-severity").value="Minor";
+  document.getElementById("f-likelihood").value="";
+  document.getElementById("f-risk-severity").value="";
+  updateRiskDisplay("f-likelihood","f-risk-severity","f-risk-display");
   document.getElementById("f-status").value="Open";
   document.getElementById("f-photos").value="[]";
   document.getElementById("photo-preview-grid").innerHTML="";
@@ -4443,6 +4517,9 @@ function editRecord(id){
   document.getElementById("f-type").value=r.type;
   setStatusOptions(r.type,r.status||"Open",true);
   document.getElementById("f-severity").value=r.severity;
+  document.getElementById("f-likelihood").value=r.likelihood||"";
+  document.getElementById("f-risk-severity").value=r.riskSeverity||"";
+  updateRiskDisplay("f-likelihood","f-risk-severity","f-risk-display");
   document.getElementById("f-desc").value=r.desc||"";
   document.getElementById("f-clause").value=r.clause||"";
   document.getElementById("f-owner").value=r.owner||"";
@@ -4507,7 +4584,7 @@ async function saveRecord(){
   const isAudit=document.getElementById("f-type").value==="AUDIT";
   const sourceBody=resolveSourceBody();
   if(isAudit&&sourceBody===null)return; // invalid custom code; resolveSourceBody toasted
-  const data={user,type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:newStatus,evidence:document.getElementById("f-evidence").value.trim(),photos,site:existing?existing.site:currentSite};
+  const data={user,type:document.getElementById("f-type").value,severity:document.getElementById("f-severity").value,likelihood:(document.getElementById("f-likelihood")||{}).value||"",riskSeverity:(document.getElementById("f-risk-severity")||{}).value||"",desc,clause:document.getElementById("f-clause").value.trim(),owner:document.getElementById("f-owner").value.trim(),rca:document.getElementById("f-rca").value.trim(),ca:document.getElementById("f-ca").value.trim(),due:document.getElementById("f-due").value,status:newStatus,evidence:document.getElementById("f-evidence").value.trim(),photos,site:existing?existing.site:currentSite};
   // Send the assigned effectiveness-check owner so the server can schedule the
   // check when the CAPA is closed pending its effectiveness verification.
   if(effOwnerToSend)data.effectivenessCheckOwner=effOwnerToSend;
@@ -5020,6 +5097,9 @@ function openNCRModal(clauseId){
   ["qncr-desc","qncr-root","qncr-ca"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("qncr-owner").value="";
   document.getElementById("qncr-class").value="Minor";
+  document.getElementById("qncr-likelihood").value="";
+  document.getElementById("qncr-risk-severity").value="";
+  updateRiskDisplay("qncr-likelihood","qncr-risk-severity","qncr-risk-display");
   document.getElementById("qncr-photos").value="[]";
   document.getElementById("qncr-photo-grid").innerHTML="";
   document.getElementById("ncr-modal").classList.add("open");
@@ -5031,7 +5111,7 @@ async function saveQuickNCR(){
   if(!num){toast("NCR number required.","red");return;}
   const user=ensureUser();
   let photos=[];try{photos=JSON.parse(document.getElementById("qncr-photos").value||"[]");}catch(e){}
-  const data={user,id:num,type:"NCR",severity:document.getElementById("qncr-class").value,clause:qncrClause,desc:document.getElementById("qncr-desc").value,rca:document.getElementById("qncr-root").value,ca:document.getElementById("qncr-ca").value,owner:document.getElementById("qncr-owner").value,due:document.getElementById("qncr-due").value,status:"Open",photos,evidence:"",site:currentSite,selfAssigned:true,auditId:activeAuditId||""};
+  const data={user,id:num,type:"NCR",severity:document.getElementById("qncr-class").value,likelihood:(document.getElementById("qncr-likelihood")||{}).value||"",riskSeverity:(document.getElementById("qncr-risk-severity")||{}).value||"",clause:qncrClause,desc:document.getElementById("qncr-desc").value,rca:document.getElementById("qncr-root").value,ca:document.getElementById("qncr-ca").value,owner:document.getElementById("qncr-owner").value,due:document.getElementById("qncr-due").value,status:"Open",photos,evidence:"",site:currentSite,selfAssigned:true,auditId:activeAuditId||""};
   try{
     const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -5290,7 +5370,7 @@ async function generateCrisisReport(exerciseId,context,wrap){
   const timeline=log.length?log.map(x=>`- [${fld(x.loggedAt)}] ${fld(x.userName)} | Phase: ${fld(x.phase)} | Status: ${fld(x.status)}\n  Program/Control: ${fld(x.program)}\n  Action: ${fld(x.action)}\n  Outcome: ${fld(x.outcome)}\n  SMF Doc Ref: ${fld(x.docRef)}`).join("\n"):"(no response entries logged)";
   const objectives=(ex.objectives||[]).length?ex.objectives.map(o=>`${fld(o.num)}. ${fld(o.desc)}`).join("\n"):"(none recorded)";
   const discussion=(ex.discussion||[]).length?ex.discussion.map(q=>`Q: ${fld(q.question)} (by ${fld(q.by)})\n`+((q.responses||[]).map(r=>`   - ${fld(r.user)} [${fld(r.at)}]: ${fld(r.text)}`).join("\n")||"   (no responses)")).join("\n\n"):"(none recorded)";
-  const lessons=(ex.lessonsLearned||[]).length?ex.lessonsLearned.map(l=>`- Gap: ${fld(l.item)} | Owner: ${fld(l.owner)} | Target: ${fld(l.targetDate)} | CAPA Required: ${l.capaRequired?"Yes":"No"} | CAPA ID: ${fld(l.capaId)} | Linked NCR: ${l.ncrId?fld(l.ncrId):"—"}`).join("\n"):"(none recorded)";
+  const lessons=(ex.lessonsLearned||[]).length?ex.lessonsLearned.map(l=>`- Gap: ${fld(l.item)} | Owner: ${fld(l.owner)} | Target: ${fld(l.targetDate)} | Risk: ${riskLineText(l.likelihood,l.riskSeverity,l.riskScore,l.riskLevel)} | CAPA Required: ${l.capaRequired?"Yes":"No"} | CAPA ID: ${fld(l.capaId)} | Linked NCR: ${l.ncrId?fld(l.ncrId):"—"}`).join("\n"):"(none recorded)";
   const openCapas=(ex.lessonsLearned||[]).filter(l=>l.capaRequired).map(l=>`${fld(l.capaId)} — ${fld(l.item)} (owner ${fld(l.owner)}, target ${fld(l.targetDate)})`);
   const linkedNcrs=(ex.lessonsLearned||[]).filter(l=>l.ncrId).map(l=>`${fld(l.ncrId)} — ${fld(l.item)} (owner ${fld(l.owner)}, due ${fld(l.targetDate)})`);
   const attendees=(ex.attendees||[]).length?ex.attendees.map(a=>`- ${fld(a.name)} | Title: ${fld(a.title)} | Qualifications: ${fld(a.qualifications)} | CMT Role: ${fld(a.role)} | Signed off: ${a.signoffAt?fld(a.signoffAt):"NOT SIGNED"}`).join("\n"):"(none recorded)";
@@ -5430,7 +5510,7 @@ async function generateRecallReport(recallId,context,wrap){
   Notes: ${fld(n.notes)}
   First-Person Statement: ${stmt?stmt:"(no statement provided — reconstruct this step from the structured node data above)"}`;
   }).join("\n\n"):"(no traceability nodes recorded)";
-  const findingsBlock=findings.length?findings.map(f=>`- ${fld(f.findingDescription)} | Owner: ${fld(f.owner)} | Target: ${fld(f.targetDate)} | CAPA Required: ${fld(f.capaRequired)} | CAPA ID: ${f.capaId?fld(f.capaId):"—"} | Linked NCR: ${f.ncrId?fld(f.ncrId):"—"} | Status: ${fld(f.status)}`).join("\n"):"(no findings recorded)";
+  const findingsBlock=findings.length?findings.map(f=>`- ${fld(f.findingDescription)} | Owner: ${fld(f.owner)} | Target: ${fld(f.targetDate)} | Risk: ${riskLineText(f.likelihood,f.riskSeverity,f.riskScore,f.riskLevel)} | CAPA Required: ${fld(f.capaRequired)} | CAPA ID: ${f.capaId?fld(f.capaId):"—"} | Linked NCR: ${f.ncrId?fld(f.ncrId):"—"} | Status: ${fld(f.status)}`).join("\n"):"(no findings recorded)";
   const sigBlock=sigs.length?sigs.map(s=>`- ${fld(s.name)}${s.title?(", "+s.title):""} — ${fld(s.role)} — ${s.signedAt?fld(s.signedAt):"NOT SIGNED"}`).join("\n"):"(no electronic sign-offs captured)";
 
   const prompt=`You are a quality and regulatory affairs expert producing a formal MOCK RECALL / TRACEABILITY EXERCISE NARRATIVE REPORT for Somafina UST (SOMAFINA UST — a dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111), governed by SOP #21 (Trace and Recall). Mark the document CONFIDENTIAL.
@@ -5550,6 +5630,9 @@ Render as a two-column field table: OOS ID (${fld(o.id)}), Date Initiated (${fld
 ## EXECUTIVE SUMMARY
 A concise summary of the OOS event: what material/lot was affected, which test failed, the magnitude of the deviation, the investigation outcome, and the final disposition.
 
+## RISK ASSESSMENT
+State the risk assessment for this OOS event exactly: ${riskLineText(o.likelihood,o.riskSeverity,o.riskScore,o.riskLevel)}. If it reads "Risk assessment pending", state that the likelihood and severity have not yet been scored.
+
 ## TEST DATA
 Render as a table with rows for: Test/Analyte (${fld(o.testAnalyte)}), Test Method (${fld(o.testMethod)}), Specification (${fld(o.specification)}), Result Obtained (${fld(o.resultObtained)} ${fld(o.units)}), Pass/Fail Determination (${fld(o.passFail)}).
 
@@ -5603,7 +5686,7 @@ async function generateOOSSummaryReport(context,wrap){
   const open=total-closed;
   const raw=filtered.filter(o=>o.materialType==="Raw Material").length;
   const fin=filtered.filter(o=>o.materialType==="Finished Product").length;
-  const register=filtered.map(o=>`| ${fld(o.id)} | ${fld(o.materialType)} | ${fld(o.productName)} | ${fld(o.internalLot)} | ${fld(o.testAnalyte)} | ${fld(o.resultObtained)} ${o.units||""} | ${fld(o.passFail)} | ${fld(o.classification)} | ${fld(o.disposition)} | ${fld(o.status)} |`).join("\n");
+  const register=filtered.map(o=>`| ${fld(o.id)} | ${fld(o.materialType)} | ${fld(o.productName)} | ${fld(o.internalLot)} | ${fld(o.testAnalyte)} | ${fld(o.resultObtained)} ${o.units||""} | ${fld(o.passFail)} | ${fld(o.classification)} | ${o.riskLevel?o.riskLevel+" ("+(o.riskScore||0)+")":"Pending"} | ${fld(o.disposition)} | ${fld(o.status)} |`).join("\n");
   const details=filtered.map(o=>`### ${fld(o.id)} — ${fld(o.materialType)} / ${fld(o.productName)}
 - Lot: ${fld(o.internalLot)} (supplier lot ${fld(o.supplierLot)}) · Batch Record ${fld(o.batchRecordNumber)}
 - Test/Analyte: ${fld(o.testAnalyte)} · Method: ${fld(o.testMethod)} · Spec: ${fld(o.specification)} · Result: ${fld(o.resultObtained)} ${o.units||""} (${fld(o.passFail)})
@@ -5634,8 +5717,8 @@ Summarise the OOS landscape for this filter selection using the statistics above
 
 ## OOS REGISTER
 Render this table exactly (header row then the data rows):
-| OOS ID | Material | Product/Material | Lot | Analyte | Result | P/F | Classification | Disposition | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| OOS ID | Material | Product/Material | Lot | Analyte | Result | P/F | Classification | Risk | Disposition | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 ${register}
 
 ## INDIVIDUAL RECORD DETAIL
@@ -5782,7 +5865,7 @@ async function generateAuditReportSummary(auditId,wrap){
   const naC=auditClauses.filter(c=>c.id&&ex[c.id]&&ex[c.id].status==="NA").length;
   const openF=findings.filter(r=>r.status!=="Closed").length;
   const findingBlocks=findings.length?findings.map(r=>aiFmtRecordFull(r)).join("\n\n----------\n\n"):"(no NCRs or findings were raised during this audit)";
-  const findingTable=findings.length?findings.map(r=>`| ${fld(r.id)} | ${fld(r.clause)} | ${fld(r.severity)} | ${(r.desc||"").replace(/\n/g," ").trim()||"(pending)"} | ${fld(r.owner)} | ${fld(r.status)} |`).join("\n"):"| — | — | — | (none raised) | — | — |";
+  const findingTable=findings.length?findings.map(r=>`| ${fld(r.id)} | ${fld(r.clause)} | ${fld(r.severity)} | ${r.riskLevel?r.riskLevel+" ("+(r.riskScore||0)+")":"Pending"} | ${(r.desc||"").replace(/\n/g," ").trim()||"(pending)"} | ${fld(r.owner)} | ${fld(r.status)} |`).join("\n"):"| — | — | — | — | (none raised) | — | — |";
   // Corrective Actions Register — every CAPA linked (via capa_links) to any
   // finding from this audit session. Data is fetched live; one row per link.
   const carLinksArr=await Promise.all(findings.map(async f=>({finding:f,links:await capaLinksGet("source_id="+encodeURIComponent(f.id))})));
@@ -5820,8 +5903,8 @@ ${clauseTable}
 
 ## FINDINGS SUMMARY
 First render this summary table of every NCR/finding raised during the audit:
-| Finding ID | Clause | Severity | Description | Owner | CA Status |
-| --- | --- | --- | --- | --- | --- |
+| Finding ID | Clause | Severity | Risk | Description | Owner | CA Status |
+| --- | --- | --- | --- | --- | --- | --- |
 ${findingTable}
 
 Then, for each finding, render a "### " detail block reproducing every field below verbatim (clause reference, description, root cause, corrective action, current status, owner, due date, evidence):
@@ -5922,6 +6005,7 @@ Certification Body / Source: ${fld(r.sourceBody)}
 Clause: ${fld(r.clause)}
 Clause Requirement: ${req?req:"(refer to SQF Edition 9 clause text — clause not in library)"}
 Severity: ${fld(r.severity)}
+Risk Assessment: ${riskLineText(r.likelihood,r.riskSeverity,r.riskScore,r.riskLevel)}
 Status: ${fld(r.status)}
 Owner/Department: ${fld(r.owner)}
 Site: ${fld(r.site)}
@@ -5939,7 +6023,7 @@ ${flags?"Submission Readiness Flags:\n"+flags:"Submission Readiness: All require
   const summaryTable=sel.map(r=>{
     const hasRCA=r.rca&&r.rca.trim();const hasCA=r.ca&&r.ca.trim();const hasEv=r.evidence&&r.evidence.trim()||(r.photos||[]).length>0;
     const ready=(hasRCA&&hasCA&&hasEv)?"Ready":"Incomplete";
-    return `| ${fldShort(r.id)} | ${fldShort(r.clause)} | ${fldShort(r.severity)} | ${(r.desc||"").replace(/\n/g," ").slice(0,70)}${(r.desc||"").length>70?"…":""} | ${fldShort(r.owner)} | ${fldShort(r.status)} | ${ready} |`;
+    return `| ${fldShort(r.id)} | ${fldShort(r.clause)} | ${fldShort(r.severity)} | ${r.riskLevel?r.riskLevel+" ("+(r.riskScore||0)+")":"Pending"} | ${(r.desc||"").replace(/\n/g," ").slice(0,70)}${(r.desc||"").length>70?"…":""} | ${fldShort(r.owner)} | ${fldShort(r.status)} | ${ready} |`;
   }).join("\n");
   const prompt=`You are a food safety and SQF compliance expert producing a formal, SQFI submission-ready NCR / AUDIT FINDING SUMMARY for Somafina UST (dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). This document is intended to serve as a complete corrective action package that can be submitted directly to the certification body. Mark it CONFIDENTIAL. This report covers ONLY the ${sel.length} finding record(s) provided below.
 
@@ -5957,8 +6041,8 @@ Write 2–3 sentences stating: the number of findings covered, the site, the cer
 
 ## FINDINGS SUMMARY TABLE
 Render this table exactly — header row then data rows — no modifications:
-| Finding ID | Clause | Severity | Description | Owner | Status | CA Package |
-| --- | --- | --- | --- | --- | --- | --- |
+| Finding ID | Clause | Severity | Risk | Description | Owner | Status | CA Package |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 ${summaryTable}
 
 ## FINDING DETAILS
@@ -5966,6 +6050,9 @@ For EACH finding record below, render a "### [Record ID] — [Clause] — [Sever
 
 #### Nonconformance
 State the Certification Body / Source, then the full Clause reference, then the complete Clause Requirement text verbatim (reproduce it word-for-word from the data), then the Finding/Observation verbatim. Do not paraphrase.
+
+#### Risk Assessment
+Reproduce the Risk Assessment line verbatim (Likelihood, Severity, Risk Score and Risk Level). If it reads "Risk assessment pending", state that the risk has not yet been scored.
 
 #### Root Cause Analysis
 Reproduce the RCA field verbatim. If it reads "(pending — not yet completed)", state it as pending and note that the CA package is incomplete until this is resolved.
@@ -6026,6 +6113,15 @@ async function generateCAPAStatusSummary(wrap){
   const blockArr=await Promise.all(sel.map(async r=>{
     const links=await capaLinksGet("capa_id="+encodeURIComponent(r.id));
     (links||[]).forEach(l=>{if(l.sourceId&&capaSrcIds.indexOf(l.sourceId)===-1)capaSrcIds.push(l.sourceId);});
+    // Inherited risk — highest risk among the source records this CAPA addresses.
+    let inh={score:0,level:""};
+    (links||[]).forEach(l=>{
+      const src=(records.find(x=>x.id===l.sourceId))||(typeof oosRecords!=="undefined"?(oosRecords||[]).find(x=>x.id===l.sourceId):null);
+      if(!src)return;
+      const sc=(+src.riskScore)||riskScoreOf(src.likelihood,src.riskSeverity);
+      if(sc>inh.score)inh={score:sc,level:src.riskLevel||riskLevelFromScore(sc)};
+    });
+    const inhText=inh.level?`${inh.level} (Score ${inh.score}) — inherited from the highest-risk linked source finding`:"No scored source findings linked";
     return `Record ID: ${fld(r.id)}
 Description: ${fld(r.desc)}
 Root Cause: ${fld(r.rca)}
@@ -6034,11 +6130,13 @@ Status: ${fld(r.status)}
 Owner/Department: ${fld(r.owner)}
 Due Date: ${fld(r.due)}
 Clause: ${fld(r.clause)}
+Risk Assessment (CAPA): ${riskLineText(r.likelihood,r.riskSeverity,r.riskScore,r.riskLevel)}
+Inherited Source Risk: ${inhText}
 Objective Evidence: ${fld(r.evidence)}
 ${reportSourceRecordLines(links)}`;
   }));
   const blocks=blockArr.join("\n\n----------\n\n");
-  const summaryTable=sel.map(r=>`| ${fld(r.id)} | ${(r.desc||"").replace(/\n/g," ").trim()||"(pending)"} | ${fld(r.status)} | ${fld(r.owner)} | ${fld(r.due)} |`).join("\n");
+  const summaryTable=sel.map(r=>`| ${fld(r.id)} | ${(r.desc||"").replace(/\n/g," ").trim()||"(pending)"} | ${r.riskLevel?r.riskLevel+" ("+(r.riskScore||0)+")":"Pending"} | ${fld(r.status)} | ${fld(r.owner)} | ${fld(r.due)} |`).join("\n");
   const open=sel.filter(r=>r.status!=="Closed").length;
   const prompt=`You are a food safety and SQF compliance expert producing a formal CAPA STATUS SUMMARY for Somafina UST (SOMAFINA UST — dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). Mark the document CONFIDENTIAL. This report covers ONLY the ${sel.length} CAPA record(s) provided below (open ${open}).
 
@@ -6052,12 +6150,12 @@ Produce the report in this exact section order:
 
 ## SUMMARY TABLE
 Render this table exactly (header row then the data rows):
-| CAPA ID | Description | Status | Owner | Due Date |
-| --- | --- | --- | --- | --- |
+| CAPA ID | Description | Risk | Status | Owner | Due Date |
+| --- | --- | --- | --- | --- | --- |
 ${summaryTable}
 
 ## CAPA DETAIL
-For each CAPA below, render a "### " detail block titled with the Record ID, containing labeled lines for: Description, Root Cause, Corrective Action, Status, Owner, Due Date, and Objective Evidence. Reproduce every field verbatim; report blank/pending fields exactly as pending. Then, within each detail block, render a "**Source Records**" subsection reproducing the source-record lines provided for that CAPA exactly (source type, source record ID, description, current status) — or the line "No source records linked" when that is what is provided.
+For each CAPA below, render a "### " detail block titled with the Record ID, containing labeled lines for: Description, Root Cause, Corrective Action, Status, Owner, Due Date, and Objective Evidence. Reproduce every field verbatim; report blank/pending fields exactly as pending. Within each detail block also render a "**Risk Assessment**" subsection reproducing the Risk Assessment (CAPA) line and the Inherited Source Risk line verbatim (show "Risk assessment pending" when unscored). Then, within each detail block, render a "**Source Records**" subsection reproducing the source-record lines provided for that CAPA exactly (source type, source record ID, description, current status) — or the line "No source records linked" when that is what is provided.
 ${blocks}
 
 ${signatoriesPromptSection()}
@@ -6125,6 +6223,50 @@ function buildCoverOwnershipRows(recs,multi){
   ];
 }
 
+// ── RISK MATRIX — PDF report helpers ────────────────────────────────────────
+// RGB equivalents of the on-screen risk-level badge colours, for jsPDF fills.
+const RISK_RGB={Critical:[139,0,0],High:[216,101,15],Medium:[201,151,0],Low:[27,122,61]};
+// Tally a list of {level} risk items into per-level counts plus totals.
+function riskProfileCounts(items){
+  const c={Critical:0,High:0,Medium:0,Low:0,total:0,scored:0};
+  (items||[]).forEach(it=>{c.total++;if(it.level&&c[it.level]!==undefined){c[it.level]++;c.scored++;}});
+  return c;
+}
+// The highest risk among `records`/`oosRecords` directly linked to a CAPA id —
+// used to surface the inherited source risk alongside a CAPA in its report.
+function inheritedCapaRisk(capaId){
+  let best={score:0,level:""};
+  const scan=(arr,sevKey)=>{(arr||[]).forEach(r=>{if((r.capaId||"")!==capaId)return;const sc=+r.riskScore||0;if(sc>best.score)best={score:sc,level:r.riskLevel||riskLevelFromScore(sc)};});};
+  try{scan(typeof records!=="undefined"?records:[]);}catch(e){}
+  try{scan(typeof oosRecords!=="undefined"?oosRecords:[]);}catch(e){}
+  return best;
+}
+// Draw a single "Risk Assessment" row inside a record's detail block. Falls back
+// to "Risk assessment pending" when the record carries no score. Returns the new
+// y cursor. `inherited` (CAPA reports) appends the inherited source-risk note.
+function drawRiskAssessmentRow(doc,it,y,margin,contentW,pageH,navy,white,black){
+  if(y>pageH-46){doc.addPage();y=50;}
+  doc.setFillColor(244,246,250);doc.rect(margin,y,contentW,16,'F');
+  doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+  doc.text('Risk Assessment',margin+6,y+11);
+  doc.setFont('helvetica','normal');doc.setTextColor(...black);
+  let txt;
+  if(it.level&&it.score){
+    const ll=riskLabel("L",it.likelihood)||("Likelihood "+(it.likelihood||"—"));
+    const sl=riskLabel("S",it.severity)||("Severity "+(it.severity||"—"));
+    txt='Likelihood: '+ll+'   ·   Severity: '+sl+'   ·   Score: '+it.score+'   ·   Level: '+it.level;
+  }else{
+    txt='Risk assessment pending';
+  }
+  if(it.inherited&&it.inherited.level){
+    txt+='   ·   Inherited (source): '+it.inherited.level+' (Score '+it.inherited.score+')';
+  }
+  doc.text(doc.splitTextToSize(txt,contentW-115)[0],margin+105,y+11);
+  // Colour chip for the level.
+  if(it.level){const col=RISK_RGB[it.level]||[120,120,120];doc.setFillColor(...col);doc.rect(margin+contentW-16,y+4,8,8,'F');}
+  return y+20;
+}
+
 async function downloadReportPDF(){
   const text=window._lastReport||'';
   if(!text){toast("No report to export.","red");return;}
@@ -6177,6 +6319,29 @@ async function downloadReportPDF(){
   if(rMeta.recordSignatures&&typeof rMeta.recordSignatures==="object"){
     for(const k in rMeta.recordSignatures)recSigs[k]=Array.isArray(rMeta.recordSignatures[k])?rMeta.recordSignatures[k]:[];
   }
+  // ── RISK MATRIX — gather the risk-bearing items this report covers ──────────
+  // Each item: {id, desc, likelihood, severity, score, level[, inherited]}.
+  // Sourced from the most authoritative structured data available per report
+  // type (cover records, audit-linked findings, exercise findings / lessons).
+  const riskItems=(function(){
+    const out=[];
+    const push=(id,desc,l,s,score,level,inherited)=>{out.push({id:id||"",desc:desc||"",likelihood:l||"",severity:s||"",score:+score||0,level:level||"",inherited:inherited||null});};
+    if(isNCR||isCapa){
+      (rMeta.findings||rMeta.coverRecords||[]).forEach(r=>push(r.id,r.desc||r.description,r.likelihood,r.riskSeverity,r.riskScore,r.riskLevel,isCapa?inheritedCapaRisk(r.id):null));
+    }else if(isOOS){
+      (rMeta.coverRecords||[]).forEach(o=>push(o.id,o.productName||o.testAnalyte,o.likelihood,o.riskSeverity,o.riskScore,o.riskLevel));
+    }else if(isAudit){
+      const aid=rMeta.auditId||"";
+      (typeof records!=="undefined"?records:[]).filter(r=>aid&&r.auditId===aid).forEach(r=>push(r.id,r.desc,r.likelihood,r.riskSeverity,r.riskScore,r.riskLevel));
+    }else if(isCrisis){
+      const ex=(rMeta.coverRecords||[])[0]||rMeta.record||{};
+      (ex.lessonsLearned||[]).forEach((l,idx)=>push(l.ncrId||l.capaId||("Lesson "+(idx+1)),l.item,l.likelihood,l.riskSeverity,riskScoreOf(l.likelihood,l.riskSeverity),riskLevelOf(l.likelihood,l.riskSeverity)));
+    }else if(isRecall){
+      const ex=rMeta.record||(rMeta.coverRecords||[])[0]||{};
+      (ex.findings||[]).forEach(f=>push(f.id,f.findingDescription,f.likelihood,f.riskSeverity,f.riskScore,f.riskLevel));
+    }
+    return out;
+  })();
   // Exhibit letters (A,B,C…) and appendix numbers run sequentially across the
   // whole report. pdfAppendices collects PDF attachments to append after the
   // signature block, each with its own separator page.
@@ -6378,6 +6543,33 @@ async function downloadReportPDF(){
     doc.text(wrapped[0],margin+165,y+13);
     y+=18;
   });
+
+  // ── RISK PROFILE (cover) ───────────────────────────────────────────────────
+  // Count of covered records by risk level with colour indicators. Shows a
+  // "pending" note when nothing has been scored yet.
+  {
+    const rc=riskProfileCounts(riskItems);
+    y+=14;
+    doc.setFillColor(...navy);doc.rect(margin,y,contentW,22,'F');
+    doc.setFontSize(10);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+    doc.text('Risk Profile',margin+8,y+15);
+    y+=30;
+    const cells=[['Critical',rc.Critical],['High',rc.High],['Medium',rc.Medium],['Low',rc.Low]];
+    const cw=contentW/4;
+    cells.forEach((c,idx)=>{
+      const x=margin+idx*cw;
+      const col=RISK_RGB[c[0]]||[120,120,120];
+      doc.setFillColor(...col);doc.rect(x+2,y-9,12,12,'F');
+      doc.setFontSize(9.5);doc.setTextColor(...black);doc.setFont('helvetica','bold');
+      doc.text(c[0]+': '+c[1],x+18,y);
+    });
+    y+=14;
+    if(!rc.scored){
+      doc.setFontSize(8.5);doc.setTextColor(120,120,140);doc.setFont('helvetica','italic');
+      doc.text('Risk assessment pending — no covered records have been scored.',margin+8,y);
+      y+=12;
+    }
+  }
 
   // ── CONTENT PAGES ───────────────────────────────────────────────────────
   doc.addPage();
@@ -6936,6 +7128,38 @@ async function downloadReportPDF(){
   // carries exactly one signature block (the Report Authorization appended below).
   const lines=stripReportSignatureContent(text).split('\n');
 
+  // ── PRIORITY FINDINGS — Immediate Attention Required (before the body) ──────
+  // Lists only Critical and High risk records with their id, description and
+  // score, so the highest-risk items are surfaced ahead of the full finding list.
+  {
+    const pri=riskItems.filter(it=>it.level==='Critical'||it.level==='High').sort((a,b)=>b.score-a.score);
+    doc.setFillColor(139,0,0);doc.rect(margin,y,contentW,22,'F');
+    doc.setFontSize(11);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+    doc.text('PRIORITY FINDINGS  —  Immediate Attention Required',margin+8,y+15);
+    y+=30;
+    if(!pri.length){
+      doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','italic');
+      const msg=riskItems.some(i=>i.level)?'No Critical or High risk records identified in this report.':'Risk assessment pending — no covered records have been scored.';
+      doc.text(doc.splitTextToSize(msg,contentW),margin+8,y);y+=20;
+    }else{
+      pri.forEach(it=>{
+        if(y>pageH-60){doc.addPage();y=50;}
+        const col=RISK_RGB[it.level]||[139,0,0];
+        doc.setFillColor(...col);doc.rect(margin,y-9,4,16,'F');
+        doc.setFontSize(9.5);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+        doc.text((it.id||'(record)')+'   ·   '+it.level+'   ·   Risk Score '+it.score,margin+10,y);
+        y+=12;
+        doc.setFontSize(8.5);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+        doc.splitTextToSize(it.desc||'(no description)',contentW-16).slice(0,2).forEach(dl=>{
+          if(y>pageH-46){doc.addPage();y=50;}
+          doc.text(dl,margin+10,y);y+=10;
+        });
+        y+=5;
+      });
+    }
+    y+=10;
+  }
+
   for(let i=0;i<lines.length;i++){
     const line=lines[i].trim();
     if(y>pageH-46){doc.addPage();y=50;}
@@ -6990,6 +7214,12 @@ async function downloadReportPDF(){
       doc.setFontSize(10);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
       doc.text(line.replace(/^###\s*/,''),margin+8,y+13);
       y+=22;
+      // Risk Assessment row — drawn directly under a finding / record detail
+      // heading whose text carries a known record id. "Risk assessment pending"
+      // when the matched record has no score.
+      const _ht=line.replace(/^###\s*/,'');
+      const _rit=riskItems.find(it=>it.id&&_ht.indexOf(it.id)!==-1);
+      if(_rit)y=drawRiskAssessmentRow(doc,_rit,y,margin,contentW,pageH,navy,white,black);
     } else if(line.startsWith('#### ')){
       y+=4;
       doc.setFontSize(9.5);doc.setTextColor(...midBlue);doc.setFont('helvetica','bold');
@@ -7573,6 +7803,20 @@ function populateRecordSourceFilter(){
 function onSourceFilterChange(){
   const sel=document.getElementById("rec-source-filter");
   currentSourceFilter=sel?sel.value:"";
+  renderTable();
+}
+
+// Risk Level filter (Task 5) and risk-score sort toggle for the records list.
+function onRiskFilterChange(){
+  const sel=document.getElementById("rec-risk-filter");
+  currentRiskFilter=sel?sel.value:"";
+  renderTable();
+}
+function toggleRiskSort(){
+  // Cycle: off → descending (highest first) → ascending → off.
+  riskSortDir=riskSortDir===0?1:(riskSortDir===1?-1:0);
+  const caret=document.getElementById("risk-sort-caret");
+  if(caret)caret.textContent=riskSortDir===1?"▼":(riskSortDir===-1?"▲":"");
   renderTable();
 }
 
@@ -8324,19 +8568,22 @@ async function addCrisisResponse(qid){
 function renderCrisisLessons(){
   const t=document.getElementById("crisis-lessons");if(!t)return;
   const rows=activeCrisis.lessonsLearned||(activeCrisis.lessonsLearned=[]);
-  t.innerHTML=`<thead><tr><th>Improvement Item / Gap Identified</th><th style="width:140px">Owner</th><th style="width:130px">Target Date</th><th style="width:90px">CAPA?</th><th style="width:130px">CAPA ID</th><th style="width:72px">NCR</th><th style="width:40px"></th></tr></thead><tbody>`+
+  t.innerHTML=`<thead><tr><th>Improvement Item / Gap Identified</th><th style="width:140px">Owner</th><th style="width:130px">Target Date</th><th style="width:120px">Likelihood</th><th style="width:120px">Severity</th><th style="width:90px">Risk</th><th style="width:90px">CAPA?</th><th style="width:130px">CAPA ID</th><th style="width:72px">NCR</th><th style="width:40px"></th></tr></thead><tbody>`+
     (rows.length?rows.map((l,i)=>`<tr>
       <td><input class="crisis-input" value="${cesc(l.item)}" onchange="activeCrisis.lessonsLearned[${i}].item=this.value"></td>
       <td><input class="crisis-input" value="${cesc(l.owner)}" onchange="activeCrisis.lessonsLearned[${i}].owner=this.value"></td>
       <td><input type="date" class="crisis-input" value="${cesc(l.targetDate)}" onchange="activeCrisis.lessonsLearned[${i}].targetDate=this.value"></td>
+      <td><select class="crisis-input" onchange="activeCrisis.lessonsLearned[${i}].likelihood=this.value;renderCrisisLessons()">${riskOptions("L",l.likelihood)}</select></td>
+      <td><select class="crisis-input" onchange="activeCrisis.lessonsLearned[${i}].riskSeverity=this.value;renderCrisisLessons()">${riskOptions("S",l.riskSeverity)}</select></td>
+      <td style="text-align:center">${riskBadge(riskLevelOf(l.likelihood,l.riskSeverity),{score:riskScoreOf(l.likelihood,l.riskSeverity)||""})}</td>
       <td><select class="crisis-input" onchange="activeCrisis.lessonsLearned[${i}].capaRequired=(this.value==='Yes')"><option ${l.capaRequired?"":"selected"}>No</option><option ${l.capaRequired?"selected":""}>Yes</option></select></td>
       <td><input class="crisis-input" value="${cesc(l.capaId)}" placeholder="QIS-####" onchange="activeCrisis.lessonsLearned[${i}].capaId=this.value"></td>
       <td style="text-align:center">${l.ncrId?`<div class="ncr-issued" style="cursor:pointer;text-decoration:underline" title="Open NCR ${cesc(l.ncrId)}" onclick="openLessonNCR('${cesc(l.ncrId)}')">NCR<br>${cesc(l.ncrId)}</div>`:`<button class="ncr-btn" onclick="createLessonNCR(${i})">+ NCR</button>`}</td>
       <td><button class="btn-ghost" style="color:#C00000" onclick="activeCrisis.lessonsLearned.splice(${i},1);renderCrisisLessons()">&#10005;</button></td>
-    </tr>`).join(""):`<tr><td colspan="7" style="color:#4a5568;font-size:11px">No items yet. Click <b>+ Item</b>.</td></tr>`)+`</tbody>`;
+    </tr>`).join(""):`<tr><td colspan="10" style="color:#4a5568;font-size:11px">No items yet. Click <b>+ Item</b>.</td></tr>`)+`</tbody>`;
   if(activeCrisis&&activeCrisis.id&&document.getElementById("crisis-capa-linkage"))renderLinkedCapas("crisis-capa-linkage","Crisis Exercise",activeCrisis.id);
 }
-function addCrisisLesson(){activeCrisis.lessonsLearned.push({item:"",owner:"",targetDate:"",capaRequired:false,capaId:"",ncrId:""});renderCrisisLessons();}
+function addCrisisLesson(){activeCrisis.lessonsLearned.push({item:"",owner:"",targetDate:"",likelihood:"",riskSeverity:"",capaRequired:false,capaId:"",ncrId:""});renderCrisisLessons();}
 
 // Create an NCR from a lesson-learned row — mirrors the Audit Program "+ NCR"
 // flow. The record is a self-assigned NCR sourced to this exercise: its clause
@@ -8351,6 +8598,7 @@ async function createLessonNCR(i){
   if(!item){toast("Enter the improvement item / gap text before issuing an NCR.","red");return;}
   const data={
     user:ensureUser(),type:"NCR",severity:"Minor",
+    likelihood:l.likelihood||"",riskSeverity:l.riskSeverity||"",
     clause:activeCrisis.id,desc:item,owner:(l.owner||"").trim(),
     due:l.targetDate||"",status:"Open",
     site:activeCrisis.site||currentSite,selfAssigned:true,
@@ -8871,15 +9119,18 @@ function renderRecallFindings(){
     <td><input class="recall-input" value="${cesc(f.findingDescription)}" onchange="updateRecallFinding('${cesc(f.id)}','findingDescription',this.value)" placeholder="Describe the traceability gap..."></td>
     <td><select class="recall-input" onchange="updateRecallFinding('${cesc(f.id)}','owner',this.value)">${recallUserOptions(f.owner)}</select></td>
     <td><input type="date" class="recall-input" value="${cesc(f.targetDate)}" onchange="updateRecallFinding('${cesc(f.id)}','targetDate',this.value)"></td>
+    <td><select class="recall-input" onchange="updateRecallFinding('${cesc(f.id)}','likelihood',this.value)">${riskOptions("L",f.likelihood)}</select></td>
+    <td><select class="recall-input" onchange="updateRecallFinding('${cesc(f.id)}','riskSeverity',this.value)">${riskOptions("S",f.riskSeverity)}</select></td>
+    <td style="text-align:center">${riskBadge(f.riskLevel,{score:f.riskScore||""})}</td>
     <td><select class="recall-input" onchange="updateRecallFinding('${cesc(f.id)}','capaRequired',this.value)">${optList(["No","Yes"],f.capaRequired==="Yes"?"Yes":"No")}</select></td>
     <td style="text-align:center">${f.capaRequired==="Yes"?(f.capaId?`<span class="badge badge-capa" style="cursor:pointer" title="Open CAPA" onclick="openLessonNCR('${cesc(f.capaId)}')">${cesc(f.capaId)}</span>`:`<button class="btn-ghost" style="font-size:10px;padding:3px 8px" onclick="recallFindingCapa('${cesc(f.id)}')">&#128279; CAPA</button>`):`<span style="color:#4a5568;font-size:10px">—</span>`}</td>
     <td style="text-align:center">${f.ncrId?`<span class="badge badge-capa" style="cursor:pointer" title="Open NCR" onclick="openLessonNCR('${cesc(f.ncrId)}')">${cesc(f.ncrId)}</span>`:`<button class="ncr-btn" onclick="recallFindingNCR('${cesc(f.id)}')">+ NCR</button>`}</td>
     <td><button class="btn-ghost" style="color:#C00000" title="Remove finding" onclick="deleteRecallFinding('${cesc(f.id)}')">✕</button></td>
-  </tr>`).join(""):`<tr><td colspan="7" style="color:#4a5568;font-size:11px">No findings yet. Click <b>+ Add Finding</b> to record an identified gap.</td></tr>`;
+  </tr>`).join(""):`<tr><td colspan="10" style="color:#4a5568;font-size:11px">No findings yet. Click <b>+ Add Finding</b> to record an identified gap.</td></tr>`;
   host.innerHTML=`
     <div class="recall-block-title">Stage 4 · Findings <button class="btn" style="background:#1F6F6B" onclick="addRecallFinding()">+ Add Finding</button></div>
     <div style="overflow-x:auto"><table class="recall-tbl">
-      <thead><tr><th>Gap / Finding Description</th><th style="width:150px">Owner</th><th style="width:130px">Target Date</th><th style="width:80px">CAPA?</th><th style="width:110px">CAPA</th><th style="width:90px">NCR</th><th style="width:36px"></th></tr></thead>
+      <thead><tr><th>Gap / Finding Description</th><th style="width:150px">Owner</th><th style="width:130px">Target Date</th><th style="width:120px">Likelihood</th><th style="width:120px">Severity</th><th style="width:80px">Risk</th><th style="width:80px">CAPA?</th><th style="width:110px">CAPA</th><th style="width:90px">NCR</th><th style="width:36px"></th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <div style="margin-top:14px" id="recall-capa-linkage"></div>
     <div style="margin-top:16px;display:flex;gap:10px;justify-content:space-between">
@@ -8899,7 +9150,7 @@ async function updateRecallFinding(id,field,value){
   f[field]=value;
   try{
     activeRecall=await recallPost("save-finding",f);
-    if(field==="capaRequired")renderRecallStageBody();
+    if(field==="capaRequired"||field==="likelihood"||field==="riskSeverity")renderRecallStageBody();
   }catch(e){toast("Could not save finding: "+e.message,"red");}
 }
 async function deleteRecallFinding(id){
@@ -9053,6 +9304,7 @@ async function showOOSList(){
     <td>${cesc(o.testAnalyte)||"—"}</td>
     <td>${cesc(o.resultObtained)} ${cesc(o.units)}<br><span style="font-size:10px;color:#4a5568">spec: ${cesc(o.specification)||"—"}</span></td>
     <td>${o.passFail?`<span class="badge ${o.passFail==="Fail"?"badge-open":"badge-closed"}">${cesc(o.passFail)}</span>`:"—"}</td>
+    <td>${riskBadge(o.riskLevel,{score:o.riskScore||0})}</td>
     <td>${oosStatusBadge(o.status)}</td>
     <td style="font-size:11px">${cesc(o.disposition)||"—"}</td>
     <td style="font-size:10px;color:#4a5568;white-space:nowrap">${cesc(o.dateInitiated)}<br>${cesc(o.initiatedBy)}</td>
@@ -9060,8 +9312,8 @@ async function showOOSList(){
   </tr>`).join("");
   c.innerHTML=`
     <div style="overflow-x:auto"><table class="data-table">
-      <thead><tr><th>OOS ID</th><th>Material</th><th>Product / Material</th><th>Analyte</th><th>Result / Spec</th><th>P/F</th><th>Status</th><th>Disposition</th><th>Initiated</th><th>Files</th></tr></thead>
-      <tbody>${rows||`<tr><td colspan="10" style="text-align:center;color:#4a5568;padding:26px">No OOS investigations yet for ${cesc(currentSite)}. Click <b>+ New OOS</b> to open one.</td></tr>`}</tbody>
+      <thead><tr><th>OOS ID</th><th>Material</th><th>Product / Material</th><th>Analyte</th><th>Result / Spec</th><th>P/F</th><th>Risk</th><th>Status</th><th>Disposition</th><th>Initiated</th><th>Files</th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="11" style="text-align:center;color:#4a5568;padding:26px">No OOS investigations yet for ${cesc(currentSite)}. Click <b>+ New OOS</b> to open one.</td></tr>`}</tbody>
     </table></div>
     <div style="margin-top:14px;padding:12px 16px;background:#FCE4E4;border:1px solid #C00000;border-radius:8px;font-size:11px;color:#7a0000;font-family:'DM Mono',monospace;text-align:center">OOS investigations follow the phased model (Phase 1 Laboratory → Phase 2 Manufacturing → Full OOS) per 21 CFR Part 111.320 and SQF Edition 9. All records, attachments and dispositions persist to the shared database with a full audit trail.</div>`;
 }
@@ -9125,6 +9377,9 @@ function renderOOSEditor(){
       <div class="crisis-block-title">3 · Investigation</div>
       <div class="crisis-meta-grid">
         <div style="grid-column:1/-1"><label class="form-label">OOS Classification</label><select class="crisis-input" id="oo-classification">${optList(OOS_CLASSIFICATIONS,o.classification)}</select></div>
+        <div><label class="form-label">Risk Likelihood</label><select class="crisis-input" id="oo-likelihood" onchange="updateRiskDisplay('oo-likelihood','oo-risk-severity','oo-risk-display')">${riskOptions("L",o.likelihood)}</select></div>
+        <div><label class="form-label">Risk Severity</label><select class="crisis-input" id="oo-risk-severity" onchange="updateRiskDisplay('oo-likelihood','oo-risk-severity','oo-risk-display')">${riskOptions("S",o.riskSeverity)}</select></div>
+        <div style="grid-column:1/-1"><label class="form-label">Risk Score (Likelihood × Severity)</label><div id="oo-risk-display" style="display:flex;align-items:center;gap:10px;min-height:38px;padding:7px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-muted,#f7f8fa)"></div></div>
       </div>
       <div style="margin-top:10px"><label class="form-label">Phase 1 — Laboratory Investigation Notes</label><textarea class="crisis-input" id="oo-phase1Notes" style="min-height:70px">${cesc(o.phase1Notes)}</textarea></div>
       <div style="margin-top:10px"><label class="form-label">Phase 2 — Manufacturing Investigation Notes</label><textarea class="crisis-input" id="oo-phase2Notes" style="min-height:70px">${cesc(o.phase2Notes)}</textarea></div>
@@ -9170,6 +9425,7 @@ function renderOOSEditor(){
       <button class="btn" style="background:#C00000;padding:10px 22px" onclick="saveOOS()">&#128190; Save OOS Record</button>
     </div>`;
   renderOOSAttachments();
+  updateRiskDisplay("oo-likelihood","oo-risk-severity","oo-risk-display");
   initSignatureSection("oos","oos",o.id,"sig-section-oos",o.signatures||[],function(updated){if(activeOOS&&updated)activeOOS.signatures=updated.signatures;});
   renderLinkedCapas("oos-capa-linkage","OOS",o.id);
 }
@@ -9231,6 +9487,7 @@ async function saveOOS(){
     testAnalyte:val("oo-testAnalyte"),testMethod:val("oo-testMethod"),specification:val("oo-specification"),
     resultObtained:val("oo-resultObtained"),units:val("oo-units"),passFail:val("oo-passFail"),
     classification:val("oo-classification"),phase1Notes:val("oo-phase1Notes"),phase2Notes:val("oo-phase2Notes"),
+    likelihood:val("oo-likelihood"),riskSeverity:val("oo-risk-severity"),
     rootCause:val("oo-rootCause"),rootCauseCategory:val("oo-rootCauseCategory"),correctiveAction:val("oo-correctiveAction"),
     disposition:val("oo-disposition"),capaId:val("oo-capaId"),status:val("oo-status"),
   };
@@ -9542,6 +9799,11 @@ function computeMonthly(data,period,site){
   majorsOpen.forEach(r=>risks.push({type:"Major Finding",id:r.id,detail:(r.clause?"§"+r.clause+" — ":"")+(r.desc||"").slice(0,90),owner:r.owner||"—",due:r.due||"—"}));
   overdue.filter(r=>r.severity!=="Major"&&r.severity!=="Critical").forEach(r=>risks.push({type:"Overdue "+(r.type||"Item"),id:r.id,detail:(r.clause?"§"+r.clause+" — ":"")+(r.desc||"").slice(0,90),owner:r.owner||"—",due:r.due||"—"}));
   oosStale.forEach(o=>risks.push({type:"OOS Pending >30d",id:o.id,detail:(o.testAnalyte||o.productName||"OOS investigation"),owner:o.initiatedBy||"—",due:o.dateInitiated||"—"}));
+  // Risk profile — open records + open OOS counted by risk level.
+  const riskProfile={Critical:0,High:0,Medium:0,Low:0,scored:0,notScored:0};
+  const tallyRisk=lv=>{if(riskProfile[lv]!==undefined){riskProfile[lv]++;riskProfile.scored++;}else riskProfile.notScored++;};
+  open.forEach(r=>tallyRisk(r.riskLevel||""));
+  oos.filter(o=>!OOS_CLOSED.includes(o.status)).forEach(o=>tallyRisk(o.riskLevel||""));
   return {
     period,prev,site,siteLabel:site||"All Sites",
     open:open.length,closedAll:closedAll.length,overdue:overdue.length,total:recs.length,
@@ -9552,7 +9814,7 @@ function computeMonthly(data,period,site){
     oosThis:oosThis.length,confirmed,invalidated,oosOpenDisp:oosOpenDisp.length,oosStale:oosStale.length,oosStaleList:oosStale,
     lastAudit:past[0]||null,nextAudit:future[0]||null,auditOpen,auditClosed,days254,
     lastEx:exPast[0]||null,nextExDate:nextExDates[0]||null,crisisActions,
-    risks,
+    risks,riskProfile,
     capaEff:computeCapaEffMetrics(recs,data.capaLinks,oos,crisis),
   };
 }
@@ -9686,6 +9948,7 @@ function monthlyMarkdown(m,commentary){
   md+=`| Overall Quality Index (records closed on time) | ${m.qIndex===null?"No closed records with a due date":m.qIndex+"% ("+m.onTimeCount+" of "+m.closedWithDue+")"} |\n`;
   md+=`| Total Open Findings | ${m.open} |\n| Overdue Items | ${m.overdue} |\n| Closed This Month | ${m.closedThis} |\n| Closed Prior Month | ${m.closedPrev} |\n| Closure Rate Trend | ${m.closedThis>m.closedPrev?"Up +"+(m.closedThis-m.closedPrev):m.closedThis<m.closedPrev?"Down "+(m.closedThis-m.closedPrev):"No change"} vs prior month |\n\n`;
   md+=`## 2. CAPA / NCR STATUS\n\n`;
+  md+=(function(){if(!m.riskProfile)return "";const rp=m.riskProfile;let s=`### Risk Profile (Open Records)\n\n| Risk Level | Count |\n| --- | --- |\n`;s+=`| Critical | ${rp.Critical} |\n| High | ${rp.High} |\n| Medium | ${rp.Medium} |\n| Low | ${rp.Low} |\n| Not Scored | ${rp.notScored} |\n\n`;if(!rp.scored)s+=`Risk assessment pending — no open records have been scored.\n\n`;return s;})();
   md+=`| Metric | Count |\n| --- | --- |\n| New Records This Month | ${m.newThis} |\n| Closed This Month | ${m.closedThis} |\n| Open Aging > 30 days | ${m.aging30} |\n| Open Aging > 60 days | ${m.aging60} |\n| Open Aging > 90 days | ${m.aging90} |\n\n`;
   md+=`### Open Records by Department / Owner\n\n| Owner / Department | Open |\n| --- | --- |\n`;
   const oe=Object.entries(m.byOwner).sort((a,b)=>b[1]-a[1]);
@@ -9817,11 +10080,16 @@ function computeAnnual(data,period,site){
     if(stillOpen)exActions.push({ex:e.id,item:l.item,owner:l.owner||"—",target:l.targetDate||"—",link:linkId||"—"});
   }));
   const nextEx=crisis.map(e=>e.nextExerciseDate).filter(x=>x&&x>today).sort()[0]||null;
+  // Risk profile — all records + OOS opened this year counted by risk level.
+  const riskProfile={Critical:0,High:0,Medium:0,Low:0,scored:0,notScored:0};
+  const tallyRisk=lv=>{if(riskProfile[lv]!==undefined){riskProfile[lv]++;riskProfile.scored++;}else riskProfile.notScored++;};
+  recs.filter(r=>inYear(r.created)).forEach(r=>tallyRisk(r.riskLevel||""));
+  oosYear.forEach(o=>tallyRisk(o.riskLevel||""));
   return {
     period,site,siteLabel:site||"All Sites",
     aud,auditFindings,auditBySeverity,auditClosed,repeats,clausesCovered,
     capaOpened:capaOpened.length,capaClosed:capaClosed.length,avgClose,oosCats,
-    capaClosedList:capaClosed,
+    capaClosedList:capaClosed,riskProfile,
     oosYear,oosConfirmed,oosInvalidated,analyteFail,oosRaw,oosFin,
     exYear,planUpdates,exActions,nextEx,
     capaEff:computeCapaEffMetrics(recs,data.capaLinks,oos,crisis),
@@ -10019,6 +10287,7 @@ function annualMarkdown(m,d){
   const sev=Object.entries(m.auditBySeverity).sort((a,b)=>b[1]-a[1]);
   md+=(sev.length?sev.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | 0 |")+"\n\n";
   md+=`Total audit findings: ${m.auditFindings.length} · Closed: ${m.auditClosed} · Closure rate: ${m.auditFindings.length?Math.round(m.auditClosed/m.auditFindings.length*100):0}% · Distinct clauses covered: ${m.clausesCovered.length}.\n\n`;
+  md+=(function(){if(!m.riskProfile)return "";const rp=m.riskProfile;let s=`### Risk Profile (Records & OOS in ${m.period})\n\n| Risk Level | Count |\n| --- | --- |\n`;s+=`| Critical | ${rp.Critical} |\n| High | ${rp.High} |\n| Medium | ${rp.Medium} |\n| Low | ${rp.Low} |\n| Not Scored | ${rp.notScored} |\n\n`;if(!rp.scored)s+=`Risk assessment pending — no records were scored in the period.\n\n`;return s;})();
   md+=`### Repeat Findings (Same Clause)\n\n| Clause | Occurrences |\n| --- | --- |\n`;
   md+=(m.repeats.length?m.repeats.map(([k,v])=>`| ${f(k)} | ${v} |`).join("\n"):"| (none) | No repeat findings on the same clause |")+"\n\n";
   md+=`## 3. CAPA & CORRECTIVE ACTION EFFECTIVENESS\n\n| Metric | Value |\n| --- | --- |\n`;

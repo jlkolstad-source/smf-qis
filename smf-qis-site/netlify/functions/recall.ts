@@ -31,6 +31,27 @@ import { recallExercises, recallNodes, recallFindings, auditLog } from "../../db
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
+// ── Risk matrix (Likelihood × Severity) ───────────────────────────────────
+// Both inputs are 1-5. The product (1-25) is bucketed into a qualitative level:
+//   1-4 = Low · 5-9 = Medium · 10-16 = High · 17-25 = Critical.
+// An incomplete pair (either value missing / out of range) is "not yet scored".
+export function computeRisk(likelihood: any, severity: any) {
+  const L = parseInt(String(likelihood ?? "").trim(), 10);
+  const S = parseInt(String(severity ?? "").trim(), 10);
+  const valid = Number.isFinite(L) && Number.isFinite(S) && L >= 1 && L <= 5 && S >= 1 && S <= 5;
+  if (!valid) {
+    return {
+      likelihood: String(likelihood ?? "").trim(),
+      riskSeverity: String(severity ?? "").trim(),
+      riskScore: 0,
+      riskLevel: "",
+    };
+  }
+  const score = L * S;
+  const level = score >= 17 ? "Critical" : score >= 10 ? "High" : score >= 5 ? "Medium" : "Low";
+  return { likelihood: String(L), riskSeverity: String(S), riskScore: score, riskLevel: level };
+}
+
 function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
 }
@@ -166,6 +187,10 @@ function findingToClient(f: typeof recallFindings.$inferSelect) {
     id: f.id,
     recallId: f.recallId,
     findingDescription: f.findingDescription || "",
+    likelihood: f.likelihood || "",
+    riskSeverity: f.riskSeverity || "",
+    riskScore: f.riskScore || 0,
+    riskLevel: f.riskLevel || "",
     owner: f.owner || "",
     targetDate: f.targetDate || "",
     capaRequired: f.capaRequired || "",
@@ -479,6 +504,13 @@ export default async (req: Request) => {
         const ex = await exists();
         if (!ex) return json(404, { error: "Exercise not found." });
         const f = body || {};
+        // Risk matrix: recompute when both likelihood and severity are supplied
+        // and non-empty; otherwise the risk fields are preserved (on update) or
+        // left unscored (on insert) below.
+        const riskL = String(f.likelihood ?? "").trim();
+        const riskS = String(f.riskSeverity ?? f.risk_severity ?? "").trim();
+        const riskProvided = riskL !== "" && riskS !== "";
+        const computedRisk = computeRisk(riskL, riskS);
         const fields = {
           findingDescription: (f.findingDescription || "").toString(),
           owner: (f.owner || "").toString(),
@@ -492,7 +524,15 @@ export default async (req: Request) => {
         if (f.id) {
           const [existingF] = await db.select().from(recallFindings).where(eq(recallFindings.id, f.id));
           if (!existingF || existingF.recallId !== id) return json(404, { error: "Finding not found." });
-          [saved] = await db.update(recallFindings).set(fields).where(eq(recallFindings.id, f.id)).returning();
+          const riskFields = riskProvided
+            ? computedRisk
+            : {
+                likelihood: existingF.likelihood,
+                riskSeverity: existingF.riskSeverity,
+                riskScore: existingF.riskScore,
+                riskLevel: existingF.riskLevel,
+              };
+          [saved] = await db.update(recallFindings).set({ ...fields, ...riskFields }).where(eq(recallFindings.id, f.id)).returning();
           await logChange(id, "update", "Finding updated", actor);
         } else {
           let findingSeq = await highestChildSeq("RFND");
@@ -501,7 +541,7 @@ export default async (req: Request) => {
             const findingId = `RFND-${String(findingSeq).padStart(5, "0")}`;
             [saved] = await db
               .insert(recallFindings)
-              .values({ id: findingId, recallId: id, ...fields })
+              .values({ id: findingId, recallId: id, ...fields, ...computedRisk })
               .onConflictDoNothing()
               .returning();
           }
