@@ -23,6 +23,21 @@ export const records = pgTable(
     riskSeverity: text("risk_severity").notNull().default(""),
     riskScore: integer("risk_score").notNull().default(0),
     riskLevel: text("risk_level").notNull().default(""),
+    // ── Residual risk (post-corrective-action) ───────────────────────────────
+    // For CAPA records: the re-scored Likelihood × Severity AFTER the corrective
+    // action, so the two-stage risk-reduction story (initial finding risk →
+    // post-CA residual risk) can be told in the UI and reports. Same 1-5 inputs,
+    // same product → level thresholds as the initial risk above. risk_reduction_pct
+    // is the auto-calculated % reduction from the inherited initial source-finding
+    // risk score to this residual score. Empty "" / 0 = "not yet re-assessed".
+    postCaLikelihood: text("post_ca_likelihood").notNull().default(""),
+    postCaSeverity: text("post_ca_severity").notNull().default(""),
+    postCaRiskScore: integer("post_ca_risk_score").notNull().default(0),
+    postCaRiskLevel: text("post_ca_risk_level").notNull().default(""),
+    riskReductionPct: integer("risk_reduction_pct").notNull().default(0),
+    // Free-text residual-risk remarks (auto-suggested from the post-CA level, then
+    // editable by the user) — shown in the residual-risk UI and the PDF reports.
+    postCaRemarks: text("post_ca_remarks").notNull().default(""),
     clause: text("clause").notNull().default(""),
     status: text("status").notNull().default("Open"),
     dueDate: text("due_date").notNull().default(""),
