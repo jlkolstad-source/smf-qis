@@ -11,9 +11,9 @@
 // record's created_by/at and modified_by/at columns, giving a full audit trail.
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, asc, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { records, auditLog, effectivenessChecks } from "../../db/schema.js";
+import { records, auditLog, effectivenessChecks, capaLinks, oosRecords } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -37,6 +37,47 @@ export function computeRisk(likelihood: any, severity: any) {
   const score = L * S;
   const level = score >= 17 ? "Critical" : score >= 10 ? "High" : score >= 5 ? "Medium" : "Low";
   return { likelihood: String(L), riskSeverity: String(S), riskScore: score, riskLevel: level };
+}
+
+// ── Residual risk (post-corrective-action) ─────────────────────────────────
+// Same 1-5 inputs and product → level thresholds as computeRisk, but produces
+// the post_ca_* fields for a CAPA's re-assessment after its corrective action.
+export function computeResidualRisk(likelihood: any, severity: any) {
+  const L = parseInt(String(likelihood ?? "").trim(), 10);
+  const S = parseInt(String(severity ?? "").trim(), 10);
+  const valid = Number.isFinite(L) && Number.isFinite(S) && L >= 1 && L <= 5 && S >= 1 && S <= 5;
+  if (!valid) {
+    return {
+      postCaLikelihood: String(likelihood ?? "").trim(),
+      postCaSeverity: String(severity ?? "").trim(),
+      postCaRiskScore: 0,
+      postCaRiskLevel: "",
+    };
+  }
+  const score = L * S;
+  const level = score >= 17 ? "Critical" : score >= 10 ? "High" : score >= 5 ? "Medium" : "Low";
+  return { postCaLikelihood: String(L), postCaSeverity: String(S), postCaRiskScore: score, postCaRiskLevel: level };
+}
+
+// Highest INITIAL risk score among the source findings linked to a CAPA —
+// resolved via the capa_links table (NCR / Audit Finding / OOS sources) and via
+// the direct records.capa_id back-reference. Drives the auto-calculated
+// risk_reduction_pct. Returns 0 when no scored source finding is linked.
+async function inheritedInitialRiskScore(capaId: string): Promise<number> {
+  let max = 0;
+  const consider = (n: any) => { const v = Number(n) || 0; if (v > max) max = v; };
+  const links = await db.select().from(capaLinks).where(eq(capaLinks.capaId, capaId));
+  const srcIds = [...new Set(links.map((l) => l.sourceId).filter(Boolean))];
+  if (srcIds.length) {
+    const recHits = await db.select({ riskScore: records.riskScore }).from(records).where(inArray(records.id, srcIds));
+    recHits.forEach((r) => consider(r.riskScore));
+    const oosHits = await db.select({ riskScore: oosRecords.riskScore }).from(oosRecords).where(inArray(oosRecords.id, srcIds));
+    oosHits.forEach((o) => consider(o.riskScore));
+  }
+  // Direct single-link sources (an NCR / Audit Finding whose capa_id points here).
+  const direct = await db.select({ riskScore: records.riskScore }).from(records).where(eq(records.capaId, capaId));
+  direct.forEach((r) => consider(r.riskScore));
+  return max;
 }
 
 function json(status: number, obj: unknown) {
@@ -103,6 +144,14 @@ function toClient(r: typeof records.$inferSelect) {
     riskSeverity: r.riskSeverity || "",
     riskScore: r.riskScore || 0,
     riskLevel: r.riskLevel || "",
+    // Residual (post-corrective-action) risk — present on every record so CAPA
+    // consumers can read it; "" / 0 when not re-assessed.
+    postCaLikelihood: r.postCaLikelihood || "",
+    postCaSeverity: r.postCaSeverity || "",
+    postCaRiskScore: r.postCaRiskScore || 0,
+    postCaRiskLevel: r.postCaRiskLevel || "",
+    riskReductionPct: r.riskReductionPct || 0,
+    postCaRemarks: r.postCaRemarks || "",
     clause: r.clause,
     status: r.status,
     due: r.dueDate || "",
@@ -669,6 +718,33 @@ export default async (req: Request) => {
         row.riskSeverity = existing.riskSeverity;
         row.riskScore = existing.riskScore;
         row.riskLevel = existing.riskLevel;
+      }
+
+      // Residual (post-corrective-action) risk: when post_ca_likelihood and
+      // post_ca_severity are supplied, re-score the CAPA after its corrective
+      // action and auto-calculate the % risk reduction against the initial risk
+      // inherited from the highest-risk linked source finding. The reduction is
+      // only computed when such an initial score exists. The remarks field is
+      // preserved/overwritten verbatim so the user's customised text persists.
+      if (bodyHas(body, "postCaLikelihood", "post_ca_likelihood") || bodyHas(body, "postCaSeverity", "post_ca_severity")) {
+        const pL = body.postCaLikelihood ?? body.post_ca_likelihood ?? "";
+        const pS = body.postCaSeverity ?? body.post_ca_severity ?? "";
+        const residual = computeResidualRisk(pL, pS);
+        (row as any).postCaLikelihood = residual.postCaLikelihood;
+        (row as any).postCaSeverity = residual.postCaSeverity;
+        (row as any).postCaRiskScore = residual.postCaRiskScore;
+        (row as any).postCaRiskLevel = residual.postCaRiskLevel;
+        let reductionPct = 0;
+        if (residual.postCaRiskScore > 0) {
+          const initialScore = await inheritedInitialRiskScore(id);
+          if (initialScore > 0) {
+            reductionPct = Math.round(((initialScore - residual.postCaRiskScore) / initialScore) * 100);
+          }
+        }
+        (row as any).riskReductionPct = reductionPct;
+      }
+      if (bodyHas(body, "postCaRemarks", "post_ca_remarks")) {
+        (row as any).postCaRemarks = (body.postCaRemarks ?? body.post_ca_remarks ?? "").toString();
       }
 
       // Record IDs are permanent and non-editable. Any id field in the request

@@ -817,6 +817,7 @@ main{padding:24px 32px 80px;}
       </div>
       <div class="form-group form-full"><label class="form-label">Objective Evidence Notes</label><textarea class="form-textarea" id="f-evidence" placeholder="Record documents reviewed, what was observed, dates..."></textarea></div>
       <div class="form-group form-full" id="capa-linkage-section" style="margin-top:4px"></div>
+      <div class="form-group form-full" id="capa-residual-risk-section" style="margin-top:4px"></div>
       <div class="form-group form-full" id="capa-effectiveness-section" style="margin-top:4px"></div>
       <div class="form-group form-full" id="sig-section-record" style="margin-top:4px"></div>
     </div>
@@ -4404,15 +4405,115 @@ function effDaysRemaining(iso){if(!iso)return null;const d=new Date(iso.length<=
 function renderRecordLinkage(r){
   const linkHost=document.getElementById("capa-linkage-section");
   const effHost=document.getElementById("capa-effectiveness-section");
+  const residHost=document.getElementById("capa-residual-risk-section");
   if(linkHost)linkHost.innerHTML="";
   if(effHost)effHost.innerHTML="";
+  if(residHost)residHost.innerHTML="";
   // Linkage requires a persisted record id.
   if(!editingId||!r){return;}
   if(r.type==="CAPA"){
     renderCapaSourceRecords(r);
+    renderResidualRisk(r);
     renderEffectivenessCheck(r);
   }else{
     renderLinkedCapas("capa-linkage-section",recordSourceType(r),r.id);
+  }
+}
+
+// ── CAPA: Residual Risk (Post-Corrective-Action) section ─────────────────────
+// Re-scores a CAPA's risk AFTER its corrective action and shows the % reduction
+// against the initial risk inherited from the highest-risk linked source
+// finding. Auto-suggests level-appropriate remarks the user can edit.
+function _srcRiskScore(sourceType,sourceId){
+  let rec=null;
+  if(sourceType==="OOS")rec=(typeof oosRecords!=="undefined"?oosRecords:[]||[]).find(o=>o.id===sourceId);
+  else rec=(records||[]).find(r=>r.id===sourceId);
+  if(!rec)return {score:0,level:""};
+  const sc=(+rec.riskScore)||riskScoreOf(rec.likelihood,rec.riskSeverity);
+  return {score:sc,level:rec.riskLevel||riskLevelFromScore(sc)};
+}
+// Highest initial risk among the source findings linked to a CAPA — via the
+// capa_links rows and via direct records.capa_id / oos.capa_id back-references.
+function capaInitialRisk(capaId,links){
+  let best={score:0,level:""};
+  const consider=(o)=>{if(o&&o.score>best.score)best={score:o.score,level:o.level||riskLevelFromScore(o.score)};};
+  (links||[]).forEach(l=>consider(_srcRiskScore(l.sourceType,l.sourceId)));
+  (records||[]).forEach(r=>{if((r.capaId||"")===capaId)consider({score:(+r.riskScore)||0,level:r.riskLevel||""});});
+  (typeof oosRecords!=="undefined"?oosRecords:[]||[]).forEach(o=>{if((o.capaId||"")===capaId)consider({score:(+o.riskScore)||0,level:o.riskLevel||""});});
+  return best;
+}
+// Level-appropriate suggested remarks text.
+function residualRemarkSuggestion(level){
+  if(level==="Low")return "Risk has been reduced to an acceptable level through corrective action. No further action required.";
+  if(level==="Medium")return "Risk has been partially mitigated. Monitor for recurrence.";
+  if(level==="High"||level==="Critical")return "Risk remains elevated. Additional corrective action required before closure.";
+  return "";
+}
+async function renderResidualRisk(r){
+  const host=document.getElementById("capa-residual-risk-section");if(!host)return;
+  host.innerHTML=`<div class="link-card"><div class="link-card-title">&#128737; Residual Risk After Corrective Action <span style="color:#4a5568;font-weight:400">loading…</span></div></div>`;
+  let links=[];try{links=(await capaLinksGet("capa_id="+encodeURIComponent(r.id)))||[];}catch(e){links=[];}
+  window._residInitialRisk=capaInitialRisk(r.id,links);
+  const init=window._residInitialRisk;
+  const initLine=init.score
+    ? `Initial finding risk: ${riskBadge(init.level,{score:init.score,size:11})} <span style="font-size:11px;color:#4a5568">— inherited from the highest-risk linked source finding</span>`
+    : `<span style="font-size:11px;color:#4a5568">Initial risk score not recorded on a linked source finding — reduction percentage cannot be calculated.</span>`;
+  host.innerHTML=`<div class="link-card">
+    <div class="link-card-title">&#128737; Residual Risk After Corrective Action</div>
+    <div style="font-size:11px;color:#4a5568;margin-bottom:8px">Re-score the risk AFTER the corrective action to show how far the finding's risk has been reduced.</div>
+    <div style="margin-bottom:10px">${initLine}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+      <div class="form-group" style="margin:0"><label class="form-label">Post-CA Likelihood</label>
+        <select class="form-select" id="resid-likelihood" onchange="updateResidualDisplay()">${riskOptions("L",r.postCaLikelihood||"")}</select></div>
+      <div class="form-group" style="margin:0"><label class="form-label">Post-CA Severity</label>
+        <select class="form-select" id="resid-risk-severity" onchange="updateResidualDisplay()">${riskOptions("S",r.postCaSeverity||"")}</select></div>
+    </div>
+    <div class="form-group" style="margin-bottom:8px"><label class="form-label">Post-CA Risk Score (Likelihood × Severity)</label>
+      <div id="resid-risk-display" style="display:flex;align-items:center;gap:10px;min-height:38px;padding:7px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-muted,#f7f8fa)"></div></div>
+    <div class="form-group" style="margin-bottom:8px"><label class="form-label">Risk Reduction</label>
+      <div id="resid-reduction-display" style="min-height:38px;padding:9px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-muted,#f7f8fa)"></div></div>
+    <div class="form-group" style="margin:0"><label class="form-label">Remarks</label>
+      <textarea class="form-textarea" id="resid-remarks" data-auto="" placeholder="Residual-risk remarks (auto-suggested; editable)…" style="min-height:56px" oninput="this.setAttribute('data-auto','')">${cesc(r.postCaRemarks||"")}</textarea></div>
+  </div>`;
+  updateResidualDisplay();
+}
+// Recompute and paint the post-CA score, level badge, reduction bar and the
+// auto-suggested remarks (only while the user has not customised them).
+function updateResidualDisplay(){
+  const lEl=document.getElementById("resid-likelihood"),sEl=document.getElementById("resid-risk-severity");
+  if(!lEl||!sEl)return;
+  const l=lEl.value||"",s=sEl.value||"";
+  const score=riskScoreOf(l,s),level=riskLevelFromScore(score);
+  const out=document.getElementById("resid-risk-display");
+  if(out){
+    if(!score)out.innerHTML=`<span style="color:#4a5568;font-size:12px">Select both Post-CA Likelihood and Severity to calculate the residual risk score.</span>`;
+    else out.innerHTML=`<span style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700">${score}</span><span style="font-size:11px;color:#4a5568">= ${l} × ${s}</span>${riskBadge(level,{size:11})}`;
+  }
+  const init=window._residInitialRisk||{score:0,level:""};
+  const redEl=document.getElementById("resid-reduction-display");
+  if(redEl){
+    if(!init.score){
+      redEl.innerHTML=`<span style="color:#4a5568;font-size:12px">Initial risk score not recorded on a linked source finding — reduction cannot be calculated.</span>`;
+    }else if(!score){
+      redEl.innerHTML=`<span style="color:#4a5568;font-size:12px">Awaiting post-CA score · Initial risk ${init.level||"—"} (Score ${init.score}).</span>`;
+    }else{
+      const pct=Math.round(((init.score-score)/init.score)*100);
+      const clamped=Math.max(0,Math.min(100,pct));
+      const col=pct>=50?"#1B7A3D":(pct>=25?"#C99700":"#C00000");
+      redEl.innerHTML=`<div style="display:flex;align-items:center;gap:10px;width:100%">
+        <span style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:${col};min-width:52px">${pct}%</span>
+        <div style="flex:1;height:12px;background:#e7eaef;border-radius:6px;overflow:hidden"><div style="height:100%;width:${clamped}%;background:${col}"></div></div>
+      </div><div style="font-size:11px;color:#4a5568;margin-top:5px">Initial ${init.level||"—"} (Score ${init.score}) &#8594; Residual ${level||"—"} (Score ${score})</div>`;
+    }
+  }
+  const rem=document.getElementById("resid-remarks");
+  if(rem){
+    const suggestion=score?residualRemarkSuggestion(level):"";
+    const prevAuto=rem.getAttribute("data-auto")||"";
+    if((rem.value||"").trim()===""||rem.value===prevAuto){
+      rem.value=suggestion;
+      rem.setAttribute("data-auto",suggestion);
+    }
   }
 }
 
@@ -4939,6 +5040,14 @@ async function saveRecord(){
   if(effOwnerToSend)data.effectivenessCheckOwner=effOwnerToSend;
   // Only send source_body for Audit Findings (drives the ID prefix on create).
   if(isAudit)data.sourceBody=sourceBody;
+  // Residual (post-CA) risk — sent only when the CAPA residual section is shown,
+  // so non-CAPA saves never touch it. The server auto-calculates post_ca_risk_score,
+  // post_ca_risk_level and risk_reduction_pct from these inputs.
+  if(document.getElementById("resid-likelihood")){
+    data.postCaLikelihood=(document.getElementById("resid-likelihood")||{}).value||"";
+    data.postCaSeverity=(document.getElementById("resid-risk-severity")||{}).value||"";
+    data.postCaRemarks=(document.getElementById("resid-remarks")||{}).value||"";
+  }
   // Record IDs are permanent — the id is never sent in the PUT body.
   try{
     let res;
@@ -6343,7 +6452,8 @@ async function generateFindingSummaryReport(wrap){
       const c=findCapaRecord(l.capaId);
       let chk=null;
       if(c&&c.effectivenessStatus==="Completed"){try{chk=await fetchEffectivenessCheck(l.capaId);}catch(e){chk=null;}}
-      return {capaId:l.capaId,status:c?(c.status||""):"",effectivenessStatus:c?(c.effectivenessStatus||""):"",determination:chk?(chk.determination||""):"",verifiedBy:chk?(chk.verifiedBy||""):"",verifiedAt:chk?(chk.verifiedAt||""):""};
+      return {capaId:l.capaId,status:c?(c.status||""):"",effectivenessStatus:c?(c.effectivenessStatus||""):"",determination:chk?(chk.determination||""):"",verifiedBy:chk?(chk.verifiedBy||""):"",verifiedAt:chk?(chk.verifiedAt||""):"",
+        postCaLikelihood:c?(c.postCaLikelihood||""):"",postCaSeverity:c?(c.postCaSeverity||""):"",postCaRiskScore:c?(+c.postCaRiskScore||0):0,postCaRiskLevel:c?(c.postCaRiskLevel||""):"",riskReductionPct:c?(+c.riskReductionPct||0):0,postCaRemarks:c?(c.postCaRemarks||""):""};
     }));
     const flags=submissionFlags(r,links);
     const photoCount=(r.photos||[]).length;
@@ -6444,7 +6554,12 @@ ${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | NCR / Audit Finding Corrective Action Package per SQF Edition 9 §2.5.4 | Retain minimum 2 years per SOP #02"`;
 
-  const findingsEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''})),verification:verifMap[r.id]||[]}));
+  // Carry the record's risk-matrix fields onto the report meta so the PDF
+  // generator's riskItems gather (which prefers rMeta.findings over coverRecords)
+  // populates the cover-page Risk Profile, the Priority Findings block and each
+  // finding's Risk Assessment row instead of reading undefined and rendering
+  // "Risk assessment pending" for records that ARE scored.
+  const findingsEv=sel.map(r=>({id:r.id,desc:r.desc||"",created:r.created||"",likelihood:r.likelihood||"",riskSeverity:r.riskSeverity||"",riskScore:r.riskScore||0,riskLevel:r.riskLevel||"",attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''})),verification:verifMap[r.id]||[]}));
   await streamSingleReport(prompt,wrap,{type:"sqfi-submission",site:currentSite,findings:findingsEv,coverRecords:sel,linkedCapas:ncrLinkedCapas});
 }
 
@@ -6459,17 +6574,22 @@ async function generateCAPAStatusSummary(wrap){
   // Unique source record IDs linked to the selected CAPAs (via capa_links) —
   // surfaced on the PDF cover page as the "Source Records" line.
   const capaSrcIds=[];
+  // Inherited initial risk per CAPA (highest-risk linked source finding), keyed
+  // by CAPA id, so the PDF's Risk Reduction Summary can show the source finding's
+  // initial risk alongside the CAPA's post-CA residual risk.
+  const capaInheritedRisk={};
   const blockArr=await Promise.all(sel.map(async r=>{
     const links=await capaLinksGet("capa_id="+encodeURIComponent(r.id));
     (links||[]).forEach(l=>{if(l.sourceId&&capaSrcIds.indexOf(l.sourceId)===-1)capaSrcIds.push(l.sourceId);});
     // Inherited risk — highest risk among the source records this CAPA addresses.
-    let inh={score:0,level:""};
+    let inh={score:0,level:"",findingId:""};
     (links||[]).forEach(l=>{
       const src=(records.find(x=>x.id===l.sourceId))||(typeof oosRecords!=="undefined"?(oosRecords||[]).find(x=>x.id===l.sourceId):null);
       if(!src)return;
       const sc=(+src.riskScore)||riskScoreOf(src.likelihood,src.riskSeverity);
-      if(sc>inh.score)inh={score:sc,level:src.riskLevel||riskLevelFromScore(sc)};
+      if(sc>inh.score)inh={score:sc,level:src.riskLevel||riskLevelFromScore(sc),findingId:src.id||l.sourceId};
     });
+    capaInheritedRisk[r.id]={score:inh.score,level:inh.level,findingId:inh.findingId};
     const inhText=inh.level?`${inh.level} (Score ${inh.score}) — inherited from the highest-risk linked source finding`:"No scored source findings linked";
     return `Record ID: ${fld(r.id)}
 Description: ${fld(r.desc)}
@@ -6513,8 +6633,14 @@ Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | CAPA Status
   // Evidence metadata for the PDF exporter — same shape as the NCR report so the
   // shared exporter embeds image exhibits, appends PDF appendices and lists
   // Office files as referenced documents per CAPA.
-  const capaEv=sel.map(r=>({id:r.id,attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''}))}));
-  await streamSingleReport(prompt,wrap,{type:"capa-summary",site:currentSite,findings:capaEv,coverRecords:sel,sourceRecords:capaSrcIds});
+  // Carry the CAPA's risk-matrix fields onto the report meta (same reason as the
+  // NCR report above) so the shared PDF exporter's risk gather sees the real
+  // scores rather than undefined.
+  const capaEv=sel.map(r=>({id:r.id,desc:r.desc||"",likelihood:r.likelihood||"",riskSeverity:r.riskSeverity||"",riskScore:r.riskScore||0,riskLevel:r.riskLevel||"",
+    postCaLikelihood:r.postCaLikelihood||"",postCaSeverity:r.postCaSeverity||"",postCaRiskScore:+r.postCaRiskScore||0,postCaRiskLevel:r.postCaRiskLevel||"",riskReductionPct:+r.riskReductionPct||0,postCaRemarks:r.postCaRemarks||"",
+    initialRiskScore:(capaInheritedRisk[r.id]||{}).score||0,initialRiskLevel:(capaInheritedRisk[r.id]||{}).level||"",initialFindingId:(capaInheritedRisk[r.id]||{}).findingId||"",
+    attachments:(r.photos||[]).map(p=>({filename:p.name||'(unnamed)',label:p.name||'Evidence',contentType:p.type||'',dataUrl:p.data||''}))}));
+  await streamSingleReport(prompt,wrap,{type:"capa-summary",site:currentSite,findings:capaEv,coverRecords:sel,sourceRecords:capaSrcIds,capaInheritedRisk});
 }
 
 function copyReport(){if(window._lastReport){navigator.clipboard.writeText(window._lastReport);toast("Copied to clipboard.","green");}}
@@ -6691,6 +6817,30 @@ async function downloadReportPDF(){
     }
     return out;
   })();
+  // ── TWO-STAGE RISK — initial finding risk vs post-CA residual risk ──────────
+  // coverInitialItems is the initial-risk distribution; coverResidualItems is the
+  // post-corrective-action residual distribution. For the NCR / Audit Finding
+  // Summary the residual is taken from each finding's highest-risk linked CAPA
+  // post-CA score; for the CAPA Status Summary the initial is the inherited
+  // source-finding risk and the residual is the CAPA's own post-CA score.
+  const coverInitialItems=(function(){
+    if(isCapa)return (rMeta.findings||[]).map(r=>({level:r.initialRiskLevel||"",score:+r.initialRiskScore||0}));
+    return riskItems;
+  })();
+  const coverResidualItems=(function(){
+    const out=[];
+    if(isNCR){
+      (rMeta.findings||[]).forEach(f=>{
+        let best={score:0,level:""};
+        (f.verification||[]).forEach(v=>{const sc=+v.postCaRiskScore||0;if(sc>best.score)best={score:sc,level:v.postCaRiskLevel||""};});
+        if(best.score>0)out.push({level:best.level,score:best.score});
+      });
+    }else if(isCapa){
+      (rMeta.findings||[]).forEach(r=>{const sc=+r.postCaRiskScore||0;if(sc>0)out.push({level:r.postCaRiskLevel||"",score:sc});});
+    }
+    return out;
+  })();
+  const hasTwoStage=isNCR||isCapa;
   // Exhibit letters (A,B,C…) and appendix numbers run sequentially across the
   // whole report. pdfAppendices collects PDF attachments to append after the
   // signature block, each with its own separator page.
@@ -6894,29 +7044,49 @@ async function downloadReportPDF(){
   });
 
   // ── RISK PROFILE (cover) ───────────────────────────────────────────────────
-  // Count of covered records by risk level with colour indicators. Shows a
-  // "pending" note when nothing has been scored yet.
+  // For the NCR / Audit Finding and CAPA summaries this shows BOTH the initial
+  // risk distribution and the post-corrective-action residual distribution side
+  // by side, with a one-line reduction summary. Other report types show the
+  // single covered-record distribution. A "pending" note appears when unscored.
   {
-    const rc=riskProfileCounts(riskItems);
     y+=14;
     doc.setFillColor(...navy);doc.rect(margin,y,contentW,22,'F');
     doc.setFontSize(10);doc.setTextColor(...white);doc.setFont('helvetica','bold');
     doc.text('Risk Profile',margin+8,y+15);
     y+=30;
-    const cells=[['Critical',rc.Critical],['High',rc.High],['Medium',rc.Medium],['Low',rc.Low]];
-    const cw=contentW/4;
-    cells.forEach((c,idx)=>{
-      const x=margin+idx*cw;
-      const col=RISK_RGB[c[0]]||[120,120,120];
-      doc.setFillColor(...col);doc.rect(x+2,y-9,12,12,'F');
-      doc.setFontSize(9.5);doc.setTextColor(...black);doc.setFont('helvetica','bold');
-      doc.text(c[0]+': '+c[1],x+18,y);
-    });
-    y+=14;
-    if(!rc.scored){
-      doc.setFontSize(8.5);doc.setTextColor(120,120,140);doc.setFont('helvetica','italic');
-      doc.text('Risk assessment pending — no covered records have been scored.',margin+8,y);
-      y+=12;
+    const drawDist=(labelTxt,items)=>{
+      const rc=riskProfileCounts(items);
+      if(labelTxt){doc.setFontSize(8.5);doc.setTextColor(...navy);doc.setFont('helvetica','bold');doc.text(labelTxt,margin+2,y);y+=13;}
+      const cells=[['Critical',rc.Critical],['High',rc.High],['Medium',rc.Medium],['Low',rc.Low]];
+      const cw=contentW/4;
+      cells.forEach((c,idx)=>{
+        const x=margin+idx*cw;
+        const col=RISK_RGB[c[0]]||[120,120,120];
+        doc.setFillColor(...col);doc.rect(x+2,y-9,12,12,'F');
+        doc.setFontSize(9.5);doc.setTextColor(...black);doc.setFont('helvetica','bold');
+        doc.text(c[0]+': '+c[1],x+18,y);
+      });
+      y+=16;
+      return rc;
+    };
+    if(hasTwoStage){
+      const ri=drawDist('INITIAL RISK',coverInitialItems);
+      y+=4;
+      const rr=drawDist('POST-CA RESIDUAL RISK',coverResidualItems);
+      const fmt=rc=>{const p=[];if(rc.Critical)p.push(rc.Critical+' Critical');if(rc.High)p.push(rc.High+' High');if(rc.Medium)p.push(rc.Medium+' Medium');if(rc.Low)p.push(rc.Low+' Low');return p.length?p.join(', '):'none scored';};
+      y+=2;
+      doc.setFontSize(8.5);doc.setTextColor(90,90,110);doc.setFont('helvetica','italic');
+      doc.splitTextToSize('Initial: '+fmt(ri)+'    |    Residual: '+fmt(rr),contentW-8).forEach(sl=>{doc.text(sl,margin+2,y);y+=11;});
+      if(!ri.scored)doc.text('Initial risk assessment pending — no covered findings have been scored.',margin+2,y),y+=11;
+      else if(!rr.scored)doc.text('Post-corrective-action residual risk not yet recorded for the covered records.',margin+2,y),y+=11;
+      doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    }else{
+      const rc=drawDist('',riskItems);
+      if(!rc.scored){
+        doc.setFontSize(8.5);doc.setTextColor(120,120,140);doc.setFont('helvetica','italic');
+        doc.text('Risk assessment pending — no covered records have been scored.',margin+8,y);
+        y+=12;
+      }
     }
   }
 
@@ -6996,6 +7166,16 @@ async function downloadReportPDF(){
   }
   // Render the Evidence section for one NCR / CAPA record's attachments.
   async function flushRecordEvidence(rec){
+    // Two-stage risk story, drawn first within the detail block (right after the
+    // AI-rendered finding/CAPA body): for NCR/Audit findings the Initial Risk
+    // Assessment + the Corrective Action Risk Reduction across linked CAPAs; for
+    // CAPAs the inherited Source Finding Initial Risk → Post-CA Residual Risk.
+    const fmeta=(rMeta.findings||[]).find(f=>f.id===(rec&&rec.id))||{};
+    if(isNCR&&rec){
+      drawInitialRiskAssessment({likelihood:fmeta.likelihood,severity:fmeta.riskSeverity,score:+fmeta.riskScore||0,level:fmeta.riskLevel},fmeta.created||'');
+      drawCARiskReduction(rec.verification);
+    }
+    if(isCapa&&rec&&rec.id)drawCapaRiskReductionSummary(fmeta);
     // Record-level signatures appear first in every record detail block. For
     // CAPA they sit after the corrective-action fields (in the body above) and
     // before the Effectiveness Check section; for NCR/Audit-finding records they
@@ -7264,7 +7444,163 @@ async function downloadReportPDF(){
     });
     y+=4;
   }
-  // Detect a CAPA / linked-CAPA status line whose value is a closed-EC state
+  // ── TWO-STAGE RISK — per-record PDF blocks (NCR & CAPA summaries) ───────────
+  // A coloured, rounded risk-level pill. Returns its width.
+  function drawRiskLevelBadge(level,x,top){
+    const lv=level||"";
+    doc.setFontSize(8);doc.setFont('helvetica','bold');
+    if(!lv){
+      const label='Not Scored',tw=doc.getTextWidth(label),bw=tw+12,bh=13;
+      doc.setFillColor(242,242,242);
+      if(doc.roundedRect)doc.roundedRect(x,top,bw,bh,2,2,'F');else doc.rect(x,top,bw,bh,'F');
+      doc.setTextColor(90,90,110);doc.text(label,x+6,top+9);
+      doc.setTextColor(...black);doc.setFont('helvetica','normal');return bw;
+    }
+    const col=RISK_RGB[lv]||[120,120,120];
+    const tw=doc.getTextWidth(lv),bw=tw+12,bh=13;
+    doc.setFillColor(...col);
+    if(doc.roundedRect)doc.roundedRect(x,top,bw,bh,2,2,'F');else doc.rect(x,top,bw,bh,'F');
+    doc.setTextColor(255,255,255);doc.text(lv,x+6,top+9);
+    doc.setTextColor(...black);doc.setFont('helvetica','normal');return bw;
+  }
+  // Light-blue section sub-header (matches the ### detail-block styling).
+  function drawRiskSubHeader(title){
+    if(y>pageH-60){doc.addPage();y=50;}
+    y+=8;
+    doc.setFillColor(...lightBlue);doc.rect(margin,y,contentW,18,'F');
+    doc.setFontSize(10);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
+    doc.text(title,margin+8,y+13);
+    y+=22;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+  }
+  // A navy label · value line within a risk block.
+  function drawRiskKV(label,value){
+    if(y>pageH-40){doc.addPage();y=50;}
+    doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+    doc.text(label,margin+6,y+8);
+    doc.setFont('helvetica','normal');doc.setTextColor(...black);
+    doc.setFontSize(9);
+    const lines=doc.splitTextToSize(String(value==null||value===''?'—':value),contentW-156);
+    lines.forEach((wl,i)=>{if(i>0&&y>pageH-40){doc.addPage();y=50;}doc.text(wl,margin+150,y+8);if(i<lines.length-1)y+=11;});
+    y+=15;
+  }
+  // Risk-reduction progress bar: green ≥50%, amber 25-49%, red <25%.
+  function drawReductionBar(pct){
+    if(y>pageH-40){doc.addPage();y=50;}
+    const clamped=Math.max(0,Math.min(100,pct));
+    const col=pct>=50?RISK_RGB.Low:(pct>=25?[201,151,0]:[192,0,0]);
+    const barX=margin+92,barW=contentW-92-46,barH=10;
+    doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+    doc.text('Risk Reduction',margin+6,y+8);
+    doc.setFillColor(231,234,239);doc.rect(barX,y,barW,barH,'F');
+    doc.setFillColor(...col);doc.rect(barX,y,barW*clamped/100,barH,'F');
+    doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(...col);
+    doc.text(pct+'%',barX+barW+6,y+8);
+    doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    y+=barH+7;
+  }
+  // Green "Acceptable Risk Level" (Low/Medium) or red "Risk Remains Elevated"
+  // (High/Critical) indicator pill.
+  function drawRiskIndicator(level){
+    if(!level)return;
+    if(y>pageH-30){doc.addPage();y=50;}
+    const acceptable=(level==='Low'||level==='Medium');
+    const bg=acceptable?[226,239,218]:[255,224,224];
+    const fg=acceptable?[56,87,35]:[122,0,0];
+    const label=acceptable?'Acceptable Risk Level':'Risk Remains Elevated — Additional Action Required';
+    doc.setFontSize(8.5);doc.setFont('helvetica','bold');
+    const tw=doc.getTextWidth(label),bw=Math.min(contentW-12,tw+16),bh=15;
+    doc.setFillColor(...bg);
+    if(doc.roundedRect)doc.roundedRect(margin+6,y,bw,bh,2,2,'F');else doc.rect(margin+6,y,bw,bh,'F');
+    doc.setTextColor(...fg);doc.text(label,margin+14,y+10);
+    doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    y+=bh+6;
+  }
+  // NCR / Audit Finding Summary — "Initial Risk Assessment" section.
+  function drawInitialRiskAssessment(it,dateRaised){
+    drawRiskSubHeader('Initial Risk Assessment');
+    if(it&&it.score){
+      drawRiskKV('Likelihood',riskLabel('L',it.likelihood)||('Likelihood '+(it.likelihood||'—')));
+      drawRiskKV('Severity',riskLabel('S',it.severity)||('Severity '+(it.severity||'—')));
+      if(y>pageH-40){doc.addPage();y=50;}
+      doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+      doc.text('Risk Score',margin+6,y+8);
+      doc.setFont('helvetica','normal');doc.setTextColor(...black);doc.setFontSize(9);
+      doc.text(it.score+' / 25',margin+150,y+8);
+      drawRiskLevelBadge(it.level,margin+230,y);
+      y+=16;
+      if(dateRaised)drawRiskKV('Date Finding Raised',dateRaised);
+    }else{
+      if(y>pageH-30){doc.addPage();y=50;}
+      doc.setFontSize(9);doc.setFont('helvetica','italic');doc.setTextColor(120,120,140);
+      doc.text('Risk assessment pending — this finding has not been scored.',margin+6,y+8);
+      y+=18;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    }
+  }
+  // NCR / Audit Finding Summary — "Corrective Action Risk Reduction" section.
+  function drawCARiskReduction(verification){
+    drawRiskSubHeader('Corrective Action Risk Reduction');
+    const list=(Array.isArray(verification)?verification:[]).filter(v=>(+v.postCaRiskScore||0)>0);
+    if(!list.length){
+      if(y>pageH-30){doc.addPage();y=50;}
+      doc.setFontSize(9);doc.setFont('helvetica','italic');doc.setTextColor(120,120,140);
+      doc.text('Corrective action risk assessment pending.',margin+6,y+8);
+      y+=18;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      return;
+    }
+    list.forEach((v,i)=>{
+      if(i>0){y+=4;doc.setDrawColor(205,210,218);doc.setLineWidth(0.5);doc.line(margin,y,margin+contentW,y);y+=6;}
+      if(y>pageH-40){doc.addPage();y=50;}
+      doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+      doc.text('Linked CAPA',margin+6,y+8);
+      doc.setFont('helvetica','normal');doc.setTextColor(...black);doc.setFontSize(9);
+      doc.text(String(v.capaId||'—'),margin+150,y+8);
+      drawRiskLevelBadge(v.postCaRiskLevel,margin+260,y);
+      y+=16;
+      drawRiskKV('Post-CA Likelihood',riskLabel('L',v.postCaLikelihood)||('Likelihood '+(v.postCaLikelihood||'—')));
+      drawRiskKV('Post-CA Severity',riskLabel('S',v.postCaSeverity)||('Severity '+(v.postCaSeverity||'—')));
+      drawRiskKV('Post-CA Risk Score',(+v.postCaRiskScore||0)+' / 25');
+      drawReductionBar(+v.riskReductionPct||0);
+      if((v.postCaRemarks||'').trim())drawRiskKV('Remarks',v.postCaRemarks);
+      drawRiskIndicator(v.postCaRiskLevel);
+    });
+  }
+  // CAPA Status Summary — "Risk Reduction Summary" section.
+  function drawCapaRiskReductionSummary(rec){
+    drawRiskSubHeader('Risk Reduction Summary');
+    const initScore=+rec.initialRiskScore||0;
+    if(initScore>0){
+      if(y>pageH-40){doc.addPage();y=50;}
+      doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+      doc.text('Source Finding Initial Risk',margin+6,y+8);
+      doc.setFont('helvetica','normal');doc.setTextColor(...black);doc.setFontSize(9);
+      doc.text((rec.initialFindingId||'—')+'  ·  Score '+initScore+' / 25',margin+170,y+8);
+      drawRiskLevelBadge(rec.initialRiskLevel,margin+330,y);
+      y+=16;
+    }else{
+      if(y>pageH-30){doc.addPage();y=50;}
+      doc.setFontSize(9);doc.setFont('helvetica','italic');doc.setTextColor(120,120,140);
+      doc.text('Initial risk score not recorded on source finding.',margin+6,y+8);
+      y+=18;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    }
+    const postScore=+rec.postCaRiskScore||0;
+    if(postScore>0){
+      if(y>pageH-40){doc.addPage();y=50;}
+      doc.setFontSize(8.5);doc.setFont('helvetica','bold');doc.setTextColor(...navy);
+      doc.text('Post-CA Residual Risk',margin+6,y+8);
+      doc.setFont('helvetica','normal');doc.setTextColor(...black);doc.setFontSize(9);
+      doc.text('Score '+postScore+' / 25',margin+170,y+8);
+      drawRiskLevelBadge(rec.postCaRiskLevel,margin+330,y);
+      y+=16;
+      if(initScore>0)drawReductionBar(+rec.riskReductionPct||0);
+      if((rec.postCaRemarks||'').trim())drawRiskKV('Remarks',rec.postCaRemarks);
+      drawRiskIndicator(rec.postCaRiskLevel);
+    }else{
+      if(y>pageH-30){doc.addPage();y=50;}
+      doc.setFontSize(9);doc.setFont('helvetica','italic');doc.setTextColor(120,120,140);
+      doc.text('Post-corrective-action residual risk not yet recorded.',margin+6,y+8);
+      y+=18;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+    }
+  }
   // ("Closed-EC Verified" or "Closed-Pending EC") within a detail block and
   // render it as a coloured badge instead of plain text — green-checkmarked for
   // verified, amber for pending — so the corrective-action state stands out in
@@ -7565,10 +7901,12 @@ async function downloadReportPDF(){
       y+=22;
       // Risk Assessment row — drawn directly under a finding / record detail
       // heading whose text carries a known record id. "Risk assessment pending"
-      // when the matched record has no score.
+      // when the matched record has no score. Suppressed for the NCR / Audit
+      // Finding and CAPA summaries, which render the richer two-stage risk
+      // sections (Initial Risk + Corrective Action Risk Reduction) in the block.
       const _ht=line.replace(/^###\s*/,'');
       const _rit=riskItems.find(it=>it.id&&_ht.indexOf(it.id)!==-1);
-      if(_rit)y=drawRiskAssessmentRow(doc,_rit,y,margin,contentW,pageH,navy,white,black);
+      if(_rit&&!(isNCR||isCapa))y=drawRiskAssessmentRow(doc,_rit,y,margin,contentW,pageH,navy,white,black);
     } else if(line.startsWith('#### ')){
       y+=4;
       doc.setFontSize(9.5);doc.setTextColor(...midBlue);doc.setFont('helvetica','bold');
