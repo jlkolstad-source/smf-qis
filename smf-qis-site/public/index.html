@@ -69,6 +69,49 @@ main{padding:24px 32px 80px;}
 .score-bar-track{width:100%;height:5px;background:#f4f6f8;border-radius:3px;margin:12px 0 5px;overflow:hidden;}
 .score-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#2E75B6,#1F3864);}
 .score-range{display:flex;justify-content:space-between;font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;}
+/* ── DASHBOARD v2 (all-module live KPIs) ──────────────────────────────────── */
+.dash-head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-bottom:8px;}
+.dash-h-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:#1F3864;}
+.dash-h-sub{font-size:11px;color:#4a5568;font-family:'DM Mono',monospace;margin-top:2px;}
+.dash-refresh-wrap{display:flex;align-items:center;gap:12px;}
+.dash-stamp{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;text-align:right;line-height:1.5;}
+.dash-sec-title{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#1F3864;font-weight:700;margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.dash-kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:12px;}
+.dk-card{background:#fff;border:1px solid #d0d6de;border-radius:5px;border-top:3px solid #1F4E79;padding:16px;position:relative;box-shadow:0 1px 3px rgba(31,56,100,0.08);}
+.dk-card.amber{border-top-color:#B7791F;}
+.dk-card.red{border-top-color:#C00000;}
+.dk-card.green{border-top-color:#1F6F6B;}
+.dk-label{font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#4a5568;font-weight:600;margin-bottom:8px;min-height:24px;}
+.dk-value{font-family:'Bebas Neue',sans-serif;font-size:42px;line-height:1;color:#1F3864;}
+.dk-value.red{color:#C00000;}.dk-value.amber{color:#B7791F;}.dk-value.green{color:#1F6F6B;}
+.dk-sub{font-size:10px;color:#4a5568;margin-top:6px;}
+.dk-badge{display:inline-block;font-size:9px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:10px;margin-top:7px;margin-right:4px;font-weight:600;}
+.dk-badge.major{background:#FCE4E4;color:#C00000;}
+.dk-badge.neutral{background:#eef1f5;color:#1F3864;}
+.dk-badge.amber{background:#FFF2CC;color:#7F6000;}
+.dk-ring{display:flex;align-items:center;gap:12px;margin-top:2px;}
+.dash-prog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;}
+.dp-card{background:#fff;border:1px solid #d0d6de;border-left:3px solid #1F4E79;border-radius:5px;padding:14px 16px;}
+.dp-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#1F3864;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.dp-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:5px 0;border-bottom:1px dashed #e8ecf0;}
+.dp-row:last-child{border-bottom:none;}
+.dp-row .k{color:#4a5568;}
+.dp-row .v{font-weight:600;color:#1a1a2e;text-align:right;font-family:'DM Mono',monospace;font-size:11px;}
+.dp-flag-amber{color:#B7791F !important;}
+.dp-flag-red{color:#C00000 !important;}
+.dash-opp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;}
+.opp-card{background:#FFFBF0;border:1px solid #F0D9A0;border-left:4px solid #B7791F;border-radius:5px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;}
+.opp-card .opp-txt{font-size:12px;color:#5a4a1a;line-height:1.4;}
+.opp-card.clear{background:#EAF6EE;border-color:#9ed3b0;border-left-color:#1F6F6B;}
+.opp-card.clear .opp-txt{color:#1F5F4B;font-weight:600;}
+.opp-view{background:#B7791F;color:#fff;border:none;border-radius:5px;padding:6px 13px;font-size:11px;font-weight:600;cursor:pointer;flex-shrink:0;font-family:'DM Sans',sans-serif;letter-spacing:0.5px;}
+.opp-view:hover{opacity:0.88;}
+.dash-culture{background:#f4f6f8;border:1px dashed #b0bcc8;border-radius:8px;padding:20px 22px;margin-top:6px;}
+.dash-culture .dc-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
+.dc-score{font-family:'Bebas Neue',sans-serif;font-size:54px;line-height:1;color:#9aa5b1;}
+.dc-note{font-size:11px;color:#4a5568;margin-top:16px;font-style:italic;}
+.dash-spinner{width:34px;height:34px;border:3px solid #d0d6de;border-top-color:#1F4E79;border-radius:50%;animation:dashspin 0.8s linear infinite;margin:44px auto 14px;}
+@keyframes dashspin{to{transform:rotate(360deg);}}
 .table-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap;}
 .section-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;color:#1F3864;}
 .btn{background:var(--accent);color:var(--bg);border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:0.5px;transition:opacity 0.2s;}
@@ -391,45 +434,45 @@ main{padding:24px 32px 80px;}
 
 <!-- DASHBOARD -->
 <div class="section active" id="dashboard">
-  <div class="kpi-grid">
-    <div class="kpi-card orange"><div class="kpi-label">Open Items</div><div class="kpi-value" id="kpi-open">0</div><div class="kpi-sub">CAPAs / NCRs / Findings</div></div>
-    <div class="kpi-card red"><div class="kpi-label">Overdue</div><div class="kpi-value" id="kpi-overdue">0</div><div class="kpi-sub">Past due date</div></div>
-    <div class="kpi-card green"><div class="kpi-label">Closure Rate</div><div class="kpi-value" id="kpi-closure">--</div><div class="kpi-sub">All-time</div></div>
-    <div class="kpi-card blue"><div class="kpi-label">SQF Score</div><div class="kpi-value">83</div><div class="kpi-sub">May 2026 · Target 90+</div></div>
-    <div class="kpi-card yellow"><div class="kpi-label">Days to Deadline</div><div class="kpi-value" id="kpi-days">--</div><div class="kpi-sub">Jun 18, 2026 §2.5.4 CA</div></div>
+  <div class="dash-head">
+    <div>
+      <div class="dash-h-title">Quality Health Dashboard</div>
+      <div class="dash-h-sub">QIS · <span id="dash-site-name">Lindon</span> · live across all modules</div>
+    </div>
+    <div class="dash-refresh-wrap">
+      <div class="dash-stamp">Last refreshed<br><span id="dash-last-refresh">—</span></div>
+      <button class="btn" id="dash-refresh-btn" onclick="refreshDashboard()">&#8635; Refresh</button>
+    </div>
   </div>
-  <div class="charts-row">
-    <div class="chart-card"><div class="chart-title">Open Findings by Clause Area</div><div class="bar-chart" id="clause-chart"></div></div>
-    <div class="chart-card">
-      <div class="chart-title">Status Distribution</div>
-      <div class="donut-wrap">
-        <svg width="90" height="90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="38" fill="none" stroke="var(--surface2)" stroke-width="14"/>
-          <circle cx="50" cy="50" r="38" fill="none" stroke="var(--warn)" stroke-width="14" stroke-dasharray="239" stroke-dashoffset="0" transform="rotate(-90 50 50)" id="donut-open"/>
-          <circle cx="50" cy="50" r="38" fill="none" stroke="var(--accent)" stroke-width="14" stroke-dasharray="239" stroke-dashoffset="239" transform="rotate(-90 50 50)" id="donut-closed"/>
-        </svg>
-        <div class="donut-legend">
-          <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div>Open <span id="legend-open" style="margin-left:4px;color:#1a1a2e">--</span></div>
-          <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Closed <span id="legend-closed" style="margin-left:4px;color:#1a1a2e">--</span></div>
-          <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div>Overdue <span id="legend-overdue" style="margin-left:4px;color:#1a1a2e">--</span></div>
-          <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>In Progress <span id="legend-inprogress" style="margin-left:4px;color:#1a1a2e">--</span></div>
+  <div id="dash-loading"><div class="dash-spinner"></div><div style="text-align:center;color:#4a5568;font-size:12px;font-family:'DM Mono',monospace">Loading live data from all modules&hellip;</div></div>
+  <div id="dash-body" style="display:none">
+    <div class="dash-sec-title">&#9312; &nbsp;Quality Health at a Glance</div>
+    <div class="dash-kpi-grid" id="dash-kpis"></div>
+
+    <div class="dash-sec-title">&#9313; &nbsp;Active Programs &amp; Upcoming Dates</div>
+    <div class="dash-prog-grid" id="dash-programs"></div>
+
+    <div class="dash-sec-title">&#9314; &nbsp;Opportunities for Improvement</div>
+    <div class="dash-opp-grid" id="dash-opps"></div>
+
+    <div class="dash-sec-title">&#9315; &nbsp;Food Safety Culture Indicator</div>
+    <div class="dash-culture">
+      <div class="dc-head">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#1F3864;font-family:'DM Sans',sans-serif">Food Safety Culture Survey</div>
+          <div style="font-size:11px;color:#4a5568;margin-top:3px" id="dash-culture-status">Survey data not yet uploaded</div>
+        </div>
+        <div style="text-align:center">
+          <div class="dc-score" id="dash-culture-score">&mdash; / 100</div>
+          <div style="font-size:9px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1.5px">CULTURE SCORE</div>
+        </div>
+        <div style="text-align:right">
+          <label class="btn" style="cursor:pointer;display:inline-block">&#11014; Upload Survey Results<input type="file" accept=".xlsx" style="display:none" onchange="dashUploadCulture(this)"></label>
+          <div style="font-size:10px;color:#4a5568;margin-top:8px;font-family:'DM Mono',monospace">Last Updated: <span id="dash-culture-updated">&mdash;</span></div>
         </div>
       </div>
+      <div class="dc-note">Full culture survey module coming soon &mdash; attach your completed survey Excel file to populate this indicator. This is a placeholder for the future Food Safety Culture Survey module.</div>
     </div>
-    <div class="chart-card">
-      <div class="chart-title">SQF Audit Score · <span id="site-label-title">Lindon</span></div>
-      <div class="score-display">
-        <div class="score-big">83</div>
-        <div class="score-label">May 2026 · <span id="site-label-score">Lindon</span></div>
-        <div class="score-bar-track"><div class="score-bar-fill" style="width:83%"></div></div>
-        <div class="score-range"><span>0</span><span>Certified ≥70</span><span>100</span></div>
-        <div style="margin-top:10px;font-size:10px;color:#2d3748;font-family:'DM Mono',monospace">1 Major · 13 Minor · Target: 90+</div>
-      </div>
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div class="chart-card"><div class="chart-title">2026 Audit Schedule — Appendix B</div><div id="dash-schedule"></div></div>
-    <div class="chart-card"><div class="chart-title">§2.5.4 Evidence Package Progress</div><div id="dash-254"></div></div>
   </div>
 </div>
 
@@ -3703,11 +3746,14 @@ async function loadData(){
 
 // Reload from the database and re-render. Called after every mutation and on
 // site switch so all users always see the same persisted data.
-async function refresh(){await loadData();render();}
+async function refresh(){await loadData();await loadDashAux();render();}
 
-function render(){renderSiteSwitcher();updateKPIs();renderTable();renderDashCharts();updateCSuite();updateCapaEffMetrics();updateDeadline();}
+function render(){renderSiteSwitcher();updateKPIs();renderTable();renderDashCharts();updateCSuite();updateCapaEffMetrics();updateDeadline();renderDashboardV2();}
 
 function updateKPIs(){
+  // Legacy dashboard KPI tiles were replaced by the live Dashboard v2 grid
+  // (renderDashboardV2). Guard so this stays a no-op when those nodes are absent.
+  if(!document.getElementById("kpi-open"))return;
   const open=records.filter(r=>r.status==="Open"||r.status==="In Progress").length;
   const closed=records.filter(r=>r.status==="Closed").length;
   const total=records.length;
@@ -3757,6 +3803,8 @@ function updateDeadline(){
 }
 
 function renderDashCharts(){
+  // Legacy dashboard charts were superseded by Dashboard v2; no-op if absent.
+  if(!document.getElementById("clause-chart"))return;
   const clauses={};
   records.filter(r=>r.status!=="Closed").forEach(r=>{
     const a=r.clause?r.clause.split(".").slice(0,2).join("."):"Other";
@@ -3920,6 +3968,307 @@ async function updateCapaEffMetrics(){
   set("cs-capa-ineffective",m.ineffective,m.ineffective>0);
   set("cs-capa-major",m.majorLinked);
   set("cs-capa-overdue",m.overdue,m.overdue>0);
+}
+
+// ══════════════════ DASHBOARD v2 — LIVE ALL-MODULE KPIs ═════════════════════
+// A single live dashboard driven entirely by the same API endpoints used by the
+// individual modules. Quality-health KPIs, active-program dates, automatically
+// derived improvement opportunities, and a Food Safety Culture placeholder.
+// All counts are scoped to the currently selected site (currentSite).
+let _dashCrisis=[], _dashRecall=[], _dashLinks=[];
+const DASH_OOS_CLOSED=["Closed Invalidated","Closed Confirmed"];
+
+// Date helpers (tolerant of empty / malformed values).
+function _dDateOnly(s){return s?String(s).slice(0,10):"";}
+function _dDaysBetween(a,b){if(!a)return null;const d=Math.floor((new Date(b)-new Date(_dDateOnly(a)+"T00:00:00"))/86400000);return isNaN(d)?null:d;}
+function _dDaysFromNow(s){if(!s)return null;const d=Math.ceil((new Date(_dDateOnly(s)+"T00:00:00")-new Date())/86400000);return isNaN(d)?null:d;}
+function _dAddDays(s,n){const d=new Date(_dDateOnly(s)+"T00:00:00");if(isNaN(d))return null;d.setDate(d.getDate()+n);return d;}
+function _dAddMonths(s,n){const d=new Date(_dDateOnly(s)+"T00:00:00");if(isNaN(d))return null;d.setMonth(d.getMonth()+n);return d;}
+function _dFmt(s){if(!s)return"—";const d=new Date(_dDateOnly(s)+"T00:00:00");return isNaN(d)?cesc(String(s)):d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+function _dFmtD(d){return d&&!isNaN(d)?d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function _dIsOpenStatus(s){return s==="Open"||s==="In Progress";}
+function _dRecClosed(s){return /^closed/i.test(String(s||""));}
+function _dOosClosed(s){return DASH_OOS_CLOSED.includes(s);}
+
+// Pull crisis, recall and CAPA-link data for the current site into the dashboard
+// globals without triggering the per-module list renders. Tolerant of failure.
+async function loadDashAux(){
+  const site=encodeURIComponent(currentSite);
+  try{const r=await fetch(CRISIS_API+"?site="+site);_dashCrisis=r.ok?await r.json():[];}catch(e){_dashCrisis=[];}
+  try{const r=await fetch(RECALL_API+"?site="+site);_dashRecall=r.ok?await r.json():[];}catch(e){_dashRecall=[];}
+  try{_dashLinks=await capaLinksGet("");}catch(e){_dashLinks=[];}
+}
+
+// Full dashboard refresh: show the loading state, reload every module for the
+// current site, then paint. Used on tab switch and by the manual Refresh button.
+async function refreshDashboard(){
+  const body=document.getElementById("dash-body"),load=document.getElementById("dash-loading"),btn=document.getElementById("dash-refresh-btn");
+  if(load)load.style.display="";
+  if(body)body.style.display="none";
+  if(btn)btn.disabled=true;
+  try{await loadData();await loadDashAux();}catch(e){}
+  renderDashboardV2();
+  if(load)load.style.display="none";
+  if(body)body.style.display="";
+  if(btn)btn.disabled=false;
+  const ts=document.getElementById("dash-last-refresh");
+  if(ts)ts.textContent=new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+
+// SVG circular progress indicator used by the CAPA Closure Rate KPI.
+function _dRing(pct,color){
+  const r=26,c=2*Math.PI*r,off=c*(1-(pct||0)/100);
+  return `<svg width="62" height="62" viewBox="0 0 62 62">`+
+    `<circle cx="31" cy="31" r="${r}" fill="none" stroke="#eef1f5" stroke-width="7"/>`+
+    `<circle cx="31" cy="31" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" stroke-linecap="round" transform="rotate(-90 31 31)"/>`+
+    `<text x="31" y="32" text-anchor="middle" dominant-baseline="central" font-family="'Bebas Neue',sans-serif" font-size="16" fill="#1F3864">${pct===null?"--":pct+"%"}</text></svg>`;
+}
+
+// Paint the four dashboard sections from whatever data is currently loaded in
+// the globals (records, oosRecords for the current site, plus the _dash* sets).
+function renderDashboardV2(){
+  const host=document.getElementById("dash-kpis");
+  if(!host)return; // dashboard markup not present
+  const nm=document.getElementById("dash-site-name");if(nm)nm.textContent=currentSite;
+  dashCultureInit();
+
+  const recs=(records||[]).filter(r=>r&&r.type);
+  const capas=recs.filter(r=>r.type==="CAPA");
+  const ncrs=recs.filter(r=>r.type==="NCR");
+  const findings=recs.filter(r=>r.type==="AUDIT");
+  const oos=(typeof oosRecords!=="undefined"?oosRecords:[])||[];
+  const today=new Date();
+  const m=computeCapaEffMetrics(records,_dashLinks,oos,_dashCrisis);
+
+  // ── SECTION 1 — Quality Health at a Glance ──
+  const openCapa=capas.filter(r=>_dIsOpenStatus(r.status)).length;
+  const openNcr=ncrs.filter(r=>_dIsOpenStatus(r.status)).length;
+  const openFindings=findings.filter(r=>_dIsOpenStatus(r.status));
+  const fSQF=openFindings.filter(r=>/sqf/i.test(r.sourceBody||"")).length;
+  const fNSF=openFindings.filter(r=>/nsf/i.test(r.sourceBody||"")).length;
+  const fOther=openFindings.length-fSQF-fNSF;
+
+  const recOverdue=recs.filter(r=>!_dRecClosed(r.status)&&r.due&&new Date(r.due)<today).length;
+  const oosOverdue=oos.filter(o=>!_dOosClosed(o.status)&&(o.dueDate||o.due)&&new Date(o.dueDate||o.due)<today).length;
+  const overdueCount=recOverdue+oosOverdue;
+
+  const openOos=oos.filter(o=>!_dOosClosed(o.status));
+  const oosRaw=openOos.filter(o=>o.materialType==="Raw Material").length;
+  const oosFin=openOos.filter(o=>o.materialType==="Finished Product").length;
+
+  // Overall Quality Index — share of all records (every module) closed on time.
+  let totalItems=0,closedOnTime=0;
+  const consider=(closed,onTime)=>{totalItems++;if(closed&&onTime)closedOnTime++;};
+  recs.forEach(r=>{const closed=_dRecClosed(r.status);let onTime=true;if(closed&&r.due){const cd=_dDateOnly(r.modifiedAt||r.createdAt||"");onTime=cd?cd<=_dDateOnly(r.due):true;}consider(closed,onTime);});
+  oos.forEach(o=>{const closed=_dOosClosed(o.status);let onTime=true;const due=o.dueDate||o.due;if(closed&&due){const cd=_dDateOnly(o.closedDate||o.modifiedAt||"");onTime=cd?cd<=_dDateOnly(due):true;}consider(closed,onTime);});
+  (_dashCrisis||[]).forEach(c=>consider(/complete/i.test(c.status||""),true));
+  (_dashRecall||[]).forEach(r=>consider(/complete/i.test(r.status||""),true));
+  const qIndex=totalItems?Math.round(closedOnTime/totalItems*100):null;
+  const qColor=qIndex===null?"":qIndex>=85?"green":qIndex>=70?"amber":"red";
+
+  const closure=m.total?m.closureRate:null;
+  const ringColor=closure===null?"#d0d6de":closure>=85?"#1F6F6B":closure>=70?"#B7791F":"#C00000";
+
+  const cards=[];
+  cards.push(`<div class="dk-card"><div class="dk-label">Open CAPAs</div><div class="dk-value">${openCapa}</div><div class="dk-sub">Status Open / In Progress</div><span class="dk-badge ${m.majorLinked?'major':'neutral'}">${m.majorLinked} Major-linked</span></div>`);
+  cards.push(`<div class="dk-card"><div class="dk-label">Open NCRs</div><div class="dk-value">${openNcr}</div><div class="dk-sub">Status Open / In Progress</div></div>`);
+  cards.push(`<div class="dk-card"><div class="dk-label">Open Audit Findings</div><div class="dk-value">${openFindings.length}</div><div class="dk-sub">By certification body</div><span class="dk-badge neutral">SQF ${fSQF}</span><span class="dk-badge neutral">NSF ${fNSF}</span><span class="dk-badge neutral">Other ${fOther}</span></div>`);
+  cards.push(`<div class="dk-card"><div class="dk-label">CAPA Closure Rate</div><div class="dk-ring">${_dRing(closure,ringColor)}<div class="dk-sub" style="margin-top:0">${m.closed} of ${m.total}<br>CAPAs closed</div></div></div>`);
+  cards.push(`<div class="dk-card"><div class="dk-label">Avg CAPA Closure Time</div><div class="dk-value">${m.avgClose===null?"—":m.avgClose}<span style="font-size:15px;font-family:'DM Sans',sans-serif"> d</span></div><div class="dk-sub">Created &rarr; closed, all closed CAPAs</div></div>`);
+  cards.push(`<div class="dk-card ${m.overdue?'amber':''}"><div class="dk-label">CAPAs Pending Eff. Check</div><div class="dk-value ${m.overdue?'amber':''}">${m.pending}</div><div class="dk-sub">Effectiveness Pending / In Progress</div>${m.overdue?`<span class="dk-badge amber">&#9888; ${m.overdue} past due date</span>`:''}</div>`);
+  cards.push(`<div class="dk-card red"><div class="dk-label">Overdue Records</div><div class="dk-value red">&#9888; ${overdueCount}</div><div class="dk-sub">CAPA / NCR / OOS / Audit past due &amp; not closed</div></div>`);
+  cards.push(`<div class="dk-card"><div class="dk-label">Open OOS Events</div><div class="dk-value">${openOos.length}</div><div class="dk-sub">Not closed</div><span class="dk-badge neutral">Raw ${oosRaw}</span><span class="dk-badge neutral">Finished ${oosFin}</span></div>`);
+  cards.push(`<div class="dk-card ${qColor}"><div class="dk-label">Overall Quality Index</div><div class="dk-value ${qColor}">${qIndex===null?'—':qIndex+'%'}</div><div class="dk-sub">${closedOnTime} of ${totalItems} records closed on time</div></div>`);
+  host.innerHTML=cards.join("");
+
+  renderDashPrograms(capas,oos);
+  renderDashOpps(findings,capas,ncrs,oos,m);
+}
+
+// ── SECTION 2 — Active Programs & Upcoming Dates ──
+function renderDashPrograms(capas,oos){
+  const host=document.getElementById("dash-programs");if(!host)return;
+  const today=new Date();
+  const cards=[];
+
+  // 1. Audit Program — from scheduled audit sessions (AUDITS).
+  const sessions=(AUDITS||[]);
+  const completedA=sessions.filter(a=>(a.status||"")==="Closed"&&a.date).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const scheduledA=sessions.filter(a=>auditDisplayStatus(a)==="Scheduled"&&a.date).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const lastA=completedA[0],nextA=scheduledA[0];
+  const nextADays=nextA?_dDaysFromNow(nextA.date):null;
+  const aBadge=nextA?`<span class="badge" style="${auditBadge(auditDisplayStatus(nextA)).style}">${auditDisplayStatus(nextA)}</span>`:'';
+  cards.push(`<div class="dp-card"><div class="dp-title"><span>Audit Program</span>${aBadge}</div>
+    <div class="dp-row"><span class="k">Last completed</span><span class="v">${lastA?cesc(lastA.id)+" · "+_dFmt(lastA.date):"None on record"}</span></div>
+    <div class="dp-row"><span class="k">Next scheduled</span><span class="v">${nextA?cesc(nextA.id)+" · "+_dFmt(nextA.date):"Not scheduled"}</span></div>
+    <div class="dp-row"><span class="k">Days until next</span><span class="v ${nextADays!==null&&nextADays<0?'dp-flag-red':''}">${nextADays===null?"—":(nextADays<0?Math.abs(nextADays)+"d overdue":nextADays+"d")}</span></div></div>`);
+
+  // 2. Crisis Exercise.
+  const crisisDone=(_dashCrisis||[]).filter(c=>/complete/i.test(c.status||"")&&c.exerciseDate).sort((a,b)=>new Date(b.exerciseDate)-new Date(a.exerciseDate));
+  const lastC=crisisDone[0];
+  let crisisNextRow='<div class="dp-row"><span class="k">Next exercise</span><span class="v">—</span></div>';
+  if(lastC){
+    const explicitNext=((_dashCrisis||[]).find(c=>c.nextExerciseDate)||{}).nextExerciseDate||lastC.nextExerciseDate;
+    if(explicitNext)crisisNextRow=`<div class="dp-row"><span class="k">Next scheduled</span><span class="v">${_dFmt(explicitNext)}</span></div>`;
+    else crisisNextRow=`<div class="dp-row"><span class="k">Next exercise</span><span class="v dp-flag-amber">Suggested: ${_dFmtD(_dAddMonths(lastC.exerciseDate,12))}</span></div>`;
+  }
+  cards.push(`<div class="dp-card"><div class="dp-title"><span>Crisis Exercise</span></div>
+    <div class="dp-row"><span class="k">Last completed</span><span class="v">${lastC?cesc(lastC.id)+" · "+_dFmt(lastC.exerciseDate):"None on record"}</span></div>
+    ${crisisNextRow}</div>`);
+
+  // 3. Mock Recall.
+  const recallDone=(_dashRecall||[]).filter(r=>/complete/i.test(r.status||"")&&r.dateInitiated).sort((a,b)=>new Date(b.dateInitiated)-new Date(a.dateInitiated));
+  const lastR=recallDone[0];
+  let recallBody;
+  if(lastR){
+    const nextDue=_dAddDays(lastR.dateInitiated,90);
+    const dueDays=nextDue?Math.ceil((nextDue-today)/86400000):null;
+    const tr=(lastR.traceabilityRate!=null&&lastR.traceabilityRate!=="")?cesc(String(lastR.traceabilityRate))+"%":"—";
+    const dueCls=dueDays!==null&&dueDays<0?'dp-flag-red':(dueDays!==null&&dueDays<=14?'dp-flag-amber':'');
+    recallBody=`<div class="dp-row"><span class="k">Last completed</span><span class="v">${cesc(lastR.id)+" · "+_dFmt(lastR.dateInitiated)}</span></div>
+    <div class="dp-row"><span class="k">Traceability rate</span><span class="v">${tr}</span></div>
+    <div class="dp-row"><span class="k">Next due (quarterly)</span><span class="v ${dueCls}">${_dFmtD(nextDue)}${dueDays===null?"":" · "+(dueDays<0?Math.abs(dueDays)+"d overdue":dueDays+"d")}</span></div>`;
+  }else{
+    recallBody=`<div class="dp-row"><span class="v dp-flag-red" style="text-align:left">No mock recall on record — schedule immediately</span></div>`;
+  }
+  cards.push(`<div class="dp-card"><div class="dp-title"><span>Mock Recall</span></div>${recallBody}</div>`);
+
+  // 4. OOS Review — ageing of open investigations.
+  const openOos=(oos||[]).filter(o=>!_dOosClosed(o.status)&&o.dateInitiated);
+  const oos30=openOos.filter(o=>{const d=_dDaysBetween(o.dateInitiated,today);return d!==null&&d>30&&d<=60;}).length;
+  const oos60=openOos.filter(o=>{const d=_dDaysBetween(o.dateInitiated,today);return d!==null&&d>60;}).length;
+  cards.push(`<div class="dp-card"><div class="dp-title"><span>OOS Review</span></div>
+    <div class="dp-row"><span class="k">Open &gt; 30 days</span><span class="v ${oos30?'dp-flag-amber':''}">${oos30}</span></div>
+    <div class="dp-row"><span class="k">Open &gt; 60 days</span><span class="v ${oos60?'dp-flag-red':''}">${oos60}</span></div></div>`);
+
+  // 5. Effectiveness Checks Due — within the next 30 days (overdue surfaced too).
+  const effDue=(capas||[]).filter(r=>r.effectivenessCheckDueDate&&(r.effectivenessStatus==="Pending"||r.effectivenessStatus==="In Progress"))
+    .map(r=>({r,days:_dDaysFromNow(r.effectivenessCheckDueDate)})).filter(o=>o.days!==null&&o.days<=30).sort((a,b)=>a.days-b.days);
+  const effRows=effDue.map(o=>`<div class="dp-row"><span class="k">${cesc(o.r.id)} · ${cesc(o.r.owner||"—")}</span><span class="v ${o.days<0?'dp-flag-red':(o.days<=7?'dp-flag-amber':'')}">${o.days<0?Math.abs(o.days)+"d overdue":o.days+"d left"}</span></div>`).join("")
+    ||`<div class="dp-row"><span class="k" style="color:#1F6F6B">None due in the next 30 days</span></div>`;
+  cards.push(`<div class="dp-card"><div class="dp-title"><span>Effectiveness Checks Due</span></div>${effRows}</div>`);
+
+  host.innerHTML=cards.join("");
+}
+
+// ── SECTION 3 — Opportunities for Improvement (derived from live data) ──
+function renderDashOpps(findings,capas,ncrs,oos,m){
+  const host=document.getElementById("dash-opps");if(!host)return;
+  const today=new Date();
+  const opps=[];
+  const add=(txt,target)=>opps.push({txt,target});
+
+  // (a) Audit finding open > 30 days with no linked CAPA.
+  const linkedSourceIds=new Set((_dashLinks||[]).map(l=>l.sourceId));
+  findings.filter(f=>!_dRecClosed(f.status)).forEach(f=>{
+    const age=_dDaysBetween(f.createdAt||f.created,today);
+    if(age!==null&&age>30&&!linkedSourceIds.has(f.id))add(`Finding ${cesc(f.id)} has no linked CAPA after ${age} days`,"tracker");
+  });
+  // (b) CAPA root cause Unknown / Under Investigation open > 14 days.
+  capas.filter(r=>!_dRecClosed(r.status)).forEach(r=>{
+    if(/unknown|under investigation/i.test(r.rootCauseCategory||"")){
+      const age=_dDaysBetween(r.createdAt||r.created,today);
+      if(age!==null&&age>14)add(`CAPA ${cesc(r.id)} root cause still unknown after ${age} days`,"tracker");
+    }
+  });
+  // (c) Owner / department with more than 3 open records.
+  const ownerCounts={};
+  [...capas,...ncrs,...findings].filter(r=>_dIsOpenStatus(r.status)).forEach(r=>{const o=(r.owner||"").trim();if(o)ownerCounts[o]=(ownerCounts[o]||0)+1;});
+  Object.entries(ownerCounts).filter(([,c])=>c>3).forEach(([o,c])=>add(`${cesc(o)} has ${c} open records — consider resource review`,"tracker"));
+  // (d) SQF clause with more than 2 findings across all audits.
+  const clauseCounts={};
+  findings.forEach(f=>{const c=(f.clause||"").trim();if(c)clauseCounts[c]=(clauseCounts[c]||0)+1;});
+  Object.entries(clauseCounts).filter(([,c])=>c>2).forEach(([cl,c])=>add(`Clause ${cesc(cl)} has ${c} findings — systemic issue may exist`,"tracker"));
+  // (e) OOS analyte appearing more than once.
+  const analyteCounts={};
+  oos.forEach(o=>{const a=(o.testAnalyte||"").trim();if(a)analyteCounts[a]=(analyteCounts[a]||0)+1;});
+  Object.entries(analyteCounts).filter(([,c])=>c>1).forEach(([a,c])=>add(`${cesc(a)} has ${c} OOS events — trend review recommended`,"oos"));
+  // (f) CAPA effectiveness rate below 80%.
+  if(m.effRate!==null&&m.effRate<80)add(`CAPA effectiveness rate ${m.effRate}% is below target — review root cause quality`,"tracker");
+  // (g) No mock recall in the last 90 days.
+  const lastR=(_dashRecall||[]).filter(r=>/complete/i.test(r.status||"")&&r.dateInitiated).sort((a,b)=>new Date(b.dateInitiated)-new Date(a.dateInitiated))[0];
+  if(!lastR)add("Mock recall overdue — never completed","recall");
+  else{const age=_dDaysBetween(lastR.dateInitiated,today);if(age!==null&&age>90)add(`Mock recall overdue — last completed ${_dFmt(lastR.dateInitiated)}`,"recall");}
+  // (h) No crisis exercise in the last 365 days.
+  const lastC=(_dashCrisis||[]).filter(c=>/complete/i.test(c.status||"")&&c.exerciseDate).sort((a,b)=>new Date(b.exerciseDate)-new Date(a.exerciseDate))[0];
+  if(!lastC)add("Annual crisis exercise overdue — none completed","crisis");
+  else{const age=_dDaysBetween(lastC.exerciseDate,today);if(age!==null&&age>365)add("Annual crisis exercise overdue","crisis");}
+
+  if(!opps.length){host.innerHTML=`<div class="opp-card clear"><div class="opp-txt">&#10003; All clear — no improvement opportunities identified</div></div>`;return;}
+  host.innerHTML=opps.map(o=>`<div class="opp-card"><div class="opp-txt">${o.txt}</div><button class="opp-view" onclick="dashGoto('${o.target}')">View</button></div>`).join("");
+}
+
+// Navigate from an opportunity card to the relevant module tab.
+function dashGoto(target){if(typeof gotoTab==="function")gotoTab(target);}
+
+// ── SECTION 4 — Food Safety Culture Indicator (placeholder) ──
+// Reads any previously uploaded culture score from localStorage and paints it.
+function dashCultureInit(){
+  const scoreEl=document.getElementById("dash-culture-score");if(!scoreEl)return;
+  const statusEl=document.getElementById("dash-culture-status"),updEl=document.getElementById("dash-culture-updated");
+  let data=null;try{data=JSON.parse(localStorage.getItem("qis-culture-score")||"null");}catch(e){}
+  if(data&&typeof data.score==="number"&&!isNaN(data.score)){
+    const s=Math.round(data.score);
+    const col=s>=80?"#1F6F6B":s>=60?"#B7791F":"#C00000";
+    scoreEl.innerHTML=`<span style="color:${col}">${s}</span> / 100`;
+    if(statusEl)statusEl.textContent="Survey results loaded";
+    if(updEl)updEl.textContent=data.date?_dFmt(data.date):"—";
+  }else{
+    scoreEl.innerHTML="&mdash; / 100";
+    if(statusEl)statusEl.textContent="Survey data not yet uploaded";
+    if(updEl)updEl.innerHTML="&mdash;";
+  }
+}
+
+// Lazy-load SheetJS (same CDN pattern used elsewhere for jsPDF / pdf-lib).
+function _dashLoadSheetJS(){
+  return new Promise((res,rej)=>{
+    if(window.XLSX)return res(window.XLSX);
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload=()=>res(window.XLSX);
+    s.onerror=()=>rej(new Error("could not load the spreadsheet parser"));
+    document.head.appendChild(s);
+  });
+}
+
+// Parse an uploaded .xlsx survey: scan every sheet for a label cell containing
+// Score / Total / Percentage and read the nearest numeric value. Persist the
+// result (and upload date) to localStorage under qis-culture-score.
+async function dashUploadCulture(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  try{
+    const XLSX=await _dashLoadSheetJS();
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:"array"});
+    let score=null;
+    for(const name of wb.SheetNames){
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:""});
+      for(let i=0;i<rows.length&&score===null;i++){
+        const row=rows[i]||[];
+        for(let j=0;j<row.length;j++){
+          const cell=String(row[j]==null?"":row[j]);
+          if(/score|total|percentage/i.test(cell)){
+            let num=null;
+            for(let k=j+1;k<row.length;k++){const v=parseFloat(row[k]);if(!isNaN(v)){num=v;break;}}           // same row, to the right
+            if(num===null){const inline=cell.match(/(\d+(?:\.\d+)?)/);if(inline)num=parseFloat(inline[1]);}     // number inside the label cell
+            if(num===null&&rows[i+1]){const v=parseFloat((rows[i+1]||[])[j]);if(!isNaN(v))num=v;}              // cell directly below
+            if(num!==null){score=num;break;}
+          }
+        }
+      }
+      if(score!==null)break;
+    }
+    if(score===null){toast("No Score / Total / Percentage value found in the file.","red");input.value="";return;}
+    if(score>0&&score<=1)score=score*100;                 // 0–1 fraction → percentage
+    score=Math.max(0,Math.min(100,score));
+    try{localStorage.setItem("qis-culture-score",JSON.stringify({score:score,date:new Date().toISOString()}));}catch(e){}
+    dashCultureInit();
+    toast("Culture score updated: "+Math.round(score)+" / 100","green");
+  }catch(e){
+    toast("Could not parse survey file: "+e.message,"red");
+  }
+  input.value="";
 }
 
 function renderTable(f){
@@ -7777,6 +8126,7 @@ function switchTab(id,el){
   document.getElementById(id).classList.add("active");
   el.classList.add("active");
   if(id==="audit-program")showAuditList();
+  if(id==="dashboard")refreshDashboard();
   if(id==="oos")showOOSList();
   if(id==="crisis"){stopCrisisPoll();showCrisisList();}else{stopCrisisPoll();}
   if(id==="recall")showRecallList();
@@ -10380,7 +10730,13 @@ window.qisBoot=async function(user){
   if(qisBooted){render();return;}
   qisBooted=true;
   await loadData();
+  await loadDashAux();
   render();
+  // Reveal the dashboard body now that the first load has rendered into it.
+  const _dl=document.getElementById("dash-loading"),_db=document.getElementById("dash-body");
+  if(_dl)_dl.style.display="none";if(_db)_db.style.display="";
+  const _ts=document.getElementById("dash-last-refresh");
+  if(_ts)_ts.textContent=new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
 };
 </script>
 <script type="module">
