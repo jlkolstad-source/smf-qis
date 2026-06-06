@@ -7096,10 +7096,13 @@ async function downloadReportPDF(){
   y=pdfBuilderSignatureBlock(doc,getReportSignatories(),getReportPreparedBy(),navy,white,black,margin,contentW,pageW,pageH,y+12);
 
   // ── RECALL EXERCISE — REGULATORY NOTIFICATION APPENDICES ──────────────────
-  // When the exercise requires regulatory notification, three formal
+  // When the exercise requires regulatory notification, five formal
   // notification documents are appended after the signature block, each preceded
   // by its own separator page: (A) FDA voluntary recall notification, (B) SQF
-  // certification body notification, (C) customer recall notification letter.
+  // certification body notification, (C) customer recall notification letter,
+  // (D) SQFI certification body notification (required in writing within 7 days
+  // per SQF Edition 9 §2.6.3), and (E) NSF International certification body
+  // notification (required in writing within 7 days per SOP #21 §8.2).
   // Generation is driven solely by Regulatory Notification Required being "Yes" —
   // the Recall Scope (including "Mock Exercise Only") never suppresses the
   // appendices. The mock treatment is driven solely by the exercise type: on a
@@ -7266,6 +7269,91 @@ async function downloadReportPDF(){
     apxLineField('Email','');
     apxGap(6);
     apxText('We sincerely apologize for any inconvenience and appreciate your prompt cooperation in this matter.');
+
+    // ── Appendix D (SQFI) & Appendix E (NSF) — Certification Body Notifications ─
+    // Two formal written notifications to the certification bodies, each required
+    // in writing within 7 days of recall initiation (SQF Edition 9 §2.6.3 for
+    // SQFI; SOP #21 §8.2 for NSF International). Both share an identical structure
+    // and always generate together under the same Regulatory-Notification-Required
+    // condition as Appendices A–C; only the addressee, certification-number label
+    // and governing reference differ. They inherit the same separator pages, mock
+    // red banner and global MOCK EXERCISE watermark as every other appendix.
+    const dateInit=(()=>{const d=R.dateInitiated?new Date(R.dateInitiated):null;return (d&&!isNaN(d))?d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):today;})();
+    const apxCertNotification=cfg=>{
+      apxNewPage();
+      apxText('Date:  '+dateInit);
+      apxGap(6);
+      apxText('To:  '+cfg.org,{style:'bold'});
+      cfg.toLines.forEach(l=>apxText(l));
+      apxGap(8);
+      apxText('Subject:  Voluntary Recall Notification — '+product+' — Lot '+lotsStr+' — '+orDash(R.id),{style:'bold'});
+      apxGap(8);
+      apxText(cfg.opening);
+      apxGap(8);
+      apxHeading('Company & Certification');
+      apxField('Company',facilityName);
+      facilityAddr.forEach(l=>apxText(l));
+      apxField(cfg.certLabel,cfg.certPlaceholder);
+      apxGap(6);
+      apxHeading('Recall Event Details');
+      apxField('Product',product);
+      apxField('Lot Number(s)',lotsStr);
+      apxField('Date Initiated',dateInit);
+      apxText('Reason for Recall:',{style:'bold'});
+      apxText(orDash(R.scenarioDescription));
+      apxField('Recall Classification',R.recallScope);
+      apxGap(6);
+      apxHeading('Actions Taken');
+      apxText('•  Immediate product hold initiated on all affected lot(s).',{indent:6});
+      apxText('•  Traceability exercise completed — traceability rate: '+orDash(R.traceabilityRate)+'.',{indent:6});
+      apxText('•  FDA notification: a voluntary recall notification has been prepared for submission to the U.S. Food and Drug Administration per 21 CFR Part 7 (see Appendix A).',{indent:6});
+      if(rFindings.length){
+        apxText('•  Corrective actions initiated:',{indent:6});
+        rFindings.forEach(f=>{apxText('–  '+orDash(f.findingDescription)+'  (CAPA: '+orDash(f.capaId)+' — Owner: '+orDash(f.owner)+' — Status: '+orDash(f.status)+(val(f.targetDate)?(' — Target: '+val(f.targetDate)):'')+')',{indent:14});});
+      }else{
+        apxText('•  Corrective actions: none recorded at the time of this notification.',{indent:6});
+      }
+      apxGap(6);
+      apxHeading('Current Status');
+      apxField('Total Quantity Affected',R.totalQuantityAffected);
+      apxField('Quantity Accounted For',R.quantityAccountedFor);
+      apxField('Quantity On Hand',R.quantityOnHand);
+      apxField('Quantity Distributed',R.quantityDistributed);
+      apxGap(8);
+      apxText('Should you require any additional information regarding this recall event, please contact '+orDash(R.initiatedBy)+' at '+facilityName+', '+siteName+' Facility, '+siteName+', Utah. '+cfg.closing);
+      apxGap(16);
+      apxText('Sincerely,');
+      apxGap(22);
+      apxText('Jesse Kolstad',{style:'bold'});
+      apxText('Director of Quality — '+facilityName);
+      apxGap(14);
+      apxText('Chad Hinson',{style:'bold'});
+      apxText('VP Quality and Regulatory — '+facilityName);
+    };
+
+    // ── Appendix D — SQFI Certification Body Notification ────────────────────
+    apxSeparator('Appendix D — SQFI Certification Body Notification');
+    apxText('Required within 7 days of recall initiation per SQF Edition 9 §2.6.3.',{style:'bold',color:navy,size:10});
+    apxCertNotification({
+      org:'Safe Quality Food Institute (SQFI)',
+      toLines:['Attention: Compliance Department','Email: compliance@sqfi.com','Phone: 202-220-0635 / 1-877-277-2635','Website: www.sqfi.com'],
+      opening:facilityName+' is formally notifying the Safe Quality Food Institute (SQFI) of a recall event affecting SQF-certified production, in accordance with SQF Edition 9 §2.6.3 and the requirement to notify certification bodies in writing within seven (7) days of recall initiation.',
+      certLabel:'SQF Certification Number',
+      certPlaceholder:'[SQF Cert #]',
+      closing:'This notification is submitted in fulfillment of our obligations under SQF Edition 9 §2.6.3 and SOP #21 §8.2.',
+    });
+
+    // ── Appendix E — NSF International Certification Body Notification ────────
+    apxSeparator('Appendix E — NSF International Certification Body Notification');
+    apxText('Required within 7 days of recall initiation per SOP #21 §8.2.',{style:'bold',color:navy,size:10});
+    apxCertNotification({
+      org:'NSF International',
+      toLines:['Attention: Certification Services','789 N. Dixboro Road','Ann Arbor, MI 48105','Email: info@nsf.org','Phone: 1-800-673-6275','Website: www.nsf.org'],
+      opening:facilityName+' is formally notifying NSF International of a recall event affecting NSF-certified production, in accordance with the requirement under SOP #21 §8.2 to notify NSF International and other associated certification agencies in writing within seven (7) days of recall initiation.',
+      certLabel:'NSF Certification Number',
+      certPlaceholder:'[NSF Cert #]',
+      closing:'This notification is submitted in fulfillment of our obligations under SOP #21 §8.2.',
+    });
   }
 
   // Image attachments are embedded inline on their own appendix pages; PDF
