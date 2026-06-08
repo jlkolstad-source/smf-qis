@@ -110,6 +110,43 @@ main{padding:24px 32px 80px;}
 .dash-culture .dc-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
 .dc-score{font-family:'Bebas Neue',sans-serif;font-size:54px;line-height:1;color:#9aa5b1;}
 .dc-note{font-size:11px;color:#4a5568;margin-top:16px;font-style:italic;}
+/* ── FOOD SAFETY CULTURE SURVEY module ─────────────────────────────────────── */
+.cul-top{display:grid;grid-template-columns:minmax(240px,1fr) 2fr;gap:16px;margin-bottom:18px;}
+@media(max-width:760px){.cul-top{grid-template-columns:1fr;}}
+.cul-gauge-card{background:#fff;border:1px solid #d0d6de;border-top:3px solid #1F4E79;border-radius:6px;padding:22px;text-align:center;box-shadow:0 1px 3px rgba(31,56,100,0.08);}
+.cul-gauge{font-family:'Bebas Neue',sans-serif;font-size:74px;line-height:0.95;}
+.cul-gauge.green{color:#1F6F6B;}.cul-gauge.amber{color:#B7791F;}.cul-gauge.red{color:#C00000;}
+.cul-gauge-raw{font-family:'DM Mono',monospace;font-size:13px;color:#4a5568;margin-top:2px;}
+.cul-gauge-sqf{font-size:11px;color:#1F3864;font-weight:600;margin-top:10px;line-height:1.4;}
+.cul-meta{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px dashed #e0e5ea;}
+.cul-meta div{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;text-transform:uppercase;letter-spacing:0.5px;}
+.cul-meta b{display:block;font-family:'Bebas Neue',sans-serif;font-size:22px;color:#1F3864;letter-spacing:1px;}
+.cul-cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;}
+.cul-cat{background:#fff;border:1px solid #d0d6de;border-left:4px solid #1F4E79;border-radius:5px;padding:12px 14px;}
+.cul-cat.good{border-left-color:#1F6F6B;}.cul-cat.attn{border-left-color:#B7791F;}.cul-cat.crit{border-left-color:#C00000;}
+.cul-cat-name{font-size:12px;font-weight:700;color:#1F3864;font-family:'DM Sans',sans-serif;margin-bottom:7px;line-height:1.3;min-height:31px;}
+.cul-cat-row{display:flex;justify-content:space-between;align-items:baseline;}
+.cul-cat-pct{font-family:'Bebas Neue',sans-serif;font-size:30px;line-height:1;color:#1F3864;}
+.cul-cat-score{font-size:11px;font-family:'DM Mono',monospace;color:#4a5568;}
+.cul-stat{display:inline-block;font-size:9px;font-family:'DM Mono',monospace;font-weight:700;padding:3px 8px;border-radius:10px;margin-top:9px;letter-spacing:0.5px;}
+.cul-stat.good{background:#E2EFDA;color:#1F5F4B;}.cul-stat.attn{background:#FFF2CC;color:#7F6000;}.cul-stat.crit{background:#FFE0E0;color:#C00000;}
+.cul-trend{background:#fff;border:1px solid #d0d6de;border-radius:6px;padding:16px 18px;margin-top:18px;}
+.cul-tile{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:5px;color:#fff;min-width:0;}
+.cul-tile .t-pct{font-family:'Bebas Neue',sans-serif;font-size:22px;line-height:1;}
+.cul-tile .t-name{font-size:8px;font-family:'DM Mono',monospace;text-align:center;line-height:1.15;opacity:0.95;}
+.cul-mini-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin-top:10px;}
+/* Dashboard Section 4 — Food Safety Culture Score tile */
+.dcs-wrap{background:#fff;border:1px solid #d0d6de;border-top:3px solid #1F4E79;border-radius:6px;padding:18px 20px;box-shadow:0 1px 3px rgba(31,56,100,0.08);}
+.dcs-row{display:flex;gap:24px;align-items:center;flex-wrap:wrap;}
+.dcs-gauge-wrap{text-align:center;flex-shrink:0;min-width:150px;}
+.dcs-gauge{font-family:'Bebas Neue',sans-serif;font-size:64px;line-height:0.95;}
+.dcs-gauge.green{color:#1F6F6B;}.dcs-gauge.amber{color:#B7791F;}.dcs-gauge.red{color:#C00000;}
+.dcs-sub{font-size:11px;font-family:'DM Mono',monospace;color:#4a5568;margin-top:2px;}
+.dcs-trend{font-size:12px;font-family:'DM Mono',monospace;margin-top:6px;font-weight:600;}
+.dcs-facts{display:flex;gap:22px;flex-wrap:wrap;flex:1;min-width:200px;}
+.dcs-facts div{font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;text-transform:uppercase;letter-spacing:0.5px;}
+.dcs-facts b{display:block;font-family:'Bebas Neue',sans-serif;font-size:20px;color:#1F3864;letter-spacing:1px;margin-top:2px;}
+.dcs-empty{background:#f4f6f8;border:1px dashed #b0bcc8;border-radius:8px;padding:22px;font-size:12px;color:#4a5568;text-align:center;}
 .dash-spinner{width:34px;height:34px;border:3px solid #d0d6de;border-top-color:#1F4E79;border-radius:50%;animation:dashspin 0.8s linear infinite;margin:44px auto 14px;}
 @keyframes dashspin{to{transform:rotate(360deg);}}
 .table-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap;}
@@ -455,24 +492,8 @@ main{padding:24px 32px 80px;}
     <div class="dash-sec-title">&#9314; &nbsp;Opportunities for Improvement</div>
     <div class="dash-opp-grid" id="dash-opps"></div>
 
-    <div class="dash-sec-title">&#9315; &nbsp;Food Safety Culture Indicator</div>
-    <div class="dash-culture">
-      <div class="dc-head">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:#1F3864;font-family:'DM Sans',sans-serif">Food Safety Culture Survey</div>
-          <div style="font-size:11px;color:#4a5568;margin-top:3px" id="dash-culture-status">Survey data not yet uploaded</div>
-        </div>
-        <div style="text-align:center">
-          <div class="dc-score" id="dash-culture-score">&mdash; / 100</div>
-          <div style="font-size:9px;font-family:'DM Mono',monospace;color:#4a5568;letter-spacing:1.5px">CULTURE SCORE</div>
-        </div>
-        <div style="text-align:right">
-          <label class="btn" style="cursor:pointer;display:inline-block">&#11014; Upload Survey Results<input type="file" accept=".xlsx" style="display:none" onchange="dashUploadCulture(this)"></label>
-          <div style="font-size:10px;color:#4a5568;margin-top:8px;font-family:'DM Mono',monospace">Last Updated: <span id="dash-culture-updated">&mdash;</span></div>
-        </div>
-      </div>
-      <div class="dc-note">Full culture survey module coming soon &mdash; attach your completed survey Excel file to populate this indicator. This is a placeholder for the future Food Safety Culture Survey module.</div>
-    </div>
+    <div class="dash-sec-title">&#9315; &nbsp;Food Safety Culture Score</div>
+    <div id="dash-culture-host"></div>
   </div>
 </div>
 
@@ -530,6 +551,7 @@ main{padding:24px 32px 80px;}
     <div class="cs-subtab active" id="cs-subtab-exec" onclick="switchCsuiteTab('exec')">Executive Dashboard</div>
     <div class="cs-subtab" id="cs-subtab-monthly" onclick="switchCsuiteTab('monthly')">&#128202; Monthly Flash</div>
     <div class="cs-subtab" id="cs-subtab-annual" onclick="switchCsuiteTab('annual')">&#128203; Annual Review</div>
+    <div class="cs-subtab" id="cs-subtab-culture" onclick="switchCsuiteTab('culture')">&#129309; Culture Survey</div>
   </div>
   <div id="cs-pane-exec">
   <div class="csuite-banner">
@@ -601,6 +623,18 @@ main{padding:24px 32px 80px;}
 
   <!-- ANNUAL MANAGEMENT REVIEW REPORT -->
   <div id="cs-pane-annual" style="display:none"></div>
+
+  <!-- FOOD SAFETY CULTURE SURVEY -->
+  <div id="cs-pane-culture" style="display:none">
+    <div class="table-header" style="margin-top:4px">
+      <div class="section-title">Food Safety Culture Survey</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="cs-culture-sync-btn" onclick="cultureSync()">&#8635; Sync from SharePoint</button>
+        <label class="btn-ghost" style="cursor:pointer">&#11014; Upload Survey<input type="file" accept=".xlsx" style="display:none" onchange="cultureUpload(this)"></label>
+      </div>
+    </div>
+    <div id="cs-culture-body"></div>
+  </div>
 </div>
 
 <!-- CRISIS EXERCISE -->
@@ -3971,11 +4005,185 @@ async function updateCapaEffMetrics(){
   set("cs-capa-overdue",m.overdue,m.overdue>0);
 }
 
+// ══════════════════ FOOD SAFETY CULTURE SURVEY — shared data + module ═══════
+// One data layer, used by both the C-Suite "Culture Survey" subtab and the
+// dashboard's Food Safety Culture Score section. Surveys are scored 1-5.00; the
+// 0-100 percentageScore is always the primary display number (never the 5.0
+// score × 20) so culture lines up visually with the other QIS 0-100% metrics.
+const CULTURE_API="/api/culture-survey";
+let _cultureSurveys=[];      // newest-first list for currentSite (each w/ categories)
+let _cultureLoaded=false;
+
+const CULTURE_CATEGORIES=["Management Commitment","Communication","Training and Competency","Employee Empowerment","Hazard Knowledge","Teamwork","Change Management","Contamination Prevention","Personal Accountability"];
+
+// May 2026 survey — seeded the first time a site has no survey on record.
+const CULTURE_SEED={
+  surveyPeriod:"April 19 – May 6 2026",
+  surveyDate:"2026-05-06",
+  overallScore:4.25,
+  percentageScore:85,
+  totalResponses:120,
+  targetScore:80,
+  sqfRating:"Good — Acceptable Culture with Minor Improvements Needed",
+  categories:[
+    {categoryName:"Management Commitment",score:4.39,percentageScore:88,status:"Good",lowRatingPct:17.3,priority:"LOW"},
+    {categoryName:"Communication",score:3.82,percentageScore:76,status:"Needs Attention",lowRatingPct:37.0,priority:"HIGH"},
+    {categoryName:"Training and Competency",score:4.31,percentageScore:86,status:"Good",lowRatingPct:21.2,priority:"MEDIUM"},
+    {categoryName:"Employee Empowerment",score:4.24,percentageScore:85,status:"Good",lowRatingPct:23.7,priority:"MEDIUM"},
+    {categoryName:"Hazard Knowledge",score:4.59,percentageScore:92,status:"Good",lowRatingPct:12.4,priority:"LOW"},
+    {categoryName:"Teamwork",score:4.18,percentageScore:84,status:"Good",lowRatingPct:25.2,priority:"MEDIUM"},
+    {categoryName:"Change Management",score:4.04,percentageScore:81,status:"Good",lowRatingPct:32.2,priority:"HIGH"},
+    {categoryName:"Contamination Prevention",score:4.36,percentageScore:87,status:"Good",lowRatingPct:18.2,priority:"LOW"},
+    {categoryName:"Personal Accountability",score:4.21,percentageScore:84,status:"Good",lowRatingPct:23.9,priority:"MEDIUM"},
+  ],
+};
+
+// Colour by the 0-100 percentage: green ≥80, amber 60-79, red <60.
+function cultureColorClass(pct){const p=Number(pct);return p>=80?"green":p>=60?"amber":"red";}
+function cultureHex(pct){const p=Number(pct);return p>=80?"#1F6F6B":p>=60?"#B7791F":"#C00000";}
+function cultureStatusClass(status){const s=(status||"").toLowerCase();return s.indexOf("critical")>=0?"crit":(s.indexOf("attention")>=0?"attn":"good");}
+function cultureStatusIcon(status){const s=(status||"").toLowerCase();return s.indexOf("critical")>=0?"&#9888;":(s.indexOf("attention")>=0?"&#9888;":"&#10003;");}
+function cultureLatest(){return _cultureSurveys&&_cultureSurveys.length?_cultureSurveys[0]:null;}
+function cultureFmtRaw(s){const v=Number(s);return (isNaN(v)?0:v).toFixed(2);}
+
+// Load the current site's surveys (newest first). Tolerant of failure.
+async function loadCultureSurveys(){
+  try{
+    const r=await fetch(CULTURE_API+"?site="+encodeURIComponent(currentSite));
+    _cultureSurveys=r.ok?await r.json():[];
+  }catch(e){_cultureSurveys=[];}
+  _cultureLoaded=true;
+  return _cultureSurveys;
+}
+
+// Seed the May 2026 survey the first time the site has none on record.
+async function cultureSeedIfEmpty(){
+  if(_cultureSurveys&&_cultureSurveys.length)return;
+  try{
+    const res=await fetch(CULTURE_API+"?action=create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({action:"create",site:currentSite},CULTURE_SEED))});
+    if(res.ok)await loadCultureSurveys();
+  }catch(e){}
+}
+
+// Entry point for the C-Suite "Culture Survey" subtab.
+async function initCultureSurvey(){
+  const host=document.getElementById("cs-culture-body");if(host)host.innerHTML=`<div class="dash-spinner"></div>`;
+  await loadCultureSurveys();
+  await cultureSeedIfEmpty();
+  renderCulturePane();
+}
+
+// ── C-Suite Culture Survey pane ─────────────────────────────────────────────
+function renderCulturePane(){
+  const host=document.getElementById("cs-culture-body");if(!host)return;
+  const s=cultureLatest();
+  if(!s){
+    host.innerHTML=`<div class="dcs-empty">No culture survey on record for ${cesc(currentSite)} yet. Use <b>Sync from SharePoint</b> or <b>Upload Survey</b> above to load one.</div>`;
+    return;
+  }
+  const pct=Math.round(Number(s.percentageScore));
+  const col=cultureColorClass(pct);
+  // (a) Current survey gauge card.
+  const gauge=`<div class="cul-gauge-card">
+    <div class="cul-gauge ${col}">${pct}%</div>
+    <div class="cul-gauge-raw">${cultureFmtRaw(s.overallScore)} / 5.00 &nbsp;·&nbsp; Target ${Math.round(Number(s.targetScore||80))}%+</div>
+    <div class="cul-gauge-sqf">${cesc(s.sqfRating||"")}</div>
+    <div class="cul-meta">
+      <div>Responses<b>${s.totalResponses||0}</b></div>
+      <div>Survey Period<b style="font-size:13px;font-family:'DM Mono',monospace;text-transform:none">${cesc(s.surveyPeriod||"—")}</b></div>
+    </div></div>`;
+  // (b) Category performance grid (all 9 categories).
+  const cats=(s.categories||[]).map(c=>{
+    const cls=cultureStatusClass(c.status);
+    return `<div class="cul-cat ${cls}">
+      <div class="cul-cat-name">${cesc(c.categoryName)}</div>
+      <div class="cul-cat-row"><span class="cul-cat-pct">${Math.round(Number(c.percentageScore))}%</span><span class="cul-cat-score">${cultureFmtRaw(c.score)} / 5.00</span></div>
+      <span class="cul-stat ${cls}">${cultureStatusIcon(c.status)} ${cesc(c.status||"Good")}</span>
+    </div>`;
+  }).join("");
+  const topGrid=`<div class="cul-top">${gauge}<div><div class="cul-cat-grid">${cats}</div></div></div>`;
+  // (c) Historical trend (only when more than one survey exists).
+  let trend="";
+  if(_cultureSurveys.length>1){
+    trend=`<div class="cul-trend"><div class="dp-title" style="margin-bottom:8px"><span>Historical Trend — Overall %</span></div>${cultureTrendSvg(_cultureSurveys)}</div>`;
+  }
+  host.innerHTML=topGrid+trend;
+}
+
+// Simple SVG trend line of overall percentage across surveys (oldest → newest).
+function cultureTrendSvg(surveys){
+  const pts=surveys.slice().reverse().map(s=>({pct:Number(s.percentageScore)||0,date:s.surveyDate}));
+  if(pts.length<2)return"";
+  const W=Math.max(360,pts.length*110),H=150,padL=34,padR=20,padT=16,padB=34;
+  const innerW=W-padL-padR,innerH=H-padT-padB;
+  const xs=i=>padL+(pts.length===1?innerW/2:innerW*i/(pts.length-1));
+  const ys=v=>padT+innerH*(1-(Math.max(0,Math.min(100,v))/100));
+  const line=pts.map((p,i)=>`${i?"L":"M"}${xs(i).toFixed(1)} ${ys(p.pct).toFixed(1)}`).join(" ");
+  const target=ys(80);
+  const dots=pts.map((p,i)=>`<circle cx="${xs(i).toFixed(1)}" cy="${ys(p.pct).toFixed(1)}" r="4" fill="${cultureHex(p.pct)}"/><text x="${xs(i).toFixed(1)}" y="${(ys(p.pct)-9).toFixed(1)}" text-anchor="middle" font-size="10" font-family="'Bebas Neue',sans-serif" fill="#1F3864">${Math.round(p.pct)}%</text><text x="${xs(i).toFixed(1)}" y="${H-12}" text-anchor="middle" font-size="9" font-family="'DM Mono',monospace" fill="#4a5568">${cesc(_dFmt(p.date))}</text>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">
+    <line x1="${padL}" y1="${target}" x2="${W-padR}" y2="${target}" stroke="#9ed3b0" stroke-width="1" stroke-dasharray="4 3"/>
+    <text x="${W-padR}" y="${target-4}" text-anchor="end" font-size="9" font-family="'DM Mono',monospace" fill="#1F6F6B">Target 80%</text>
+    <path d="${line}" fill="none" stroke="#1F4E79" stroke-width="2"/>${dots}</svg>`;
+}
+
+// (d) Sync from SharePoint — calls the sync-sharepoint POST action.
+async function cultureSync(){
+  const btn=document.getElementById("cs-culture-sync-btn");
+  const old=btn?btn.innerHTML:"";
+  if(btn){btn.disabled=true;btn.innerHTML="&#8635; Syncing&hellip;";}
+  try{
+    const res=await fetch(CULTURE_API+"?action=sync-sharepoint",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"sync-sharepoint",site:currentSite})});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok){toast(data.error||("Sync failed (HTTP "+res.status+")"),"red");}
+    else{await loadCultureSurveys();renderCulturePane();toast("Survey synced from SharePoint.","green");if(document.getElementById("dashboard").classList.contains("active"))renderDashboardV2();}
+  }catch(e){toast("Sync failed: "+e.message,"red");}
+  if(btn){btn.disabled=false;btn.innerHTML=old;}
+}
+
+// (d) Upload Survey fallback — send the .xlsx to the function, which parses it
+// server-side (against the workbook's exact cell layout) and saves it. The
+// server returns which fields it found/missed so errors can be specific.
+async function cultureUpload(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  const lbl=input.closest("label");const old=lbl?lbl.innerHTML:"";
+  if(lbl){lbl.style.pointerEvents="none";lbl.style.opacity="0.6";lbl.firstChild&&(lbl.childNodes[0].nodeValue="⬆ Uploading… ");}
+  try{
+    const fileBase64=await _fileToBase64(file);
+    const res=await fetch(CULTURE_API+"?action=upload",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"upload",site:currentSite,filename:file.name,fileBase64:fileBase64})});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok){
+      // Show the server's specific message, plus exactly which fields were missing.
+      let msg=data.error||("Upload failed (HTTP "+res.status+")");
+      if(Array.isArray(data.missing)&&data.missing.length)msg+=" — not found: "+data.missing.join(", ");
+      toast(msg,"red");
+    }else{
+      await loadCultureSurveys();renderCulturePane();
+      let msg="Survey uploaded and saved.";
+      if(Array.isArray(data.missing)&&data.missing.length)msg+=" ("+data.missing.length+" optional field(s) not in file)";
+      toast(msg,"green");
+      if(document.getElementById("dashboard").classList.contains("active"))renderDashboardV2();
+    }
+  }catch(e){toast("Could not upload survey file: "+e.message,"red");}
+  if(lbl){lbl.style.pointerEvents="";lbl.style.opacity="";lbl.innerHTML=old;}
+  input.value="";
+}
+
+// Read a File as a base64 string (without the data: prefix) for JSON upload.
+function _fileToBase64(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{const s=String(fr.result||"");const i=s.indexOf(",");res(i>=0?s.slice(i+1):s);};
+    fr.onerror=()=>rej(new Error("could not read the file"));
+    fr.readAsDataURL(file);
+  });
+}
+
 // ══════════════════ DASHBOARD v2 — LIVE ALL-MODULE KPIs ═════════════════════
 // A single live dashboard driven entirely by the same API endpoints used by the
 // individual modules. Quality-health KPIs, active-program dates, automatically
-// derived improvement opportunities, and a Food Safety Culture placeholder.
-// All counts are scoped to the currently selected site (currentSite).
+// derived improvement opportunities, and the Food Safety Culture score — all
+// scoped to the currently selected site (currentSite), all loaded in parallel.
 let _dashCrisis=[], _dashRecall=[], _dashLinks=[];
 const DASH_OOS_CLOSED=["Closed Invalidated","Closed Confirmed"];
 
@@ -4000,14 +4208,21 @@ async function loadDashAux(){
   try{_dashLinks=await capaLinksGet("");}catch(e){_dashLinks=[];}
 }
 
-// Full dashboard refresh: show the loading state, reload every module for the
-// current site, then paint. Used on tab switch and by the manual Refresh button.
+// Full dashboard refresh: show the loading skeleton, load every module for the
+// current site IN PARALLEL (Promise.all), then paint. Used on tab switch and by
+// the manual Refresh button.
 async function refreshDashboard(){
   const body=document.getElementById("dash-body"),load=document.getElementById("dash-loading"),btn=document.getElementById("dash-refresh-btn");
   if(load)load.style.display="";
   if(body)body.style.display="none";
   if(btn)btn.disabled=true;
-  try{await loadData();await loadDashAux();}catch(e){}
+  // All required endpoints fire together; each loader already swallows its own
+  // errors so one slow/failed module never blocks the rest of the dashboard.
+  await Promise.all([
+    loadData().catch(()=>{}),
+    loadDashAux().catch(()=>{}),
+    loadCultureSurveys().catch(()=>{}),
+  ]);
   renderDashboardV2();
   if(load)load.style.display="none";
   if(body)body.style.display="";
@@ -4026,12 +4241,12 @@ function _dRing(pct,color){
 }
 
 // Paint the four dashboard sections from whatever data is currently loaded in
-// the globals (records, oosRecords for the current site, plus the _dash* sets).
+// the globals (records, oosRecords for the current site, plus the _dash* sets
+// and _cultureSurveys).
 function renderDashboardV2(){
   const host=document.getElementById("dash-kpis");
   if(!host)return; // dashboard markup not present
   const nm=document.getElementById("dash-site-name");if(nm)nm.textContent=currentSite;
-  dashCultureInit();
 
   const recs=(records||[]).filter(r=>r&&r.type);
   const capas=recs.filter(r=>r.type==="CAPA");
@@ -4068,7 +4283,7 @@ function renderDashboardV2(){
   const qColor=qIndex===null?"":qIndex>=85?"green":qIndex>=70?"amber":"red";
 
   const closure=m.total?m.closureRate:null;
-  const ringColor=closure===null?"#d0d6de":closure>=85?"#1F6F6B":closure>=70?"#B7791F":"#C00000";
+  const ringColor=closure===null?"#d0d6de":closure>=80?"#1F6F6B":closure>=60?"#B7791F":"#C00000";
 
   const cards=[];
   cards.push(`<div class="dk-card"><div class="dk-label">Open CAPAs</div><div class="dk-value">${openCapa}</div><div class="dk-sub">Status Open / In Progress</div><span class="dk-badge ${m.majorLinked?'major':'neutral'}">${m.majorLinked} Major-linked</span></div>`);
@@ -4084,6 +4299,7 @@ function renderDashboardV2(){
 
   renderDashPrograms(capas,oos);
   renderDashOpps(findings,capas,ncrs,oos,m);
+  renderDashCulture();
 }
 
 // ── SECTION 2 — Active Programs & Upcoming Dates ──
@@ -4125,10 +4341,11 @@ function renderDashPrograms(capas,oos){
     const nextDue=_dAddDays(lastR.dateInitiated,90);
     const dueDays=nextDue?Math.ceil((nextDue-today)/86400000):null;
     const tr=(lastR.traceabilityRate!=null&&lastR.traceabilityRate!=="")?cesc(String(lastR.traceabilityRate))+"%":"—";
-    const dueCls=dueDays!==null&&dueDays<0?'dp-flag-red':(dueDays!==null&&dueDays<=14?'dp-flag-amber':'');
+    const overdue=dueDays!==null&&dueDays<0;
+    const dueCls=overdue?'dp-flag-red':(dueDays!==null&&dueDays<=14?'dp-flag-amber':'');
     recallBody=`<div class="dp-row"><span class="k">Last completed</span><span class="v">${cesc(lastR.id)+" · "+_dFmt(lastR.dateInitiated)}</span></div>
     <div class="dp-row"><span class="k">Traceability rate</span><span class="v">${tr}</span></div>
-    <div class="dp-row"><span class="k">Next due (quarterly)</span><span class="v ${dueCls}">${_dFmtD(nextDue)}${dueDays===null?"":" · "+(dueDays<0?Math.abs(dueDays)+"d overdue":dueDays+"d")}</span></div>`;
+    <div class="dp-row"><span class="k">Next due (90 days)</span><span class="v ${dueCls}">${_dFmtD(nextDue)}${dueDays===null?"":" · "+(overdue?Math.abs(dueDays)+"d OVERDUE":dueDays+"d")}</span></div>`;
   }else{
     recallBody=`<div class="dp-row"><span class="v dp-flag-red" style="text-align:left">No mock recall on record — schedule immediately</span></div>`;
   }
@@ -4142,9 +4359,9 @@ function renderDashPrograms(capas,oos){
     <div class="dp-row"><span class="k">Open &gt; 30 days</span><span class="v ${oos30?'dp-flag-amber':''}">${oos30}</span></div>
     <div class="dp-row"><span class="k">Open &gt; 60 days</span><span class="v ${oos60?'dp-flag-red':''}">${oos60}</span></div></div>`);
 
-  // 5. Effectiveness Checks Due — within the next 30 days (overdue surfaced too).
+  // 5. Effectiveness Checks Due — up to 5 within the next 30 days (overdue surfaced too).
   const effDue=(capas||[]).filter(r=>r.effectivenessCheckDueDate&&(r.effectivenessStatus==="Pending"||r.effectivenessStatus==="In Progress"))
-    .map(r=>({r,days:_dDaysFromNow(r.effectivenessCheckDueDate)})).filter(o=>o.days!==null&&o.days<=30).sort((a,b)=>a.days-b.days);
+    .map(r=>({r,days:_dDaysFromNow(r.effectivenessCheckDueDate)})).filter(o=>o.days!==null&&o.days<=30).sort((a,b)=>a.days-b.days).slice(0,5);
   const effRows=effDue.map(o=>`<div class="dp-row"><span class="k">${cesc(o.r.id)} · ${cesc(o.r.owner||"—")}</span><span class="v ${o.days<0?'dp-flag-red':(o.days<=7?'dp-flag-amber':'')}">${o.days<0?Math.abs(o.days)+"d overdue":o.days+"d left"}</span></div>`).join("")
     ||`<div class="dp-row"><span class="k" style="color:#1F6F6B">None due in the next 30 days</span></div>`;
   cards.push(`<div class="dp-card"><div class="dp-title"><span>Effectiveness Checks Due</span></div>${effRows}</div>`);
@@ -4163,114 +4380,96 @@ function renderDashOpps(findings,capas,ncrs,oos,m){
   const linkedSourceIds=new Set((_dashLinks||[]).map(l=>l.sourceId));
   findings.filter(f=>!_dRecClosed(f.status)).forEach(f=>{
     const age=_dDaysBetween(f.createdAt||f.created,today);
-    if(age!==null&&age>30&&!linkedSourceIds.has(f.id))add(`Finding ${cesc(f.id)} has no linked CAPA after ${age} days`,"tracker");
+    if(age!==null&&age>30&&!linkedSourceIds.has(f.id)&&!(f.capaId||""))add(`Finding ${cesc(f.id)} open ${age} days with no linked CAPA`,"tracker");
   });
-  // (b) CAPA root cause Unknown / Under Investigation open > 14 days.
+  // (b) CAPA root cause Unknown and created > 14 days ago.
   capas.filter(r=>!_dRecClosed(r.status)).forEach(r=>{
-    if(/unknown|under investigation/i.test(r.rootCauseCategory||"")){
+    if(/unknown/i.test(r.rootCauseCategory||"")){
       const age=_dDaysBetween(r.createdAt||r.created,today);
       if(age!==null&&age>14)add(`CAPA ${cesc(r.id)} root cause still unknown after ${age} days`,"tracker");
     }
   });
-  // (c) Owner / department with more than 3 open records.
+  // (c) Owner / department with 3 or more open records.
   const ownerCounts={};
   [...capas,...ncrs,...findings].filter(r=>_dIsOpenStatus(r.status)).forEach(r=>{const o=(r.owner||"").trim();if(o)ownerCounts[o]=(ownerCounts[o]||0)+1;});
-  Object.entries(ownerCounts).filter(([,c])=>c>3).forEach(([o,c])=>add(`${cesc(o)} has ${c} open records — consider resource review`,"tracker"));
-  // (d) SQF clause with more than 2 findings across all audits.
+  Object.entries(ownerCounts).filter(([,c])=>c>=3).forEach(([o,c])=>add(`${cesc(o)} has ${c} open records — consider workload review`,"tracker"));
+  // (d) SQF clause appearing in more than 2 audit findings.
   const clauseCounts={};
   findings.forEach(f=>{const c=(f.clause||"").trim();if(c)clauseCounts[c]=(clauseCounts[c]||0)+1;});
-  Object.entries(clauseCounts).filter(([,c])=>c>2).forEach(([cl,c])=>add(`Clause ${cesc(cl)} has ${c} findings — systemic issue may exist`,"tracker"));
-  // (e) OOS analyte appearing more than once.
+  Object.entries(clauseCounts).filter(([,c])=>c>2).forEach(([cl,c])=>add(`Clause ${cesc(cl)} has ${c} findings — possible systemic issue`,"tracker"));
+  // (e) OOS analyte appearing in more than one OOS record.
   const analyteCounts={};
   oos.forEach(o=>{const a=(o.testAnalyte||"").trim();if(a)analyteCounts[a]=(analyteCounts[a]||0)+1;});
   Object.entries(analyteCounts).filter(([,c])=>c>1).forEach(([a,c])=>add(`${cesc(a)} has ${c} OOS events — trend review recommended`,"oos"));
   // (f) CAPA effectiveness rate below 80%.
-  if(m.effRate!==null&&m.effRate<80)add(`CAPA effectiveness rate ${m.effRate}% is below target — review root cause quality`,"tracker");
+  if(m.effRate!==null&&m.effRate<80)add(`CAPA effectiveness rate ${m.effRate}% is below 80% target`,"tracker");
   // (g) No mock recall in the last 90 days.
   const lastR=(_dashRecall||[]).filter(r=>/complete/i.test(r.status||"")&&r.dateInitiated).sort((a,b)=>new Date(b.dateInitiated)-new Date(a.dateInitiated))[0];
-  if(!lastR)add("Mock recall overdue — never completed","recall");
-  else{const age=_dDaysBetween(lastR.dateInitiated,today);if(age!==null&&age>90)add(`Mock recall overdue — last completed ${_dFmt(lastR.dateInitiated)}`,"recall");}
+  if(!lastR)add("Mock recall exercise overdue — never completed","recall");
+  else{const age=_dDaysBetween(lastR.dateInitiated,today);if(age!==null&&age>90)add(`Mock recall exercise overdue — last completed ${_dFmt(lastR.dateInitiated)}`,"recall");}
   // (h) No crisis exercise in the last 365 days.
   const lastC=(_dashCrisis||[]).filter(c=>/complete/i.test(c.status||"")&&c.exerciseDate).sort((a,b)=>new Date(b.exerciseDate)-new Date(a.exerciseDate))[0];
-  if(!lastC)add("Annual crisis exercise overdue — none completed","crisis");
-  else{const age=_dDaysBetween(lastC.exerciseDate,today);if(age!==null&&age>365)add("Annual crisis exercise overdue","crisis");}
+  if(!lastC)add("Annual crisis exercise overdue — never completed","crisis");
+  else{const age=_dDaysBetween(lastC.exerciseDate,today);if(age!==null&&age>365)add(`Annual crisis exercise overdue — last completed ${_dFmt(lastC.exerciseDate)}`,"crisis");}
+  // (i) Any culture category with status Needs Attention.
+  const cs=cultureLatest();
+  if(cs){
+    (cs.categories||[]).filter(c=>/attention/i.test(c.status||"")).forEach(c=>add(`Culture gap: ${cesc(c.categoryName)} scored ${Math.round(Number(c.percentageScore))}% — below target`,"culture"));
+    // (j) Any culture category with priority HIGH.
+    (cs.categories||[]).filter(c=>(c.priority||"").toUpperCase()==="HIGH").forEach(c=>add(`Priority culture action: ${cesc(c.categoryName)} has ${Number(c.lowRatingPct)}% low ratings — immediate attention required`,"culture"));
+  }
 
   if(!opps.length){host.innerHTML=`<div class="opp-card clear"><div class="opp-txt">&#10003; All clear — no improvement opportunities identified</div></div>`;return;}
   host.innerHTML=opps.map(o=>`<div class="opp-card"><div class="opp-txt">${o.txt}</div><button class="opp-view" onclick="dashGoto('${o.target}')">View</button></div>`).join("");
 }
 
-// Navigate from an opportunity card to the relevant module tab.
-function dashGoto(target){if(typeof gotoTab==="function")gotoTab(target);}
+// Navigate from an opportunity card to the relevant module tab. "culture" jumps
+// to the C-Suite Culture Survey subtab.
+function dashGoto(target){
+  if(target==="culture")return dashGotoCulture();
+  if(typeof gotoTab==="function")gotoTab(target);
+}
+function dashGotoCulture(){if(typeof gotoTab==="function")gotoTab("csuite");switchCsuiteTab("culture");}
 
-// ── SECTION 4 — Food Safety Culture Indicator (placeholder) ──
-// Reads any previously uploaded culture score from localStorage and paints it.
-function dashCultureInit(){
-  const scoreEl=document.getElementById("dash-culture-score");if(!scoreEl)return;
-  const statusEl=document.getElementById("dash-culture-status"),updEl=document.getElementById("dash-culture-updated");
-  let data=null;try{data=JSON.parse(localStorage.getItem("qis-culture-score")||"null");}catch(e){}
-  if(data&&typeof data.score==="number"&&!isNaN(data.score)){
-    const s=Math.round(data.score);
-    const col=s>=80?"#1F6F6B":s>=60?"#B7791F":"#C00000";
-    scoreEl.innerHTML=`<span style="color:${col}">${s}</span> / 100`;
-    if(statusEl)statusEl.textContent="Survey results loaded";
-    if(updEl)updEl.textContent=data.date?_dFmt(data.date):"—";
-  }else{
-    scoreEl.innerHTML="&mdash; / 100";
-    if(statusEl)statusEl.textContent="Survey data not yet uploaded";
-    if(updEl)updEl.innerHTML="&mdash;";
+// ── SECTION 4 — Food Safety Culture Score (live, from /api/culture-survey) ──
+function renderDashCulture(){
+  const host=document.getElementById("dash-culture-host");if(!host)return;
+  const s=cultureLatest();
+  if(!s){
+    host.innerHTML=`<div class="dcs-empty">Culture survey not yet loaded — use <b>Sync from SharePoint</b> or upload a survey file in the C-Suite view.</div>`;
+    return;
   }
-}
-
-// Lazy-load SheetJS (same CDN pattern used elsewhere for jsPDF / pdf-lib).
-function _dashLoadSheetJS(){
-  return new Promise((res,rej)=>{
-    if(window.XLSX)return res(window.XLSX);
-    const s=document.createElement("script");
-    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-    s.onload=()=>res(window.XLSX);
-    s.onerror=()=>rej(new Error("could not load the spreadsheet parser"));
-    document.head.appendChild(s);
-  });
-}
-
-// Parse an uploaded .xlsx survey: scan every sheet for a label cell containing
-// Score / Total / Percentage and read the nearest numeric value. Persist the
-// result (and upload date) to localStorage under qis-culture-score.
-async function dashUploadCulture(input){
-  const file=input.files&&input.files[0];if(!file)return;
-  try{
-    const XLSX=await _dashLoadSheetJS();
-    const buf=await file.arrayBuffer();
-    const wb=XLSX.read(buf,{type:"array"});
-    let score=null;
-    for(const name of wb.SheetNames){
-      const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:""});
-      for(let i=0;i<rows.length&&score===null;i++){
-        const row=rows[i]||[];
-        for(let j=0;j<row.length;j++){
-          const cell=String(row[j]==null?"":row[j]);
-          if(/score|total|percentage/i.test(cell)){
-            let num=null;
-            for(let k=j+1;k<row.length;k++){const v=parseFloat(row[k]);if(!isNaN(v)){num=v;break;}}           // same row, to the right
-            if(num===null){const inline=cell.match(/(\d+(?:\.\d+)?)/);if(inline)num=parseFloat(inline[1]);}     // number inside the label cell
-            if(num===null&&rows[i+1]){const v=parseFloat((rows[i+1]||[])[j]);if(!isNaN(v))num=v;}              // cell directly below
-            if(num!==null){score=num;break;}
-          }
-        }
-      }
-      if(score!==null)break;
-    }
-    if(score===null){toast("No Score / Total / Percentage value found in the file.","red");input.value="";return;}
-    if(score>0&&score<=1)score=score*100;                 // 0–1 fraction → percentage
-    score=Math.max(0,Math.min(100,score));
-    try{localStorage.setItem("qis-culture-score",JSON.stringify({score:score,date:new Date().toISOString()}));}catch(e){}
-    dashCultureInit();
-    toast("Culture score updated: "+Math.round(score)+" / 100","green");
-  }catch(e){
-    toast("Could not parse survey file: "+e.message,"red");
+  const pct=Math.round(Number(s.percentageScore));
+  const col=cultureColorClass(pct);
+  // Trend vs the previous survey.
+  let trend="";
+  if(_cultureSurveys.length>1){
+    const prev=Math.round(Number(_cultureSurveys[1].percentageScore));
+    const delta=pct-prev;
+    if(delta>0)trend=`<div class="dcs-trend" style="color:#1F6F6B">&#9650; +${delta}% vs previous survey</div>`;
+    else if(delta<0)trend=`<div class="dcs-trend" style="color:#C00000">&#9660; ${delta}% vs previous survey</div>`;
+    else trend=`<div class="dcs-trend" style="color:#4a5568">&#8212; no change vs previous survey</div>`;
   }
-  input.value="";
+  // 9-category mini grid of coloured tiles.
+  const tiles=(s.categories||[]).map(c=>{const p=Math.round(Number(c.percentageScore));return `<div class="cul-tile" style="background:${cultureHex(p)}" title="${cesc(c.categoryName)}: ${p}% (${cultureFmtRaw(c.score)}/5.00)"><span class="t-pct">${p}%</span><span class="t-name">${cesc(c.categoryName)}</span></div>`;}).join("");
+  host.innerHTML=`<div class="dcs-wrap">
+    <div class="dcs-row">
+      <div class="dcs-gauge-wrap">
+        <div class="dcs-gauge ${col}">${pct}%</div>
+        <div class="dcs-sub">${cultureFmtRaw(s.overallScore)} / 5.00 — Target: ${Math.round(Number(s.targetScore||80))}%+</div>
+        ${trend}
+      </div>
+      <div class="dcs-facts">
+        <div>Responses<b>${s.totalResponses||0}</b></div>
+        <div>Survey Period<b style="font-size:13px;font-family:'DM Mono',monospace;text-transform:none">${cesc(s.surveyPeriod||"—")}</b></div>
+        <div>SQF Rating<b style="font-size:12px;font-family:'DM Sans',sans-serif;text-transform:none;font-weight:700">${cesc(s.sqfRating||"—")}</b></div>
+      </div>
+      <button class="btn" style="flex-shrink:0" onclick="dashGotoCulture()">View Full Survey &rarr;</button>
+    </div>
+    <div class="cul-mini-grid">${tiles}</div>
+  </div>`;
 }
+
 
 function renderTable(f){
   if(f!==undefined)currentFilter=f;
@@ -10268,12 +10467,13 @@ function sendForSignature(){
 // ── C-Suite sub-tab switching ───────────────────────────────────────────────
 let _monthlyInit=false,_annualInit=false;
 function switchCsuiteTab(name){
-  ["exec","monthly","annual"].forEach(n=>{
+  ["exec","monthly","annual","culture"].forEach(n=>{
     const pane=document.getElementById("cs-pane-"+n);if(pane)pane.style.display=(n===name)?"":"none";
     const tab=document.getElementById("cs-subtab-"+n);if(tab)tab.classList.toggle("active",n===name);
   });
   if(name==="monthly"){if(!_monthlyInit){_monthlyInit=true;initMonthlyFlash();}}
   if(name==="annual"){if(!_annualInit){_annualInit=true;initAnnualReview();}}
+  if(name==="culture"){initCultureSurvey();}
 }
 
 // Build the SMF site-filter <option> list ("All sites" + each site).
