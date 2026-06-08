@@ -3808,6 +3808,14 @@ function updateKPIs(){
   document.getElementById("legend-inprogress").textContent=records.filter(r=>r.status==="In Progress").length;
 }
 
+// Recognize every "Closed…" status variant as closed so the header deadline
+// badge never treats a closed record as still open/overdue. The only statuses
+// considered active are Open, In Progress, Pending, Under Investigation and
+// Pending Disposition; anything whose status begins with the word "Closed"
+// (e.g. Closed-Pending EC, Closed — Verified Effective, Closed — Pending
+// Effectiveness Check, Closed — Invalidated, Closed — Confirmed) is excluded.
+function _qClosedStatus(s){return /^\s*closed\b/i.test(String(s||""));}
+
 function updateDeadline(){
   const diff=Math.ceil((new Date("2026-06-18")-new Date())/(1000*60*60*24));
   const color=diff<=7?"var(--danger)":diff<=14?"var(--warn)":"var(--accent)";
@@ -3817,24 +3825,50 @@ function updateDeadline(){
   const deadlineTxt=document.getElementById("cs-deadline-txt");if(deadlineTxt){deadlineTxt.textContent=txt;deadlineTxt.style.color=color;}
   const days2=document.getElementById("cs-days2");if(days2){days2.textContent=txt;days2.style.color=bannerColor;}
 
-  // Header badge: nearest due date among open records; hidden when none have a due date.
+  // ── Header badge: the single most relevant upcoming quality event ──────────
+  // Priority order (first match wins):
+  //   1. Overdue record (CAPA / NCR / Audit finding / OOS — past due, not closed)
+  //   2. Record due within the next 30 days
+  //   3. Next scheduled internal audit (audit_sessions — Scheduled | In Progress)
+  //   4. Mock recall due — 90 days after the last completed recall exercise
+  //   5. Next crisis exercise — 12 months after the last completed one
+  //   6. Nothing pending → All Clear
   const hdr=document.getElementById("deadline-hdr");
   if(!hdr)return;
-  const open=records.filter(r=>r.status!=="Closed"&&r.due).map(r=>({r,d:new Date(r.due)})).filter(o=>!isNaN(o.d.getTime()));
-  if(!open.length){hdr.style.display="none";return;}
-  open.sort((a,b)=>a.d-b.d);
-  const next=open[0];
-  const days=Math.ceil((next.d-new Date())/(1000*60*60*24));
-  const dateStr=next.d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-  const clause=next.r.clause?"§"+next.r.clause+" ":"";
-  if(days<0){
-    hdr.textContent="⏱ "+clause+"OVERDUE: "+dateStr;
-    hdr.style.background="rgba(255,80,80,0.2)";hdr.style.borderColor="#FF8888";hdr.style.color="#FFD6D6";
-  }else{
-    hdr.textContent="⏱ "+clause+"CA Due: "+dateStr+" · "+days+"d";
-    hdr.style.background="rgba(255,244,180,0.2)";hdr.style.borderColor="#FFF2CC";hdr.style.color="#FFF2CC";
-  }
-  hdr.style.display="";
+  const now=new Date();
+  const paint=(text,c)=>{hdr.textContent=text;hdr.style.background=c[0];hdr.style.borderColor=c[1];hdr.style.color=c[2];hdr.style.display="";};
+  const C_RED=["rgba(255,80,80,0.2)","#FF8888","#FFD6D6"];
+  const C_AMBER=["rgba(255,244,180,0.2)","#FFF2CC","#FFF2CC"];
+  const C_BLUE=["rgba(157,195,230,0.2)","#BDD7EE","#DCE9FB"];
+  const C_GREEN=["rgba(146,208,80,0.2)","#A9D08E","#E2EFDA"];
+
+  // Due-dated, still-active records across CAPA / NCR / Audit findings and OOS.
+  const dated=[];
+  (records||[]).forEach(r=>{if(r&&r.due&&!_qClosedStatus(r.status)){const d=new Date(_dDateOnly(r.due)+"T00:00:00");if(!isNaN(d))dated.push({id:r.id,d:d});}});
+  ((typeof oosRecords!=="undefined"?oosRecords:[])||[]).forEach(o=>{const due=o&&(o.dueDate||o.due);if(due&&!_qClosedStatus(o.status)){const d=new Date(_dDateOnly(due)+"T00:00:00");if(!isNaN(d))dated.push({id:o.id,d:d});}});
+
+  // (1) Overdue — surface the most overdue item.
+  const overdue=dated.filter(o=>o.d<now).sort((a,b)=>a.d-b.d);
+  if(overdue.length){paint("⏱ OVERDUE: "+overdue[0].id,C_RED);return;}
+
+  // (2) Due within the next 30 days — surface the nearest item.
+  const soon=dated.filter(o=>o.d>=now).sort((a,b)=>a.d-b.d);
+  if(soon.length){const days=Math.ceil((soon[0].d-now)/86400000);if(days<=30){paint("⏱ Due: "+soon[0].id+" — "+days+" day"+(days===1?"":"s"),C_AMBER);return;}}
+
+  // (3) Next scheduled internal audit.
+  const audits=(AUDITS||[]).filter(a=>a&&(a.status==="Scheduled"||a.status==="In Progress")&&a.date).map(a=>new Date(_dDateOnly(a.date)+"T00:00:00")).filter(d=>!isNaN(d)&&d>=now).sort((a,b)=>a-b);
+  if(audits.length){paint("⏱ Next Audit: "+_dFmtD(audits[0]),C_BLUE);return;}
+
+  // (4) Mock recall quarterly check — 90 days after the last completed exercise.
+  const lastRecall=(_dashRecall||[]).filter(r=>/complete/i.test(r.status||"")&&r.dateInitiated).sort((a,b)=>new Date(b.dateInitiated)-new Date(a.dateInitiated))[0];
+  if(lastRecall){const due=_dAddDays(lastRecall.dateInitiated,90);if(due&&!isNaN(due)){paint("⏱ Recall Due: "+_dFmtD(due),C_BLUE);return;}}
+
+  // (5) Next crisis exercise — 12 months after the last completed one.
+  const lastCrisis=(_dashCrisis||[]).filter(c=>/complete/i.test(c.status||"")&&c.exerciseDate).sort((a,b)=>new Date(b.exerciseDate)-new Date(a.exerciseDate))[0];
+  if(lastCrisis){const due=_dAddMonths(lastCrisis.exerciseDate,12);if(due&&!isNaN(due)){paint("⏱ Crisis Exercise: "+_dFmtD(due),C_BLUE);return;}}
+
+  // (6) Nothing pending.
+  paint("✓ Quality Events: All Clear",C_GREEN);
 }
 
 function renderDashCharts(){
