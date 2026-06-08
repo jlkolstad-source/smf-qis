@@ -35,3 +35,8 @@
   from = "/api/recall"
   to = "/.netlify/functions/recall"
   status = 200
+
+[[redirects]]
+  from = "/api/culture-survey"
+  to = "/.netlify/functions/culture-survey"
+  status = 200
