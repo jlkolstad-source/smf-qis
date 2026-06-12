@@ -111,6 +111,26 @@ function actorString(user: Identity): string {
   return name || user.email || "Unknown";
 }
 
+// Resolve the site a newly-created record should be filed under. Resolution
+// order: an explicit, non-empty `site` in the request body wins; otherwise the
+// site stored on the user's Netlify Identity profile metadata; and finally — so
+// a Somafina staff account that has no site metadata yet is NOT rejected — a
+// default of "Lindon". "Lindon" is the canonical site value used throughout the
+// app (the site filter and the front-end both key off the full name); its id
+// abbreviation is "LDN" (see siteAbbr), which is what appears in the LDN record
+// ids. Storing the abbreviation as the site value would orphan the record from
+// the Lindon view, so the full name is used here.
+function resolveSite(body: any, user: Identity): string {
+  const fromBody = (body && body.site != null ? String(body.site) : "").trim();
+  if (fromBody) return fromBody;
+  const meta = (user.userMetadata || {}) as any;
+  const fromMeta = (meta && meta.site != null ? String(meta.site) : "").trim();
+  if (fromMeta) return fromMeta;
+  const email = (user.email || "").toLowerCase();
+  if (email.endsWith("@somafina.com")) return "Lindon";
+  return "Lindon";
+}
+
 // Initial Lindon audit findings — used only to seed a brand-new (empty)
 // database so the app opens with the same data it shipped with.
 const SEED = [
@@ -278,7 +298,41 @@ async function nextAuditId(prefix: string, site: string, year: string): Promise<
   return `${prefix}-${siteAbbr(site)}-${year}-${String(max + 1).padStart(4, "0")}`;
 }
 
-// Normalise an incoming record payload into DB column values.
+// A generated id must be a non-empty token of [A-Za-z0-9-] with no broken
+// "undefined" / "NaN" / "null" segments and no trailing dash — anything else
+// would either violate the primary-key constraint or be a malformed record id.
+function isValidGeneratedId(id: any): boolean {
+  return (
+    typeof id === "string" &&
+    id.length > 0 &&
+    /^[A-Za-z0-9-]+$/.test(id) &&
+    !/(undefined|NaN|null)/i.test(id) &&
+    !/-$/.test(id)
+  );
+}
+
+// Sequential type id with a safe fallback. nextTypeId reads every existing
+// record to find the highest counter for the (type, site, year) triple; if that
+// query throws, or returns nothing usable so the computed id comes back
+// malformed, we must NOT send a broken id to the database (that is exactly what
+// surfaces to the user as a failed save). Instead fall back to a
+// collision-resistant id in the same "[PREFIX]-[SITE]-[YYYY]-[####]" shape using
+// a timestamp-derived suffix, so the record can still be created.
+async function safeTypeId(type: string, prefix: string, site: string, year: string): Promise<string> {
+  try {
+    const id = await nextTypeId(type, prefix, site, year);
+    if (isValidGeneratedId(id)) return id;
+    console.error(
+      `[records:create] nextTypeId returned a malformed id for type=${type} site=${site} year=${year}: ${JSON.stringify(id)} — using fallback id.`
+    );
+  } catch (err: any) {
+    console.error(
+      `[records:create] nextTypeId counter query failed for type=${type} site=${site} year=${year}: ${err?.message || err} — using fallback id.`
+    );
+  }
+  const suffix = String(Date.now()).slice(-6);
+  return `${prefix}-${siteAbbr(site)}-${year}-${suffix}`;
+}
 function toRow(r: any) {
   const risk = computeRisk(r.likelihood, r.riskSeverity ?? r.risk_severity);
   return {
@@ -647,12 +701,27 @@ export default async (req: Request) => {
       }
 
       // Single create.
+      // Resolve the site BEFORE normalising the row so a user whose Identity
+      // account carries no site metadata is defaulted (to Lindon) rather than
+      // having the create rejected (see resolveSite).
+      body.site = resolveSite(body, user);
       const row = toRow(body);
+
+      // Null-safe guard for the records table's NOT NULL columns. The Postgres
+      // column defaults cover columns we omit, but a value explicitly set to ""
+      // or to a malformed value by an odd payload would still trip a constraint,
+      // so the create-critical columns are pinned to safe non-empty values here.
+      row.type = (row.type || "").toString().trim() || "CAPA";
+      row.severity = (row.severity || "").toString().trim() || "Minor";
+      row.status = (row.status || "").toString().trim() || "Open";
+      row.site = (row.site || "").toString().trim() || "Lindon";
+      const createdBy = (actor || user.email || "Unknown").toString();
+
       // Auto-generate the id when the client did not supply one, using the
       // "[PREFIX]-[SITE]-[YYYY]-[####]" convention. NCR / CAPA are numbered per
-      // type/site/year; Audit Findings take their prefix from the
-      // certification-body source and are numbered per prefix/site/year. Record
-      // ids are permanent — they are generated once here and never change.
+      // type/site/year (via the fallback-guarded safeTypeId); Audit Findings take
+      // their prefix from the certification-body source and are numbered per
+      // prefix/site/year. Record ids are permanent — generated once here.
       const year = String(new Date().getFullYear());
       let id: string;
       if (body.id && String(body.id).trim()) {
@@ -660,18 +729,42 @@ export default async (req: Request) => {
       } else if (row.type === "AUDIT") {
         id = await nextAuditId(row.sourceBody || "AUDIT", row.site, year);
       } else if (row.type === "NCR") {
-        id = await nextTypeId("NCR", "NCR", row.site, year);
+        id = await safeTypeId("NCR", "NCR", row.site, year);
       } else if (row.type === "CAPA") {
-        id = await nextTypeId("CAPA", "CAPA", row.site, year);
+        id = await safeTypeId("CAPA", "CAPA", row.site, year);
       } else {
         id = await nextQisId();
       }
+
       const now = new Date();
-      const [created] = await db
-        .insert(records)
-        .values({ id, ...row, createdBy: actor, createdAt: now, modifiedBy: actor, modifiedAt: now })
-        .onConflictDoNothing()
-        .returning();
+      let created: typeof records.$inferSelect | undefined;
+      try {
+        [created] = await db
+          .insert(records)
+          .values({ id, ...row, createdBy, createdAt: now, modifiedBy: createdBy, modifiedAt: now })
+          .onConflictDoNothing()
+          .returning();
+      } catch (dbErr: any) {
+        // Surface the actual cause of a failed create in the Netlify function
+        // logs — the full incoming request body, the normalised row we tried to
+        // write, and the exact database error — so the next failed save is
+        // diagnosable instead of an opaque 400.
+        console.error(
+          "[records:create] insert failed:",
+          JSON.stringify({
+            id,
+            requestBody: body,
+            generatedRow: { ...row, createdBy },
+            dbError: {
+              message: dbErr?.message,
+              code: dbErr?.code,
+              detail: dbErr?.detail,
+              constraint: dbErr?.constraint,
+            },
+          })
+        );
+        return json(400, { error: dbErr?.message || "Failed to create record." });
+      }
       if (!created) return json(409, { error: "A record with id " + id + " already exists." });
       await logChange(id, "create", `Created ${created.type} (${created.severity}) — status ${created.status}`, actor);
       return json(201, toClient(created));
