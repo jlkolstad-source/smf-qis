@@ -40,3 +40,8 @@
   from = "/api/culture-survey"
   to = "/.netlify/functions/culture-survey"
   status = 200
+
+[[redirects]]
+  from = "/api/receiving"
+  to = "/.netlify/functions/receiving"
+  status = 200
