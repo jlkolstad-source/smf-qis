@@ -297,6 +297,30 @@ main{padding:24px 32px 80px;}
 .crisis-tbl th{text-align:left;padding:7px 9px;font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#fff;background:#C00000;}
 .crisis-tbl td{padding:7px 9px;border-bottom:1px solid #e8ecf0;font-size:12px;vertical-align:top;color:#1a1a2e;}
 .crisis-input{background:#f4f6f8;border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:#1a1a2e;font-size:12px;width:100%;outline:none;font-family:'DM Sans',sans-serif;box-sizing:border-box;}
+/* ── RECEIVING INSPECTION module ─────────────────────────────────────────────── */
+/* Teal-themed variant of the crisis-block layout, tuned for tablet use at the dock. */
+.rcv-block{background:#fff;border:1px solid var(--border2);border-radius:8px;padding:16px 18px;margin-bottom:14px;}
+.rcv-block-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1.5px;text-transform:uppercase;color:#1F6F6B;font-weight:700;margin-bottom:12px;border-bottom:1px solid #cfe6e4;padding-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+.rcv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
+/* Yes/No/NA radio group — large touch targets, wraps to single column on phones. */
+.rcv-ynna{display:inline-flex;gap:6px;flex-wrap:wrap;}
+.rcv-ynna label{display:inline-flex;align-items:center;gap:5px;background:#f4f6f8;border:1px solid var(--border2);border-radius:6px;padding:8px 12px;font-size:12px;cursor:pointer;min-height:40px;box-sizing:border-box;user-select:none;}
+.rcv-ynna input{accent-color:#1F6F6B;width:17px;height:17px;}
+.rcv-ynna label:has(input:checked){background:#E6F2F1;border-color:#1F6F6B;color:#10403d;font-weight:600;}
+.rcv-check-row{padding:12px 0;border-bottom:1px solid #eef0f3;}
+.rcv-check-row:last-child{border-bottom:none;}
+.rcv-toggle{display:inline-flex;border:1px solid var(--border2);border-radius:8px;overflow:hidden;}
+.rcv-toggle button{background:#f4f6f8;border:none;padding:11px 22px;font-size:13px;font-weight:700;cursor:pointer;color:#4a5568;font-family:'DM Sans',sans-serif;min-height:44px;}
+.rcv-toggle button.on-yes{background:#1F6F6B;color:#fff;}
+.rcv-toggle button.on-no{background:#8a94a0;color:#fff;}
+.rcv-temp-alert{background:#FCE4E4;border:2px solid #C00000;border-radius:8px;padding:12px 16px;margin-top:12px;color:#a30000;font-weight:600;font-size:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+.rcv-temp-ok{background:#E2EFDA;border:1px solid #548235;color:#375623;font-weight:400;}
+@media(max-width:760px){
+  #receiving .rcv-grid{grid-template-columns:1fr;}
+  #receiving .crisis-input{font-size:16px;padding:11px 12px;min-height:44px;}
+  #receiving .btn,#receiving .btn-ghost{padding:11px 16px;font-size:13px;min-height:44px;}
+  #receiving .rcv-ynna label{flex:1 1 auto;justify-content:center;}
+}
 .link-card{background:#fff;border:1px solid var(--border2);border-radius:8px;padding:14px 16px;}
 .eff-card{background:#fff;border:1px solid var(--border2);border-radius:8px;padding:14px 16px;}
 .link-card-title{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#1F3864;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -465,6 +489,7 @@ main{padding:24px 32px 80px;}
   <div class="tab" onclick="switchTab('crisis',this)">&#9888; Crisis Exercise</div>
   <div class="tab" onclick="switchTab('recall',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F6F6B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Recall</div>
   <div class="tab" onclick="switchTab('oos',this)">&#129514; OOS</div>
+  <div class="tab" onclick="switchTab('receiving',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#E53E3E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Truck Inspections</div>
   <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
 </nav>
 <main>
@@ -674,6 +699,19 @@ main{padding:24px 32px 80px;}
   <div id="oos-content"></div>
 </div>
 
+<!-- RECEIVING INSPECTION -->
+<div class="section" id="receiving">
+  <div class="table-header">
+    <div class="section-title">Truck Inspections · Receiving · Shipping · Internal Transfer · SQF Ed. 9</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-ghost" id="rcv-back-btn" onclick="showReceivingList()" style="display:none">&#8592; All Inspections</button>
+      <button class="btn-ghost" id="rcv-qr-btn" onclick="openReceivingQR()" title="QR code to the new-inspection form for this site">&#9783; QR Code</button>
+      <button class="btn" onclick="createReceiving()" style="background:#1F6F6B">+ New Inspection</button>
+    </div>
+  </div>
+  <div id="rcv-content"></div>
+</div>
+
 <!-- AI REPORT -->
 <div class="section" id="ai-report">
   <div class="table-header"><div class="section-title">AI Report Generator</div></div>
@@ -689,6 +727,10 @@ main{padding:24px 32px 80px;}
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="recall-exercise" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#128279; Recall Exercise Narrative Report (SOP #21)</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="oos-individual" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#129514; OOS Individual Event Report</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="oos-summary" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#129514; OOS Summary Report</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="receiving-individual" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#128666; Truck Inspections — Individual Receipt Report</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="receiving-summary" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#128666; Truck Inspections — Date Range Summary</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="receiving-rejections" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#128666; Truck Inspections — Rejection &amp; NCR Summary</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="rpt-type" value="receiving-coc" style="accent-color:var(--accent)" onchange="onReportTypeChange()"> &#128279; Truck Inspections — Chain of Custody (Internal Transfer)</label>
         </div>
       </div>
       <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-crisis-picker">
@@ -709,6 +751,23 @@ main{padding:24px 32px 80px;}
         <div class="form-group" style="margin-bottom:9px"><label class="form-label">Material Type</label><select class="form-select" id="ai-oos-fmaterial"><option value="">All</option></select></div>
         <div class="form-group" style="margin-bottom:9px"><label class="form-label">Date Initiated From</label><input type="date" class="form-input" id="ai-oos-from"></div>
         <div class="form-group"><label class="form-label">Date Initiated To</label><input type="date" class="form-input" id="ai-oos-to"></div>
+      </div>
+      <!-- Receiving — Individual Receipt: single inspection selector. -->
+      <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-receiving-picker">
+        <div class="chart-title" style="margin-bottom:10px">Receiving Inspection</div>
+        <div class="form-group"><label class="form-label">Select Inspection</label><select class="form-select" id="ai-receiving-id"><option value="">— choose an inspection —</option></select></div>
+      </div>
+      <!-- Receiving — Date Range Summary / Rejection & NCR Summary share a date range. -->
+      <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-receiving-range">
+        <div class="chart-title" style="margin-bottom:10px">Receiving Date Range</div>
+        <div class="form-group" style="margin-bottom:9px"><label class="form-label">From</label><input type="date" class="form-input" id="ai-receiving-from"></div>
+        <div class="form-group"><label class="form-label">To</label><input type="date" class="form-input" id="ai-receiving-to"></div>
+      </div>
+      <!-- Receiving — Chain of Custody: a single Transfer ID drives the report. -->
+      <div class="chart-card" style="margin-bottom:12px;display:none" id="ai-receiving-coc">
+        <div class="chart-title" style="margin-bottom:10px">Chain of Custody</div>
+        <div class="form-group"><label class="form-label">Transfer ID</label><select class="form-select" id="ai-receiving-coc-id"><option value="">— choose a transfer —</option></select></div>
+        <div style="font-size:10px;color:#4a5568;margin-top:6px">Lists outbound shipments that carry a Transfer ID. The report joins the outbound shipping record with its inbound receipt.</div>
       </div>
       <!-- Audit Report Summary — single audit-session selector. The chosen
            session's linked NCRs/findings are pulled in automatically. -->
@@ -802,6 +861,45 @@ main{padding:24px 32px 80px;}
   </div>
 </div>
 
+<!-- RECEIVING QR CODE MODAL -->
+<!-- Shows a scannable QR code that deep-links straight to the new-inspection -->
+<!-- form for the current site. Driven by openReceivingQR(). -->
+<div class="modal-overlay" id="rcv-qr-modal">
+  <div class="modal" style="border-top:3px solid #1F6F6B;max-width:680px;text-align:center">
+    <div class="modal-title" style="color:#1F6F6B">Truck Inspections — Receiving · Shipping · Transfer Quick Start QR Codes</div>
+    <div style="background:#E6F2F1;border:1px solid #1F6F6B;border-radius:4px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#10403d">
+      One QR code per record type for <b id="rcv-qr-site">Lindon</b>. Print this page and post each code at its station — receiving dock, shipping dock, and transfer staging area. Scanning opens a new record of that type.
+    </div>
+    <div id="rcv-qr-canvases" style="display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div class="modal-actions" style="justify-content:center">
+      <button class="btn-ghost" onclick="closeReceivingQR()">Close</button>
+      <button class="btn" style="background:#1F6F6B" onclick="printReceivingQR()">&#128424; Print All</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECEIVING / TRUCK INSPECTION — OOS CREATION CONFIRM DIALOG -->
+<!-- Shown when Create OOS is clicked from a temperature deviation. Confirms the -->
+<!-- pre-populated values and offers a Cancel option that creates nothing. -->
+<div class="modal-overlay" id="rcv-oos-modal">
+  <div class="modal" style="border-top:3px solid #C00000;max-width:520px">
+    <div class="modal-title" style="color:#7a0000">&#9888; Create OOS from Temperature Deviation</div>
+    <div style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:#7a0000;line-height:1.6">
+      A temperature deviation was detected. Review the pre-populated values below and create a linked OOS record, or cancel to return to the inspection without creating one.
+    </div>
+    <div style="font-size:12px;line-height:2">
+      <div><b>Analyte / Measurement:</b> <span id="rcv-oos-analyte" style="font-family:'DM Mono',monospace">—</span></div>
+      <div><b>Result (out of range):</b> <span id="rcv-oos-result" style="font-family:'DM Mono',monospace;color:#a30000">—</span></div>
+      <div><b>Specification (required range):</b> <span id="rcv-oos-spec" style="font-family:'DM Mono',monospace">—</span></div>
+      <div><b>Units:</b> <span id="rcv-oos-units" style="font-family:'DM Mono',monospace">—</span></div>
+    </div>
+    <div class="modal-actions" style="justify-content:flex-end;margin-top:18px">
+      <button class="btn-ghost" onclick="rcvCloseOOSDialog()">Cancel</button>
+      <button class="btn" style="background:#C00000" onclick="rcvConfirmOOS()">Create OOS Record</button>
+    </div>
+  </div>
+</div>
+
 <!-- REAL RECALL CONFIRMATION -->
 <div class="modal-overlay" id="real-recall-modal">
   <div class="modal" style="border-top:3px solid #C00000;max-width:480px">
@@ -850,6 +948,7 @@ main{padding:24px 32px 80px;}
         <input type="hidden" id="f-photos" value="[]">
       </div>
       <div class="form-group form-full"><label class="form-label">Objective Evidence Notes</label><textarea class="form-textarea" id="f-evidence" placeholder="Record documents reviewed, what was observed, dates..."></textarea></div>
+      <div class="form-group form-full" id="rcv-backlink-section" style="margin-top:4px"></div>
       <div class="form-group form-full" id="capa-linkage-section" style="margin-top:4px"></div>
       <div class="form-group form-full" id="capa-residual-risk-section" style="margin-top:4px"></div>
       <div class="form-group form-full" id="capa-effectiveness-section" style="margin-top:4px"></div>
@@ -4653,6 +4752,21 @@ function renderRecordLinkage(r){
   }
 }
 
+// FIX 13 — when a record (typically an NCR) was generated from a truck
+// inspection, surface the linked inspection id (RCV-/SHP-/IXFR-####) parsed from
+// its evidence/description as a clickable link back to that inspection.
+function renderRcvBacklink(r){
+  const host=document.getElementById("rcv-backlink-section");if(!host)return;
+  host.innerHTML="";
+  if(!r)return;
+  const hay=((r.evidence||"")+" "+(r.desc||""));
+  const m=hay.match(/\b(?:RCV|SHP|IXFR)-[A-Za-z]+-\d{4}-\d+\b/);
+  if(!m)return;
+  const id=m[0];
+  host.innerHTML=`<div class="link-card"><div class="link-card-title">&#128279; Linked Truck Inspection</div>
+    <div style="font-size:12px">Generated from truck inspection <a href="#" onclick="rcvGotoInspectionFromRecord('${cesc(id)}');return false;" style="color:#1F6F6B;font-family:'DM Mono',monospace;text-decoration:underline">${cesc(id)}</a>. Click to open it.</div></div>`;
+}
+
 // ── CAPA: Residual Risk (Post-Corrective-Action) section ─────────────────────
 // Re-scores a CAPA's risk AFTER its corrective action and shows the % reduction
 // against the initial risk inherited from the highest-risk linked source
@@ -5126,6 +5240,7 @@ function openModal(presetType){
   applyCloseGate("Open");
   initSignatureSection("record","record",null,"sig-section-record",[],null);
   renderRecordLinkage(null);
+  renderRcvBacklink(null);
   document.getElementById("modal").classList.add("open");
 }
 
@@ -5228,6 +5343,7 @@ function editRecord(id){
   applyCloseGate(r.status||"Open");
   initSignatureSection("record","record",id,"sig-section-record",r.signatures||[],function(updated){const rr=records.find(x=>x.id===(updated&&updated.id));if(rr&&updated)rr.signatures=updated.signatures;});
   renderRecordLinkage(r);
+  renderRcvBacklink(r);
   document.getElementById("modal").classList.add("open");
 }
 
@@ -5823,6 +5939,9 @@ function onReportTypeChange(){
   show("ai-recall-picker",t==="recall-exercise");
   show("ai-oos-picker",t==="oos-individual");
   show("ai-oos-filters",t==="oos-summary");
+  show("ai-receiving-picker",t==="receiving-individual");
+  show("ai-receiving-range",t==="receiving-summary"||t==="receiving-rejections");
+  show("ai-receiving-coc",t==="receiving-coc");
   show("ai-audit-picker",t==="audit-report");
   show("ai-ncr-picker",t==="sqfi-submission");
   show("ai-capa-picker",t==="capa-summary");
@@ -5830,6 +5949,8 @@ function onReportTypeChange(){
   if(t==="recall-exercise")populateRecallReportPicker();
   if(t==="oos-individual")populateOOSReportPicker();
   if(t==="oos-summary")populateOOSReportFilters();
+  if(t==="receiving-individual")populateReceivingReportPicker();
+  if(t==="receiving-coc")populateReceivingCoCPicker();
   if(t==="audit-report")populateAuditReportPicker();
   if(t==="sqfi-submission")populateNCRReportPicker();
   if(t==="capa-summary")populateCAPAReportPicker();
@@ -6432,6 +6553,233 @@ Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | OOS Summary
   await streamSingleReport(prompt,wrap,{type:"oos-summary",site:currentSite,coverRecords:filtered});
 }
 
+// ── RECEIVING INSPECTION REPORTS ────────────────────────────────────────────
+async function populateReceivingReportPicker(){
+  await loadReceiving();
+  const sel=document.getElementById("ai-receiving-id");if(!sel)return;
+  sel.innerHTML='<option value="">— choose an inspection —</option>'+receivingList.map(o=>{
+    const lbl=`${o.id} · ${rcvFmtDate(o.inspectionDate)} · ${o.carrier||"carrier ?"}${o.overallResult?" · "+o.overallResult:""}`;
+    return `<option value="${cesc(o.id)}">${cesc(lbl)}</option>`;
+  }).join("");
+}
+
+async function rcvFetchAttachmentData(id,a){
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(id)+"&file="+encodeURIComponent(a.key));
+    if(!res.ok)return null;
+    const blob=await res.blob();
+    return await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=()=>r(null);fr.readAsDataURL(blob);});
+  }catch(e){return null;}
+}
+
+// REPORT TYPE 1 — complete single-inspection receipt report.
+async function generateReceivingIndividualReport(id,wrap){
+  if(!id){wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Select a receiving inspection to generate its report.</div>';toast("Select an inspection first.","red");return;}
+  let o;
+  try{const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(id));if(!res.ok)throw new Error("HTTP "+res.status);o=await res.json();}
+  catch(e){wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Could not load inspection: ${e.message}</div>`;return;}
+  const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not recorded)":s;};
+  const parsed=rcvParseNotes(o.notes);const itemNotes=parsed.itemNotes||{};
+  const items=o.lineItems||[];
+  const matRows=items.length?items.map(li=>`| ${fld(li.materialName)} | ${fld(li.supplier)} | ${fld(li.lotNumber)} | ${fld(li.quantity)} ${li.quantityUnit||""} | ${fld(li.coaReceived)} | ${fld(li.coaReference)} |`).join("\n"):"| (no materials recorded) | | | | | |";
+  const ckRows=RCV_CHECKLIST.map(it=>`| ${it.label} | ${fld(o[it.key])} | ${fld(itemNotes[it.key])} |`).join("\n");
+  const attachments=o.attachments||[];
+  const apxList=attachments.length?attachments.map((a,i)=>`Photo ${i+1} — ${fld(a.description)}: ${fld(a.filename)}`).join("\n"):"(no photos on file)";
+  const coldBlock=o.coldShipment==="Yes"
+    ?`This WAS a cold (refrigerated/frozen) shipment. Render the temperature log as a table: Required Range (${fld(o.requiredTempRange)}), Truck/Cab Temperature (${fld(o.truckTemp)}), Trailer Temperature (${fld(o.trailerTemp)}), Product/Ingredient Temperature (${fld(o.productTemp)}), Temperature Acceptable (${fld(o.tempAcceptable)}). If Temperature Acceptable is "No", flag the deviation and reference any linked OOS record.`
+    :`This was NOT a cold shipment — state "Ambient shipment — no temperature monitoring required" and omit the temperature table.`;
+  const linkBlock=`Linked NCR: ${o.ncrId?o.ncrId:"(none)"}. Linked OOS: ${o.oosId?o.oosId:"(none)"}.`;
+  const prompt=`You are a quality and regulatory affairs expert producing a formal INDIVIDUAL RECEIVING INSPECTION REPORT for Somafina UST (dietary supplement manufacturer; SQF Edition 9; 21 CFR Part 111). Mark the document CONFIDENTIAL.
+
+${AI_DATA_INTEGRITY}
+
+OUTPUT FORMAT: Markdown. Use "# " for the report title, "## " for major section headings (ALL CAPS), "### " for sub-headings, "| ... |" GitHub tables, and "- " for lists.
+
+Produce the report in this exact section order:
+
+# SOMAFINA UST | RECEIVING INSPECTION REPORT
+
+## RECEIPT IDENTIFICATION
+Render as a two-column field table: Inspection ID (${fld(o.id)}), Date/Time (${fld(rcvFmtDate(o.inspectionDate))}), Inspected By (${fld(o.inspectedBy)}), Site (${fld(o.site)}), Carrier (${fld(o.carrier)}), Trailer Number (${fld(o.trailerNumber)}), PO Number (${fld(o.poNumber)}), Cold Shipment (${fld(o.coldShipment)}), Overall Result (${fld(o.overallResult)}), Status (${fld(o.status)}), Governing Standard (SQF Edition 9). Note "Living document — no revision number applies."
+
+## EXECUTIVE SUMMARY
+A concise summary: who/what was received, from which carrier, the disposition (Accepted / Rejected / Conditional Accept), and whether any NCR or OOS was generated.
+
+## MATERIALS RECEIVED
+Render exactly this table (header then rows). Do not add or invent rows:
+| Material | Supplier | Lot Number | Quantity | CoA Received | CoA Reference |
+|---|---|---|---|---|---|
+${matRows}
+
+## VISUAL INSPECTION CHECKLIST
+Render exactly this table (header then rows):
+| Check | Result | Notes |
+|---|---|---|
+${ckRows}
+
+## TEMPERATURE LOG
+${coldBlock}
+
+## OVERALL ASSESSMENT
+Overall Result: ${fld(o.overallResult)}. Inspector Notes: ${fld(parsed.notes)}. ${linkBlock} If the result is Rejected or Conditional Accept, explain the basis and reference the linked NCR.
+
+${signatoriesPromptSection()}
+
+## PHOTOGRAPHIC EVIDENCE
+List each attached photo as a numbered item exactly as below. State that image photos are embedded inline in the PDF version following this report:
+${apxList}
+
+Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | Receiving Inspection per SQF Edition 9 | Living document — retain per SOP".`;
+  const withData=[];
+  for(const a of attachments){withData.push({...a,dataUrl:await rcvFetchAttachmentData(o.id,a)});}
+  await streamSingleReport(prompt,wrap,{type:"receiving-individual",receivingId:o.id,site:o.site,record:o,attachments:withData,coverRecords:[o]});
+}
+
+// REPORT TYPE 2 & 3 — Date Range Summary, and Rejection & NCR Summary
+// (rejectionsOnly=true narrows to Rejected / Conditional Accept receipts).
+async function generateReceivingSummaryReport(wrap,rejectionsOnly){
+  const from=document.getElementById("ai-receiving-from").value;
+  const to=document.getElementById("ai-receiving-to").value;
+  let list=[];
+  try{
+    let q=RECEIVING_API+"?site="+encodeURIComponent(currentSite);
+    if(from)q+="&from="+encodeURIComponent(from);
+    if(to)q+="&to="+encodeURIComponent(to);
+    const res=await fetch(q);if(!res.ok)throw new Error("HTTP "+res.status);
+    list=await res.json();
+  }catch(e){wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Could not load inspections: ${e.message}</div>`;return;}
+  if(rejectionsOnly)list=list.filter(o=>o.overallResult==="Rejected"||o.overallResult==="Conditional Accept");
+  if(!list.length){wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">No ${rejectionsOnly?"rejected or conditional ":""}receiving inspections in the selected range.</div>`;toast("No inspections match.","red");return;}
+  const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending)":s;};
+  const total=list.length;
+  const accepted=list.filter(o=>o.overallResult==="Accepted").length;
+  const rejected=list.filter(o=>o.overallResult==="Rejected").length;
+  const conditional=list.filter(o=>o.overallResult==="Conditional Accept").length;
+  const cold=list.filter(o=>o.coldShipment==="Yes").length;
+  const tempDev=list.filter(o=>o.coldShipment==="Yes"&&o.tempAcceptable==="No").length;
+  const rangeLbl=`${from||"(any)"} to ${to||"(any)"}`;
+  // Pull linked NCR descriptions from the in-memory records for the current site.
+  const ncrDetail=id=>{try{const r=(records||[]).find(x=>x.id===id);return r?(r.severity+" · "+(r.status||"")+" — "+(r.desc||"").slice(0,160)):"(details not loaded)";}catch(e){return "";}};
+  const summaryRows=list.map(o=>`| ${fld(o.id)} | ${o.recordType||"Receiving"} | ${rcvFmtDate(o.inspectionDate)} | ${fld(o.carrier)} | ${o.materialsCount||0} | ${o.coldShipment==="Yes"?"Cold":"Ambient"} | ${o.coldShipment==="Yes"?(fld(o.tempAcceptable)):"—"} | ${fld(o.overallResult)} | ${o.ncrId||"—"} |`).join("\n");
+  const rejDetails=list.filter(o=>o.overallResult==="Rejected"||o.overallResult==="Conditional Accept").map(o=>`### ${fld(o.id)} — ${fld(o.overallResult)}
+- Date: ${rcvFmtDate(o.inspectionDate)} · Carrier: ${fld(o.carrier)} · Trailer: ${fld(o.trailerNumber)} · PO: ${fld(o.poNumber)}
+- Cold Shipment: ${fld(o.coldShipment)}${o.coldShipment==="Yes"?` · Temperature Acceptable: ${fld(o.tempAcceptable)} (range ${fld(o.requiredTempRange)})`:""}
+- Linked NCR: ${o.ncrId?`${o.ncrId} — ${ncrDetail(o.ncrId)}`:"(none generated)"}
+- Linked OOS: ${o.oosId||"(none)"}
+- Notes: ${fld(rcvParseNotes(o.notes).notes)}`).join("\n\n")||"(none)";
+  const reportTitle=rejectionsOnly?"RECEIVING — REJECTION & NCR SUMMARY":"RECEIVING — DATE RANGE SUMMARY";
+  const purpose=rejectionsOnly
+    ?"This report covers ONLY receiving inspections that resulted in Rejected or Conditional Accept, with their linked NCR details — for supplier performance review."
+    :"This report summarises all receiving inspections in the selected date range.";
+  const prompt=`You are a quality and regulatory affairs expert producing a formal ${reportTitle} for Somafina UST (dietary supplement manufacturer; SQF Edition 9). Mark the document CONFIDENTIAL.
+
+${AI_DATA_INTEGRITY}
+
+OUTPUT FORMAT: Markdown. Use "# " for the title, "## " for major section headings (ALL CAPS), "### " for sub-headings, "| ... |" GitHub tables, and "- " for lists.
+
+SCOPE: Site=${currentSite} · Date range ${rangeLbl}. ${purpose}
+STATISTICS: Total Inspections=${total} · Accepted=${accepted} · Rejected=${rejected} · Conditional Accept=${conditional} · Cold Shipments=${cold} · Temperature Deviations=${tempDev}.
+
+Produce the report in this exact section order:
+
+# SOMAFINA UST | ${reportTitle}
+
+## EXECUTIVE SUMMARY & STATISTICS
+Summarise the receiving landscape for this range using the statistics above. State "Living document — no revision number applies."
+
+## RECEIVING REGISTER
+Render exactly this table (header then rows). Do not add or invent rows:
+| Inspection ID | Type | Date | Carrier | Materials | Shipment | Temp OK | Result | NCR |
+|---|---|---|---|---|---|---|---|---|
+${summaryRows}
+
+## ${rejectionsOnly?"REJECTION & NCR DETAIL":"REJECTED / CONDITIONAL DETAIL"}
+${rejectionsOnly?"Provide a detailed account of every rejected/conditional receipt below, drawing supplier-performance conclusions where the data supports them.":"Summarise any rejected or conditional receipts in this range and their linked NCRs."} Use strictly the following data:
+${rejDetails}
+
+${signatoriesPromptSection()}
+
+Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | Receiving ${rejectionsOnly?"Rejection & NCR":"Summary"} per SQF Edition 9 | Living document — retain per SOP".`;
+  await streamSingleReport(prompt,wrap,{type:rejectionsOnly?"receiving-rejections":"receiving-summary",site:currentSite,coverRecords:list});
+}
+
+// ── Chain of Custody (Internal Transfer) report ─────────────────────────────
+async function populateReceivingCoCPicker(){
+  const sel=document.getElementById("ai-receiving-coc-id");if(!sel)return;
+  let list=[];
+  try{const res=await fetch(RECEIVING_API);if(res.ok)list=await res.json();}catch(e){}
+  const ships=list.filter(o=>o.recordType==="Shipping"&&o.linkedTransferId);
+  sel.innerHTML='<option value="">— choose a transfer —</option>'+ships.map(o=>{
+    const lbl=`${o.linkedTransferId} · ${o.site}→${o.destination||"?"} · ${rcvFmtDate(o.inspectionDate)}${o.receivedAt?" · received":" · in transit"}`;
+    return `<option value="${cesc(o.linkedTransferId)}">${cesc(lbl)}</option>`;
+  }).join("");
+  if(!ships.length)sel.innerHTML='<option value="">— no transfers with a Transfer ID yet —</option>';
+}
+
+async function generateReceivingCoCReport(transferId,wrap){
+  if(!transferId){wrap.innerHTML='<div class="ai-output" style="color:var(--danger)">Select a Transfer ID to generate its chain of custody report.</div>';toast("Select a transfer first.","red");return;}
+  let outbound=null,inbound=null,all=[];
+  try{
+    const r1=await fetch(RECEIVING_API+"?action=link-lookup&transfer_id="+encodeURIComponent(transferId));
+    if(r1.ok)outbound=await r1.json();
+    const r2=await fetch(RECEIVING_API);if(r2.ok)all=await r2.json();
+  }catch(e){wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">Could not load transfer: ${e.message}</div>`;return;}
+  if(!outbound){wrap.innerHTML=`<div class="ai-output" style="color:var(--danger)">No outbound shipment found for ${cesc(transferId)}.</div>`;toast("No shipment found.","red");return;}
+  const inbHit=all.find(o=>o.recordType==="Internal Transfer"&&o.linkedTransferId===transferId);
+  if(inbHit){try{const ri=await fetch(RECEIVING_API+"?id="+encodeURIComponent(inbHit.id));if(ri.ok)inbound=await ri.json();}catch(e){}}
+  const fld=v=>{const s=(v===undefined||v===null?"":String(v)).trim();return s===""?"(pending — not recorded)":s;};
+  const matRows=(rec)=>{const items=(rec&&rec.lineItems)||[];return items.length?items.map(li=>`| ${fld(li.materialName)} | ${fld(li.lotNumber)} | ${fld(li.quantity)} ${li.quantityUnit||""} | ${fld(li.coaReceived)} |`).join("\n"):"| (none recorded) | | | |";};
+  const sigSummary=(rec)=>{const sigs=(rec&&rec.signatures)||[];return sigs.length?sigs.map(s=>`${s.role||"Signed"}: ${s.name||"—"}${s.title?", "+s.title:""} @ ${s.signedAt?rcvFmtDate(s.signedAt):"—"}`).join("; "):"(no electronic signatures on file)";};
+  const isCold=outbound.coldShipment==="Yes";
+  const depV=isCold?rcvComputeTempAcceptable(outbound.requiredTempRange,[outbound.departureTemp]):"";
+  const arrV=(isCold&&inbound)?rcvComputeTempAcceptable(outbound.requiredTempRange||inbound.requiredTempRange,[inbound.arrivalTemp]):"";
+  const tempChain=isCold
+    ?`COLD SHIPMENT. Render a temperature chain table: Required Range (${fld(outbound.requiredTempRange)}), Departure Temperature (${fld(outbound.departureTemp)} — ${depV==="No"?"OUT OF RANGE":depV==="Yes"?"in range":"not evaluated"}), Arrival Temperature (${fld(inbound&&inbound.arrivalTemp)} — ${arrV==="No"?"OUT OF RANGE":arrV==="Yes"?"in range":"not evaluated"}). State an overall PASS only if BOTH departure and arrival are in range; otherwise FAIL and flag the deviation.`
+    :"AMBIENT SHIPMENT — no temperature monitoring required; omit the temperature chain table and state so.";
+  const disc=fld(inbound&&inbound.discrepancies);
+  const ncrLine=inbound&&inbound.ncrId?`A discrepancy NCR was generated: ${inbound.ncrId}.`:"No discrepancy NCR was generated.";
+  const prompt=`You are a quality and regulatory affairs expert producing a formal INTERNAL CHAIN OF CUSTODY RECORD for Somafina UST (dietary supplement manufacturer; SQF Edition 9; reference SQF §17.5 traceability requirements). Mark the document CONFIDENTIAL — INTERNAL.
+
+${AI_DATA_INTEGRITY}
+
+OUTPUT FORMAT: Markdown. Use "# " for the title, "## " for major section headings (ALL CAPS), "### " for sub-headings, "| ... |" GitHub tables, and "- " for lists.
+
+Produce the report in this exact section order:
+
+# SOMAFINA UST | INTERNAL CHAIN OF CUSTODY RECORD
+
+## TRANSFER HEADER
+Two-column field table: Transfer ID (${fld(transferId)}), Origin Site (${fld(outbound.site)}), Destination Site (${fld(outbound.destination)}), Transfer / Departure Date (${fld(rcvFmtDate(outbound.inspectionDate))}), Received Date (${fld(inbound?rcvFmtDate(inbound.inspectionDate):"")}), Status (${inbound?(outbound.receivedAt?"Received":"Receipt logged"):"In transit — not yet received"}), Governing Standard (SQF Edition 9 §17.5). State "Living document — no revision number applies."
+
+## OUTBOUND — SHIPPING INSPECTION
+Shipping record ${fld(outbound.id)}. Shipped By (${fld(outbound.inspectedBy)}), Carrier/Trailer (${fld(outbound.carrier)} / ${fld(outbound.trailerNumber)}), Seal Number (${fld(outbound.sealNumber)}), Shipment Cleared for Departure (${fld(outbound.overallResult)}), Departure Temperature (${isCold?fld(outbound.departureTemp):"ambient"}). Render the materials shipped table exactly:
+| Material | Lot Number | Quantity | CoA |
+|---|---|---|---|
+${matRows(outbound)}
+Trailer condition at departure: summarise the visual checklist results recorded. Shipped By signature & timestamp: ${sigSummary(outbound)}.
+
+## INBOUND — RECEIVING INSPECTION
+${inbound?`Internal Transfer receipt ${fld(inbound.id)}. Received By (${fld(inbound.inspectedBy)}), Seal Verified Intact (${fld(inbound.sealsIntact)}), Arrival Temperature (${isCold?fld(inbound.arrivalTemp):"ambient"}), Overall Result (${fld(inbound.overallResult)}). Render the materials received table exactly:
+| Material | Lot Number | Quantity | CoA |
+|---|---|---|---|
+${matRows(inbound)}
+Trailer condition on arrival: summarise the visual checklist results recorded. Received By signature & timestamp: ${sigSummary(inbound)}.`:"NO INBOUND RECEIPT HAS BEEN LOGGED YET — this shipment is still in transit. State this clearly and mark the inbound section as PENDING."}
+
+## TEMPERATURE CHAIN SUMMARY
+${tempChain}
+
+## DISCREPANCY SUMMARY
+Any variances between shipped and received quantities or conditions: ${disc}. ${ncrLine} If discrepancies are noted, summarise them and reference the linked NCR.
+
+## CHAIN OF CUSTODY SIGNATURE BLOCK
+Render a two-row signature table with columns Role | Name & Title | Date/Time: a "Shipped By" row (${sigSummary(outbound)} / inspector ${fld(outbound.inspectedBy)}) and a "Received By" row (${inbound?`${sigSummary(inbound)} / inspector ${fld(inbound.inspectedBy)}`:"PENDING — not yet received"}).
+
+${signatoriesPromptSection()}
+
+Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | Internal Chain of Custody Record per SQF Edition 9 §17.5 | Living document — retain per SOP".`;
+  await streamSingleReport(prompt,wrap,{type:"receiving-coc",site:outbound.site,record:outbound,coverRecords:[outbound]});
+}
+
 async function generateAIReport(){
   const rptType=document.querySelector("input[name='rpt-type']:checked").value;
   // Persist the assembled signatories so they pre-fill on the next visit.
@@ -6446,6 +6794,10 @@ async function generateAIReport(){
   if(rptType==="recall-exercise")return generateRecallReport(document.getElementById("ai-recall-id").value,"",wrap);
   if(rptType==="oos-individual")return generateOOSIndividualReport(document.getElementById("ai-oos-id").value,"",wrap);
   if(rptType==="oos-summary")return generateOOSSummaryReport("",wrap);
+  if(rptType==="receiving-individual")return generateReceivingIndividualReport(document.getElementById("ai-receiving-id").value,wrap);
+  if(rptType==="receiving-summary")return generateReceivingSummaryReport(wrap,false);
+  if(rptType==="receiving-rejections")return generateReceivingSummaryReport(wrap,true);
+  if(rptType==="receiving-coc")return generateReceivingCoCReport(document.getElementById("ai-receiving-coc-id").value,wrap);
   if(rptType==="audit-report")return generateAuditReportSummary(document.getElementById("ai-audit-id").value,wrap);
   if(rptType==="sqfi-submission")return generateFindingSummaryReport(wrap);
   if(rptType==="capa-summary")return generateCAPAStatusSummary(wrap);
@@ -6996,13 +7348,14 @@ async function downloadReportPDF(){
   const lightBlue=[222,234,241];
   const pageW=612,pageH=792,margin=54,contentW=612-54*2;
   const rptType=document.querySelector("input[name='rpt-type']:checked")?.value||'';
-  const rptLabels={"sqfi-submission":"NCR / Audit Finding Corrective Action Package","audit-report":"Audit Report Summary","capa-summary":"CAPA Status Summary","crisis-exercise":"Crisis Exercise After-Action Report","recall-exercise":"Recall Exercise Narrative Report","oos-individual":"OOS Individual Event Report","oos-summary":"OOS Summary Report"};
+  const rptLabels={"sqfi-submission":"NCR / Audit Finding Corrective Action Package","audit-report":"Audit Report Summary","capa-summary":"CAPA Status Summary","crisis-exercise":"Crisis Exercise After-Action Report","recall-exercise":"Recall Exercise Narrative Report","oos-individual":"OOS Individual Event Report","oos-summary":"OOS Summary Report","receiving-individual":"Receiving — Individual Receipt Report","receiving-summary":"Receiving — Date Range Summary Report","receiving-rejections":"Receiving — Rejection & NCR Summary Report","receiving-coc":"Receiving — Internal Chain of Custody Record"};
   const rptLabel=rptLabels[rptType]||'Audit Report';
   const isCrisis=rptType==="crisis-exercise";
   const isRecall=rptType==="recall-exercise";
   const oosMeta=window._lastReportMeta&&(window._lastReportMeta.type==="oos-individual"||window._lastReportMeta.type==="oos-summary")?window._lastReportMeta:null;
   const isOOS=!!oosMeta;
   const isOOSIndividual=window._lastReportMeta&&window._lastReportMeta.type==="oos-individual";
+  const isReceivingIndividual=window._lastReportMeta&&window._lastReportMeta.type==="receiving-individual";
   // Cover-page "Prepared By / Lead Auditor / Facilitator" defaults to the first
   // assembled signatory, else the signed-in user — no hardcoded names.
   const _firstSig=getReportSignatories()[0];
@@ -7164,7 +7517,8 @@ async function downloadReportPDF(){
   doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');
   y+=18;
   doc.setFontSize(22);doc.setTextColor(...navy);doc.setFont('helvetica','bold');
-  doc.text(isCrisis?'CRISIS MANAGEMENT EXERCISE':(isRecall?'MOCK RECALL & TRACEABILITY EXERCISE':(isOOS?'OUT OF SPECIFICATION (OOS)':'INTERNAL AUDIT REPORT')),pageW/2,y,{align:'center'});
+  const isReceiving=window._lastReportMeta&&(window._lastReportMeta.type==="receiving-individual"||window._lastReportMeta.type==="receiving-summary"||window._lastReportMeta.type==="receiving-rejections"||window._lastReportMeta.type==="receiving-coc");
+  doc.text(isCrisis?'CRISIS MANAGEMENT EXERCISE':(isRecall?'MOCK RECALL & TRACEABILITY EXERCISE':(isOOS?'OUT OF SPECIFICATION (OOS)':(isReceiving?'RECEIVING INSPECTION':'INTERNAL AUDIT REPORT'))),pageW/2,y,{align:'center'});
   y+=28;
   doc.setFontSize(13);doc.setTextColor(...midBlue);doc.setFont('helvetica','normal');
   doc.text(rptLabel,pageW/2,y,{align:'center'});
@@ -8225,10 +8579,18 @@ async function downloadReportPDF(){
     else if(oosCurSection==='p2'){await flushOOSImages(oosImgP2,'Phase 2 Evidence');oosCurSection=null;}
     await flushOOSImages(oosImgGen,'General Evidence');
   }
+  // Receiving Individual Receipt — embed all photo attachments inline as exhibits
+  // at the end of the body, before the signature block. Reuses the generic OOS
+  // image flusher; non-image attachments are listed by the AI prompt.
+  if(isReceivingIndividual&&Array.isArray(rMeta.attachments)){
+    const imgs=rMeta.attachments.filter(a=>classifyEv(a.filename,a.contentType)==='image'&&a.dataUrl);
+    if(imgs.length){toast("Embedding photos…","green");await flushOOSImages(imgs,'Receiving Inspection Photos');}
+  }
   // Single-record reports (OOS Individual Event, Crisis After-Action) carry one
   // record whose signatures render as an inline Record Signatures block at the
   // end of its detail content, before the Report Authorization block.
   if(isOOSIndividual&&oosRec&&oosRec.id)drawRecordSignaturesSection(recSigs[oosRec.id]);
+  if(isReceivingIndividual){const _rr=(rMeta.coverRecords||[])[0];if(_rr&&_rr.id)drawRecordSignaturesSection(recSigs[_rr.id]);}
   if(isCrisis&&crisisMeta&&crisisMeta.exerciseId)drawRecordSignaturesSection(recSigs[crisisMeta.exerciseId]);
 
   // ── REPORT AUTHORIZATION ──────────────────────────────────────────────────
@@ -8699,6 +9061,7 @@ function switchTab(id,el){
   if(id==="audit-program")showAuditList();
   if(id==="dashboard")refreshDashboard();
   if(id==="oos")showOOSList();
+  if(id==="receiving")showReceivingList();
   if(id==="crisis"){stopCrisisPoll();showCrisisList();}else{stopCrisisPoll();}
   if(id==="recall")showRecallList();
   if(id==="ai-report")onReportTypeChange();
@@ -9099,11 +9462,11 @@ async function refreshCrisisActive(){
 // `sign` action. The server stamps the signer's name, title and timestamp from
 // the signed-in identity, so a user can only ever sign as themselves.
 const SIG_ROLES=["Prepared By","Reviewed By","Approved By","Quality Manager","VP Quality","SQF Practitioner"];
-const SIG_ENDPOINTS={record:"/api/records",oos:"/api/oos",crisis:"/api/crisis",audit:"/api/audits",recall:"/api/recall"};
+const SIG_ENDPOINTS={record:"/api/records",oos:"/api/oos",crisis:"/api/crisis",audit:"/api/audits",recall:"/api/recall",receiving:"/api/receiving"};
 const sigState={}; // ctxKey -> {kind,id,hostId,signatures:[],pending:[],onChange}
 
-function initSignatureSection(ctxKey,kind,id,hostId,signatures,onChange){
-  sigState[ctxKey]={kind,id:id||"",hostId,signatures:Array.isArray(signatures)?signatures.slice():[],pending:[],onChange:onChange||null};
+function initSignatureSection(ctxKey,kind,id,hostId,signatures,onChange,roles){
+  sigState[ctxKey]={kind,id:id||"",hostId,signatures:Array.isArray(signatures)?signatures.slice():[],pending:[],onChange:onChange||null,roles:Array.isArray(roles)&&roles.length?roles.slice():null};
   renderSignatureSection(ctxKey);
 }
 function renderSignatureSection(ctxKey){
@@ -9112,6 +9475,7 @@ function renderSignatureSection(ctxKey){
   const signedBadge='background:#E2EFDA;color:#375623;border:1px solid #548235';
   const pendBadge='background:#FFF2CC;color:#7F6000;border:1px solid #BF9000';
   const usedRoles=st.signatures.map(s=>(s.role||"").toLowerCase());
+  const roleList=st.roles||SIG_ROLES;
   let rows=st.signatures.map(s=>{
     const signed=!!s.signedAt;
     return `<tr>
@@ -9122,7 +9486,7 @@ function renderSignatureSection(ctxKey){
   });
   st.pending.forEach((p,i)=>{
     rows.push(`<tr>
-      <td><select class="form-select" id="sigrole-${ctxKey}-${i}" style="min-width:150px;font-size:11px">${SIG_ROLES.map(r=>`<option ${r===p.role?'selected':''} ${usedRoles.includes(r.toLowerCase())?'disabled':''}>${r}</option>`).join("")}</select></td>
+      <td><select class="form-select" id="sigrole-${ctxKey}-${i}" style="min-width:150px;font-size:11px">${roleList.map(r=>`<option ${r===p.role?'selected':''} ${usedRoles.includes(r.toLowerCase())?'disabled':''}>${r}</option>`).join("")}</select></td>
       <td>${cesc(currentUser||"—")}</td><td>${cesc(currentUserTitle||"—")}</td><td>—</td>
       <td><span class="badge" style="${pendBadge}">Pending</span></td>
       <td style="white-space:nowrap"><button class="btn" style="padding:4px 10px;font-size:11px;background:#385723" onclick="sigSign('${ctxKey}',${i})">✍ Sign</button> <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="sigRemovePending('${ctxKey}',${i})">✕</button></td>
@@ -9142,7 +9506,8 @@ function sigAddRow(ctxKey){
   const st=sigState[ctxKey];if(!st)return;
   if(!st.id){toast("Save this record first, then add signatures.","yellow");return;}
   const used=st.signatures.map(s=>(s.role||"").toLowerCase());
-  const role=SIG_ROLES.find(r=>!used.includes(r.toLowerCase()))||SIG_ROLES[0];
+  const roleList=st.roles||SIG_ROLES;
+  const role=roleList.find(r=>!used.includes(r.toLowerCase()))||roleList[0];
   st.pending.push({role});renderSignatureSection(ctxKey);
 }
 function sigRemovePending(ctxKey,i){const st=sigState[ctxKey];if(!st)return;st.pending.splice(i,1);renderSignatureSection(ctxKey);}
@@ -10438,6 +10803,1205 @@ async function deleteOOS(id){
   }catch(e){toast("Delete failed: "+e.message,"red");}
 }
 
+// ── RECEIVING INSPECTIONS (Incoming Material Receipt) ───────────────────────
+// SQF Edition 9. Records, line items and photo attachments persist via the
+// /api/receiving function (Netlify Database + Netlify Blobs) with a full audit
+// trail. The module mirrors the OOS module's list + editor pattern and is
+// mobile-optimised for use on a tablet at the receiving dock.
+const RECEIVING_API="/api/receiving";
+let receivingList=[], activeRcv=null;
+// Client-side Record Type filter for the list view ("" = All Types).
+let rcvTypeFilter="";
+// Signature roles specific to truck inspections (Receiving / Shipping / Internal
+// Transfer), distinct from the shared SIG_ROLES used elsewhere.
+const RCV_SIG_ROLES=["Prepared By","Inspected By","Shipped By","Received By","Reviewed By","Quality Manager","Supervisor"];
+const RCV_UNITS=["","kg","lb","g","oz","L","mL","gal","each","case","drum","tote","bag","box","pallet","Other"];
+const RCV_RESULTS=["","Accepted","Rejected","Conditional Accept"];
+// Three record types share one table / form. The form title, field labels and
+// the set of visible sections all key off the selected type.
+const RCV_RECORD_TYPES=[
+  {key:"Receiving",label:"Receiving Inspection",icon:"&#128229;",color:"#1F4E79",bg:"#DEEAF1"},
+  {key:"Shipping",label:"Shipping Inspection",icon:"&#128228;",color:"#6B2E9E",bg:"#EDE3F7"},
+  {key:"Internal Transfer",label:"Internal Transfer",icon:"&#128260;",color:"#1F6F6B",bg:"#E6F2F1"},
+];
+// Outbound shipment destinations. The "— Internal" entries identify an inter-site
+// transfer whose receiving half is logged as an Internal Transfer record.
+const RCV_DESTINATIONS=["","External Customer","Lindon — Internal Transfer","Layton Gordon Ave — Internal","Layton McCormick — Internal","Layton Angel — Internal","Other"];
+const RCV_PHOTO_LABELS=["Trailer exterior","Trailer interior","Material labels","Temperature reading","Seals","Damage / Defect","Packaging","Other"];
+const RCV_CHECKLIST=[
+  {key:"trailerExteriorOk",label:"Trailer exterior condition acceptable"},
+  {key:"trailerInteriorOk",label:"Trailer interior clean and free of odors"},
+  {key:"noPestActivity",label:"No signs of pest activity"},
+  {key:"sealsIntact",label:"Seals intact on delivery"},
+  {key:"materialsSecured",label:"Materials properly secured"},
+  {key:"packagingUndamaged",label:"Packaging undamaged"},
+  {key:"labelsCorrect",label:"Labels legible and correct"},
+];
+// Per-item checklist notes are folded into the single notes column behind a
+// stable marker so they round-trip without a schema change; the user-visible
+// Notes textarea only ever shows the free-text remainder.
+const RCV_NOTE_MARK="\n⁣[[checklist-notes]]⁣\n";
+
+function rcvResultBadge(r){
+  if(r==="Accepted")return `<span class="badge badge-closed">Accepted</span>`;
+  if(r==="Rejected")return `<span class="badge badge-overdue">Rejected</span>`;
+  if(r==="Conditional Accept")return `<span class="badge badge-amber">Conditional</span>`;
+  return `<span class="badge badge-minor">—</span>`;
+}
+function rcvColdBadge(c){
+  return c==="Yes"
+    ?`<span class="badge" style="background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6">&#10052; Cold</span>`
+    :`<span class="badge badge-minor">Ambient</span>`;
+}
+// Record-type badge — Receiving = blue, Shipping = purple, Internal Transfer = teal.
+function rcvTypeBadge(t){
+  if(t==="Shipping")return `<span class="badge" style="background:#EDE3F7;color:#6B2E9E;border:1px solid #6B2E9E">&#128228; Shipping</span>`;
+  if(t==="Internal Transfer")return `<span class="badge" style="background:#E6F2F1;color:#1F6F6B;border:1px solid #1F6F6B">&#128260; Transfer</span>`;
+  return `<span class="badge" style="background:#DEEAF1;color:#1F4E79;border:1px solid #2E75B6">&#128229; Receiving</span>`;
+}
+// "Linked" badge on an Internal Transfer row, showing the outbound Transfer ID.
+function rcvLinkedBadge(o){
+  if(o.recordType!=="Internal Transfer"||!o.linkedTransferId)return "";
+  return ` <span class="badge" style="background:#E6F2F1;color:#10403d;border:1px solid #1F6F6B;font-family:'DM Mono',monospace">&#128279; ${cesc(o.linkedTransferId)}</span>`;
+}
+// FIX 9 — "Received" badge on a Shipping row once its Internal Transfer receipt
+// has closed the chain of custody.
+function rcvReceivedBadge(o){
+  if(o.recordType!=="Shipping"||!o.receivedAt)return "";
+  return ` <span class="badge" style="background:#E2EFDA;color:#375623;border:1px solid #548235">&#10003; Received</span>`;
+}
+function rcvFmtBytes(n){if(!n&&n!==0)return "";if(n<1024)return n+" B";if(n<1048576)return (n/1024).toFixed(1)+" KB";return (n/1048576).toFixed(1)+" MB";}
+function rcvFmtDate(iso){if(!iso)return "—";const d=new Date(iso);if(isNaN(d))return cesc(iso);return d.toLocaleString("en-US",{month:"short",day:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});}
+
+// Split a stored notes string into {notes, itemNotes:{key:text}}.
+function rcvParseNotes(stored){
+  const s=String(stored||"");
+  const i=s.indexOf(RCV_NOTE_MARK);
+  if(i<0)return {notes:s,itemNotes:{}};
+  let itemNotes={};
+  try{itemNotes=JSON.parse(s.slice(i+RCV_NOTE_MARK.length))||{};}catch(e){itemNotes={};}
+  return {notes:s.slice(0,i),itemNotes};
+}
+// Combine the free-text notes and the per-item checklist notes for storage.
+function rcvComposeNotes(notes,itemNotes){
+  const has=itemNotes&&Object.keys(itemNotes).some(k=>(itemNotes[k]||"").trim());
+  return has?(String(notes||"")+RCV_NOTE_MARK+JSON.stringify(itemNotes)):String(notes||"");
+}
+
+// Client mirror of the server temperature-range check (see receiving.ts) — used
+// only for the live green/red display; the server value is authoritative on save.
+function rcvComputeTempAcceptable(requiredRange,temps){
+  const num=s=>{if(s==null)return null;const m=String(s).replace(/[°]/g,"").match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):null;};
+  const range=String(requiredRange||"").replace(/[°FfCc]/g,"").trim();
+  if(!range)return "";
+  const entered=temps.map(num).filter(n=>n!=null);
+  if(!entered.length)return "";
+  let lo=-Infinity,hi=Infinity;
+  const between=range.match(/(-?\d+(?:\.\d+)?)\s*(?:-|to|–|—|\.\.)\s*(-?\d+(?:\.\d+)?)/i);
+  if(between){lo=parseFloat(between[1]);hi=parseFloat(between[2]);if(lo>hi){const t=lo;lo=hi;hi=t;}}
+  else if(/(?:<=|≤|<|max|below|under)/i.test(range)){const m=range.match(/-?\d+(\.\d+)?/);if(m)hi=parseFloat(m[0]);}
+  else if(/(?:>=|≥|>|min|above|over)/i.test(range)){const m=range.match(/-?\d+(\.\d+)?/);if(m)lo=parseFloat(m[0]);}
+  else{const m=range.match(/-?\d+(\.\d+)?/);if(m)hi=parseFloat(m[0]);}
+  if(lo===-Infinity&&hi===Infinity)return "";
+  return entered.every(t=>t>=lo&&t<=hi)?"Yes":"No";
+}
+
+async function loadReceiving(){
+  try{
+    const res=await fetch(RECEIVING_API+"?site="+encodeURIComponent(currentSite));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    receivingList=await res.json();
+  }catch(e){receivingList=[];}
+}
+
+async function showReceivingList(){
+  activeRcv=null;
+  const back=document.getElementById("rcv-back-btn");if(back)back.style.display="none";
+  await loadReceiving();
+  renderReceivingList();
+}
+
+// Render the list from the already-loaded records, applying the Record Type filter.
+function renderReceivingList(){
+  const c=document.getElementById("rcv-content");if(!c)return;
+  const filtered=rcvTypeFilter?receivingList.filter(o=>(o.recordType||"Receiving")===rcvTypeFilter):receivingList;
+  const rows=filtered.map(o=>`<tr>
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:#1F6F6B;white-space:nowrap">${cesc(o.id)}</td>
+    <td>${rcvTypeBadge(o.recordType)}${rcvLinkedBadge(o)}${rcvReceivedBadge(o)}</td>
+    <td style="font-size:11px;white-space:nowrap">${rcvFmtDate(o.inspectionDate)}</td>
+    <td>${cesc(o.carrier)||"—"}</td>
+    <td>${cesc(o.trailerNumber)||"—"}</td>
+    <td style="text-align:center">${o.materialsCount||0}</td>
+    <td>${rcvColdBadge(o.coldShipment)}</td>
+    <td>${rcvResultBadge(o.overallResult)}</td>
+    <td style="font-size:11px">${cesc(o.inspectedBy)||"—"}</td>
+    <td style="text-align:center"><button class="btn-ghost" style="padding:5px 12px" onclick="openReceiving('${cesc(o.id)}')">Edit</button></td>
+  </tr>`).join("");
+  const filterTypes=[["","All Types"],["Receiving","Receiving"],["Shipping","Shipping"],["Internal Transfer","Internal Transfer"]];
+  const emptyMsg=rcvTypeFilter?`No <b>${cesc(rcvTypeFilter)}</b> inspections for ${cesc(currentSite)}. Choose <b>All Types</b> to see every record.`:`No truck inspections yet for ${cesc(currentSite)}. Click <b>+ New Inspection</b> to start one, or scan the dock <b>QR Code</b>.`;
+  c.innerHTML=`
+    <div class="filter-row" style="margin-bottom:12px">
+      <select class="form-select" id="rcv-type-filter" onchange="onRcvTypeFilterChange()" title="Filter inspections by record type" style="width:auto;min-width:160px;padding:6px 10px;font-size:11px">
+        ${filterTypes.map(([v,l])=>`<option value="${v}"${rcvTypeFilter===v?" selected":""}>${l}</option>`).join("")}
+      </select>
+      <span style="font-size:11px;color:#4a5568;align-self:center">${filtered.length} of ${receivingList.length} record${receivingList.length===1?"":"s"}</span>
+    </div>
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th>ID</th><th>Type</th><th>Date</th><th>Carrier</th><th>Trailer</th><th>Items</th><th>Cold</th><th>Result</th><th>By</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="10" style="text-align:center;color:#4a5568;padding:26px">${emptyMsg}</td></tr>`}</tbody>
+    </table></div>
+    <div style="margin-top:14px;padding:12px 16px;background:#E6F2F1;border:1px solid #1F6F6B;border-radius:8px;font-size:11px;color:#10403d;font-family:'DM Mono',monospace;text-align:center">Incoming receiving, outbound shipping and internal-transfer chain-of-custody inspections per SQF Edition 9. Cold-chain temperatures, visual checks, photos and dispositions persist to the shared database with a full audit trail. A rejected or conditional receipt — or a transfer discrepancy — can generate an NCR; a temperature deviation can generate an OOS.</div>`;
+}
+
+// Record Type filter (list view) — filters the already-loaded records client-side.
+function onRcvTypeFilterChange(){
+  const sel=document.getElementById("rcv-type-filter");
+  rcvTypeFilter=sel?sel.value:"";
+  renderReceivingList();
+}
+
+async function createReceiving(recordType){
+  const rt=RCV_RECORD_TYPES.some(r=>r.key===recordType)?recordType:"Receiving";
+  try{
+    const res=await fetch(RECEIVING_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({site:currentSite,coldShipment:"No",recordType:rt})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv=await res.json();
+    renderReceivingEditor();
+    const lbl=(RCV_RECORD_TYPES.find(r=>r.key===rt)||{}).label||"Inspection";
+    toast(lbl+" "+activeRcv.id+" started.","green");
+  }catch(e){toast("Could not start inspection: "+e.message,"red");}
+}
+
+async function openReceiving(id){
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(id));
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    activeRcv=await res.json();
+    renderReceivingEditor();
+  }catch(e){toast("Could not open inspection: "+e.message,"red");}
+}
+
+// ── FIX 13 — cross-module navigation between linked records ──────────────────
+// Activate a top-nav tab/section by id without re-running its list refresh (so a
+// follow-up open() call is not clobbered by the tab's own list render).
+function rcvShowSection(id){
+  document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  const sec=document.getElementById(id);if(sec)sec.classList.add("active");
+  const tab=[...document.querySelectorAll("nav .tab")].find(t=>new RegExp("switchTab\\('"+id+"'").test(t.getAttribute("onclick")||""));
+  if(tab)tab.classList.add("active");
+}
+// Open a linked NCR / CAPA / Audit record in the CAPA / NCR / Audit tab.
+async function rcvGotoRecord(id){
+  if(!id)return;
+  rcvShowSection("tracker");
+  await aiReloadRecords();
+  if(typeof renderTable==="function")renderTable();
+  editRecord(id);
+}
+// Open a linked OOS record in the OOS tab.
+function rcvGotoOOS(id){
+  if(!id)return;
+  rcvShowSection("oos");
+  openOOS(id);
+}
+// Open the transfer (outbound Shipping) record a Transfer ID points to.
+async function rcvGotoTransfer(tid){
+  if(!tid)return;
+  try{
+    const res=await fetch(RECEIVING_API+"?action=link-lookup&transfer_id="+encodeURIComponent(tid));
+    if(res.ok){const ship=await res.json();rcvShowSection("receiving");await openReceiving(ship.id);return;}
+  }catch(e){}
+  toast("Could not find transfer "+tid+".","red");
+}
+// From an NCR/record modal back-link, open the originating truck inspection.
+async function rcvGotoInspectionFromRecord(id){
+  if(!id)return;
+  closeModal();
+  rcvShowSection("receiving");
+  await openReceiving(id);
+}
+
+// ── FIX 2 — unlink deleted or unwanted linked records (NCR / OOS / Transfer) ──
+// Render a linked-record reference as a clickable link to its target followed by
+// an Unlink control. The anchor is tagged so rcvVerifyLinks() can downgrade it to
+// a "(deleted)" note if the target record no longer exists.
+function rcvLinkRowHTML(label,field,id,gotoCall,color){
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:${color}">
+    <span>${label}: <b><a href="#" class="rcv-link-anchor" data-rcv-link-field="${field}" data-rcv-link-id="${cesc(id)}" onclick="${gotoCall};return false;" style="color:${color};text-decoration:underline;font-family:'DM Mono',monospace">${cesc(id)}</a></b></span>
+    <button type="button" class="btn-ghost" style="padding:2px 9px;font-size:11px" onclick="rcvUnlink('${field}');return false;">&#10006; Unlink</button>
+  </div>`;
+}
+
+// Remove a linkage from the current inspection. Works both for a stale/orphaned
+// reference (target deleted) and to manually detach a still-valid linked record.
+// The linked record itself is never deleted — only the connection is cleared.
+async function rcvUnlink(field){
+  const o=activeRcv;if(!o)return;
+  if(!confirm("Are you sure you want to remove this link? This will not delete the linked record — only remove the connection."))return;
+  try{
+    const body=rcvCollectHeader();
+    body[field]="";
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv=await res.json();
+    // Drop the cached hydration of a shipment that is no longer linked.
+    if(field==="linkedTransferId")activeRcv._shipped=null;
+    renderReceivingEditor();
+    toast("Link removed.","green");
+  }catch(e){toast("Could not remove link: "+e.message,"red");}
+}
+
+// After the editor renders, confirm each linked reference still exists. A target
+// that was deleted is downgraded from a clickable link to a "(deleted)" note; its
+// Unlink button stays so the stale reference can be cleared from the record.
+let rcvOrphanRunId=0;
+async function rcvVerifyLinks(){
+  const runId=++rcvOrphanRunId;
+  const anchors=[...document.querySelectorAll("#rcv-content .rcv-link-anchor")];
+  if(!anchors.length)return;
+  let allRecordIds=null;
+  for(const a of anchors){
+    if(runId!==rcvOrphanRunId)return; // a newer render superseded this check
+    const field=a.getAttribute("data-rcv-link-field"),id=a.getAttribute("data-rcv-link-id");
+    if(!field||!id)continue;
+    let exists=true;
+    try{
+      if(field==="oosId"){const r=await fetch(OOS_API+"?id="+encodeURIComponent(id));exists=r.ok;}
+      else if(field==="linkedTransferId"){const r=await fetch(RECEIVING_API+"?action=link-lookup&transfer_id="+encodeURIComponent(id));exists=r.ok;}
+      else if(field==="ncrId"){
+        if(allRecordIds===null){const r=await fetch(API);allRecordIds=r.ok?(await r.json()).map(x=>x.id):false;}
+        exists=allRecordIds===false?true:allRecordIds.indexOf(id)>=0;
+      }
+    }catch(e){exists=true;} // network hiccup — leave the link intact
+    if(!exists&&runId===rcvOrphanRunId&&a.isConnected){
+      const note=document.createElement("span");
+      note.style.cssText="font-family:'DM Mono',monospace;font-weight:700;color:#a30000";
+      note.innerHTML=cesc(id)+' <span style="font-style:italic;font-weight:400;color:#a30000">(deleted — record no longer exists)</span>';
+      a.replaceWith(note);
+    }
+  }
+}
+
+function rcvYNNA(field,val){
+  return ["Yes","No","NA"].map(opt=>`<label><input type="radio" name="rcv-ck-${field}" value="${opt}" ${val===opt?"checked":""}>${opt==="NA"?"N/A":opt}</label>`).join("");
+}
+
+function renderReceivingEditor(){
+  const o=activeRcv;if(!o)return;
+  if(!o.recordType)o.recordType="Receiving";
+  const back=document.getElementById("rcv-back-btn");if(back)back.style.display="";
+  const parsed=rcvParseNotes(o.notes);
+  o._itemNotes=parsed.itemNotes||{};
+  const cold=o.coldShipment==="Yes";
+  const isShip=o.recordType==="Shipping", isXfer=o.recordType==="Internal Transfer";
+  const c=document.getElementById("rcv-content");
+  c.innerHTML=[
+    rcvTypeSelectorHTML(o),
+    isXfer?rcvLinkBlockHTML(o):"",
+    rcvHeaderBlockHTML(o,isShip,isXfer),
+    rcvMaterialsBlockHTML(isShip,isXfer),
+    isXfer?rcvComparisonBlockHTML():"",
+    rcvChecklistBlockHTML(o,isShip,isXfer),
+    isXfer?rcvSealVerifyBlockHTML(o):"",
+    rcvPhotosBlockHTML(),
+    rcvColdBlockHTML(o,cold,isShip,isXfer),
+    rcvAssessmentBlockHTML(o,parsed,isShip,isXfer),
+    isShip?rcvReceivedBlockHTML(o):"",
+    rcvSignaturesBlockHTML(),
+    rcvFooterBarHTML(isShip),
+  ].join("");
+  renderRcvLineItems();
+  renderRcvAttachments();
+  rcvRecalcTemp();
+  if(isXfer){
+    rcvRenderComparison();
+    // Re-hydrate the linked shipment so the comparison view and link banner
+    // repopulate when an existing transfer record is reopened.
+    if(o.linkedTransferId&&!o._shipped)rcvHydrateShipped(o.linkedTransferId);
+  }
+  initSignatureSection("receiving","receiving",o.id,"sig-section-rcv",o.signatures||[],function(updated){if(activeRcv&&updated)activeRcv.signatures=updated.signatures;},RCV_SIG_ROLES);
+  // FIX 2 — flag any linked NCR / OOS / Transfer whose target was deleted.
+  rcvVerifyLinks();
+}
+
+// Convert "12.5 °F" style by leaving unit handling to rcvComputeTempAcceptable;
+// here we just turn a stored ISO timestamp into a value for <input datetime-local>.
+function rcvToLocalInput(iso){
+  if(!iso)return "";
+  const d=new Date(iso);
+  if(isNaN(d))return String(iso).slice(0,16);
+  const p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());
+}
+
+// ── Editor section builders (shared across the three record types) ──────────
+function rcvTypeSelectorHTML(o){
+  const locked=o.status&&o.status!=="Open";
+  const meta=RCV_RECORD_TYPES.find(r=>r.key===o.recordType)||RCV_RECORD_TYPES[0];
+  return `<div class="rcv-block" style="border-top:3px solid ${meta.color}">
+    <div class="rcv-block-title">Record Type${locked?` <span style="color:#4a5568;font-weight:400">(locked — record completed)</span>`:""}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${RCV_RECORD_TYPES.map(rt=>{const on=o.recordType===rt.key;return `<button type="button" ${locked?"disabled":`onclick="rcvSetRecordType('${rt.key}')"`} style="flex:1;min-width:150px;padding:14px;border-radius:10px;border:2px solid ${on?rt.color:"var(--border2)"};background:${on?rt.bg:"#fff"};color:${on?rt.color:"#4a5568"};font-weight:700;font-size:13px;cursor:${locked?"default":"pointer"};opacity:${locked&&!on?"0.5":"1"}">${rt.icon} ${rt.label}</button>`;}).join("")}
+    </div>
+  </div>`;
+}
+
+function rcvLinkBlockHTML(o){
+  return `<div class="rcv-block" style="border:2px solid #1F6F6B;background:#F2FAF9">
+    <div class="rcv-block-title">&#128279; Link to Outbound Shipment</div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><label class="form-label">Transfer ID (TRF-####)</label><input class="crisis-input" id="rcv-link-transfer" value="${cesc(o.linkedTransferId)}" placeholder="e.g. TRF-LDN-2026-0001" style="font-family:'DM Mono',monospace"></div>
+      <div><label class="form-label">&nbsp;</label><button class="btn" style="background:#1F6F6B" onclick="rcvLinkLookup()">&#128269; Look Up &amp; Auto-Populate</button></div>
+    </div>
+    <div id="rcv-link-info" style="margin-top:10px">${o.linkedTransferId?rcvLinkInfoHTML(o):`<div style="font-size:11px;color:#4a5568">Enter the Transfer ID from the document that travelled with this shipment, then Look Up to auto-populate what was shipped, who shipped it, departure time / temperature and the seal number.</div>`}</div>
+  </div>`;
+}
+function rcvLinkInfoHTML(o){
+  const s=o._shipped||{};
+  return `<div style="font-size:12px;color:#10403d;background:#E6F2F1;border:1px solid #1F6F6B;border-radius:6px;padding:10px 12px;line-height:1.6">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <b>&#9989; Linked to <a href="#" class="rcv-link-anchor" data-rcv-link-field="linkedTransferId" data-rcv-link-id="${cesc(o.linkedTransferId)}" onclick="rcvGotoTransfer('${cesc(o.linkedTransferId)}');return false;" style="color:#10403d;text-decoration:underline;font-family:'DM Mono',monospace">${cesc(o.linkedTransferId)}</a></b>
+      <button type="button" class="btn-ghost" style="padding:2px 9px;font-size:11px" onclick="rcvUnlink('linkedTransferId');return false;">&#10006; Unlink</button>
+    </div>
+    Shipped by: <b>${cesc(s.inspectedBy||"—")}</b> &middot; Departed: ${s.inspectionDate?cesc(rcvFmtDate(s.inspectionDate)):"—"}<br>
+    Origin: ${cesc(s.site||"—")} &middot; Seal #: ${cesc(s.sealNumber||o.sealNumber||"—")}${(s.coldShipment==="Yes")?` &middot; Departure Temp: ${cesc(s.departureTemp||o.departureTemp||"—")}`:""}
+  </div>`;
+}
+
+function rcvHeaderBlockHTML(o,isShip,isXfer){
+  const title=isShip?"1 · Shipment Header":(isXfer?"1 · Receipt Header (Internal Transfer)":"1 · Receipt Header");
+  const byLabel=isShip?"Shipped By":"Inspected By";
+  const carrierLabel=isShip?"Carrier / Freight":(isXfer?"Carrier / Origin":"Carrier");
+  const adminBtn=isAdminUser?`<button class="btn-danger" title="Delete record (admin)" onclick="deleteReceiving('${o.id}')" style="margin-left:auto;padding:3px 10px">✕ Delete</button>`:"";
+  const shipExtra=isShip?`
+        <div><label class="form-label">Destination</label><select class="crisis-input" id="rcv-destination">${optList(RCV_DESTINATIONS,o.destination)}</select></div>
+        <div><label class="form-label">Seal Number</label><input class="crisis-input" id="rcv-sealNumber" value="${cesc(o.sealNumber)}"></div>
+        <div><label class="form-label">Expected Arrival</label><input type="datetime-local" class="crisis-input" id="rcv-expectedArrival" value="${cesc(rcvToLocalInput(o.expectedArrival))}"></div>`:"";
+  const transferIdRow=isShip?`
+    <div style="margin-top:12px;background:#F6F0FC;border:1px solid #6B2E9E;border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div><div class="form-label" style="margin-bottom:2px">Transfer ID</div><div id="rcv-transfer-id" style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:#6B2E9E">${o.linkedTransferId?cesc(o.linkedTransferId):"— issued on first save —"}</div></div>
+      ${o.linkedTransferId?`<button class="btn-ghost" onclick="rcvCopyTransferId()">&#128203; Copy</button><button class="btn" style="background:#6B2E9E" onclick="rcvPrintTransferDoc()">&#128424; Print Transfer Document</button>`:`<span style="font-size:11px;color:#4a5568">Save the shipment to issue its Transfer ID — it travels with the shipment so the receiving site can link to it.</span>`}
+    </div>`:"";
+  return `<div class="rcv-block">
+    <div class="rcv-block-title">${title} <span style="color:#4a5568;font-weight:400">${cesc(o.id)}</span>${adminBtn}</div>
+    <div class="rcv-grid">
+      <div><label class="form-label">${isShip?"Shipment":"Inspection"} ID</label><div class="crisis-input" style="display:flex;align-items:center;gap:6px;opacity:0.85" title="IDs are permanent"><span>&#128274;</span><span>${cesc(o.id)}</span></div></div>
+      <div><label class="form-label">Date / Time</label><input class="crisis-input" value="${cesc(rcvFmtDate(o.inspectionDate))}" disabled style="opacity:0.7"></div>
+      <div><label class="form-label">${byLabel}</label><input class="crisis-input" value="${cesc(o.inspectedBy)}" disabled style="opacity:0.7"></div>
+      <div><label class="form-label">Site</label><select class="crisis-input" id="rcv-site">${optList(SITES,o.site)}</select></div>
+      <div><label class="form-label">${carrierLabel}</label><input class="crisis-input" id="rcv-carrier" value="${cesc(o.carrier)}" placeholder="Carrier / freight line"></div>
+      <div><label class="form-label">Trailer Number</label><input class="crisis-input" id="rcv-trailerNumber" value="${cesc(o.trailerNumber)}"></div>
+      <div><label class="form-label">${isShip?"Order / Ref #":"PO Number"}</label><input class="crisis-input" id="rcv-poNumber" value="${cesc(o.poNumber)}"></div>
+      ${shipExtra}
+    </div>
+    ${transferIdRow}
+  </div>`;
+}
+
+function rcvMaterialsBlockHTML(isShip,isXfer){
+  const title=isShip?"2 · Materials Shipped":"2 · Materials Received";
+  const note=isXfer?`<div style="margin-bottom:10px;font-size:11px;color:#10403d;background:#E6F2F1;border:1px solid #1F6F6B;border-radius:6px;padding:8px 12px">&#8505; Materials transferred from internal production — no external CoA required.</div>`:"";
+  return `<div class="rcv-block">
+    <div class="rcv-block-title">${title} <button class="btn-ghost" onclick="rcvAddMaterial()" style="margin-left:auto;padding:5px 12px;font-size:11px">+ Add Material</button></div>
+    ${note}
+    <div id="rcv-materials"></div>
+  </div>`;
+}
+
+function rcvComparisonBlockHTML(){
+  return `<div class="rcv-block" style="border:1px solid #1F6F6B">
+    <div class="rcv-block-title">Shipped vs Received — Comparison</div>
+    <div id="rcv-comparison"></div>
+  </div>`;
+}
+
+function rcvChecklistBlockHTML(o,isShip,isXfer){
+  const title=isShip?"3 · Trailer / Load Condition at Departure":(isXfer?"3 · Trailer / Load Condition on Arrival":"3 · Visual Inspection");
+  const items=isXfer?RCV_CHECKLIST.filter(it=>it.key!=="sealsIntact"):RCV_CHECKLIST;
+  return `<div class="rcv-block">
+    <div class="rcv-block-title">${title}</div>
+    <div id="rcv-checklist">${items.map(it=>`
+      <div class="rcv-check-row">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+          <div style="font-size:12px;font-weight:600;color:#1a1a2e;flex:1;min-width:180px">${cesc(it.label)}</div>
+          <div class="rcv-ynna">${rcvYNNA(it.key,o[it.key]||"")}</div>
+        </div>
+        <input class="crisis-input" id="rcv-note-${it.key}" value="${cesc((o._itemNotes||{})[it.key]||"")}" placeholder="Notes (optional)" style="margin-top:8px">
+      </div>`).join("")}</div>
+  </div>`;
+}
+
+function rcvSealVerifyBlockHTML(o){
+  const sv=o.sealsIntact||"";
+  return `<div class="rcv-block" style="border:1px solid #BF9000;background:#FFFCF2">
+    <div class="rcv-block-title" style="color:#7F6000;border-color:#e6d9a8">&#128272; Seal Verification</div>
+    <div class="rcv-grid">
+      <div><label class="form-label">Seal Number ${o._shipped?'<span style="color:#4a5568;font-weight:400">(from shipment)</span>':""}</label><input class="crisis-input" id="rcv-sealNumber" value="${cesc(o.sealNumber)}"></div>
+      <div><label class="form-label">Seal Verified Intact</label>
+        <div class="rcv-ynna" style="margin-top:4px">${["Yes","No"].map(opt=>`<label><input type="radio" name="rcv-ck-sealsIntact" value="${opt}" ${sv===opt?"checked":""}>${opt}</label>`).join("")}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function rcvPhotosBlockHTML(){
+  return `<div class="rcv-block">
+    <div class="rcv-block-title">4 · Photos <span style="color:#4a5568;font-weight:400">stored in Netlify Blobs</span></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+      <div style="flex:1;min-width:160px"><label class="form-label">Photo Description</label><select class="crisis-input" id="rcv-photo-desc">${RCV_PHOTO_LABELS.map(l=>`<option>${cesc(l)}</option>`).join("")}</select></div>
+      <div><label class="form-label">&nbsp;</label><button class="btn" style="background:#1F6F6B" onclick="document.getElementById('rcv-file-input').click()">&#128247; Add Photo(s)</button></div>
+      <input type="file" id="rcv-file-input" multiple accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic,image/*" style="display:none" onchange="rcvUpload(this)">
+    </div>
+    <div style="font-size:10px;color:#4a5568;margin-bottom:10px">JPG · PNG · HEIC accepted. Each photo carries a description (e.g. trailer exterior, temperature reading, seal) and is embedded inline in the report.</div>
+    <div id="rcv-attachments"></div>
+  </div>`;
+}
+
+function rcvColdBlockHTML(o,cold,isShip,isXfer){
+  const title=isShip?"5 · Cold Chain — Departure":(isXfer?"5 · Cold Chain — Arrival":"5 · Cold Shipment");
+  const toggleLabel=isShip?"Cold Shipment — Refrigerated or Frozen (record departure temperature)":(isXfer?"Cold Shipment — Refrigerated or Frozen (record arrival temperature)":"Cold Shipment — Refrigerated or Frozen Materials");
+  const rangeUnit=`
+      <div><label class="form-label">Required Temperature Range</label><input class="crisis-input" id="rcv-requiredTempRange" value="${cesc(o.requiredTempRange)}" placeholder="e.g. 32-40 °F" oninput="rcvRecalcTemp()"></div>
+      <div><label class="form-label">Temperature Unit</label><select class="crisis-input" id="rcv-temp-unit" onchange="rcvRecalcTemp()"><option>&deg;F</option><option>&deg;C</option></select></div>`;
+  let fields;
+  if(isShip){
+    fields=rangeUnit+`
+      <div><label class="form-label">Departure Temperature</label><input class="crisis-input" id="rcv-departureTemp" value="${cesc(o.departureTemp)}" placeholder="e.g. 36" oninput="rcvRecalcTemp()"></div>`;
+  }else if(isXfer){
+    fields=rangeUnit+`
+      <div><label class="form-label">Departure Temperature <span style="color:#4a5568;font-weight:400">(from shipment)</span></label><input class="crisis-input" id="rcv-departureTemp" value="${cesc(o.departureTemp)}" disabled style="opacity:0.7"></div>
+      <div><label class="form-label">Arrival Temperature</label><input class="crisis-input" id="rcv-arrivalTemp" value="${cesc(o.arrivalTemp)}" placeholder="e.g. 39" oninput="rcvRecalcTemp()"></div>`;
+  }else{
+    fields=rangeUnit+`
+      <div><label class="form-label">Truck / Cab Temperature</label><input class="crisis-input" id="rcv-truckTemp" value="${cesc(o.truckTemp)}" placeholder="e.g. 36" oninput="rcvRecalcTemp()"></div>
+      <div><label class="form-label">Trailer Temperature <span style="color:#4a5568;font-weight:400">(temp gun)</span></label><input class="crisis-input" id="rcv-trailerTemp" value="${cesc(o.trailerTemp)}" placeholder="e.g. 38" oninput="rcvRecalcTemp()"></div>
+      <div><label class="form-label">Product / Ingredient Temperature <span style="color:#4a5568;font-weight:400">(spot check)</span></label><input class="crisis-input" id="rcv-productTemp" value="${cesc(o.productTemp)}" placeholder="e.g. 39" oninput="rcvRecalcTemp()"></div>`;
+  }
+  return `<div class="rcv-block">
+    <div class="rcv-block-title">${title}</div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="font-size:13px;font-weight:700;color:#1a1a2e">${toggleLabel}</div>
+      <div class="rcv-toggle">
+        <button type="button" id="rcv-cold-yes" class="${cold?"on-yes":""}" onclick="rcvSetCold('Yes')">Yes</button>
+        <button type="button" id="rcv-cold-no" class="${cold?"":"on-no"}" onclick="rcvSetCold('No')">No</button>
+      </div>
+    </div>
+    <div id="rcv-cold-fields" style="margin-top:14px;${cold?"":"display:none"}">
+      <div class="rcv-grid">${fields}</div>
+      <div id="rcv-temp-verdict" style="margin-top:12px"></div>
+    </div>
+  </div>`;
+}
+
+function rcvAssessmentBlockHTML(o,parsed,isShip,isXfer){
+  const resultLabel=isShip?"Shipment Cleared for Departure":"Overall Result";
+  const discBlock=isXfer?`
+    <div style="margin-top:12px"><label class="form-label">Discrepancies <span style="color:#4a5568;font-weight:400">(differences between what was shipped and what arrived)</span></label><textarea class="crisis-input" id="rcv-discrepancies" style="min-height:56px" oninput="rcvOnDiscrepancyChange()" placeholder="Note any quantity, lot, condition or temperature variances…">${cesc(o.discrepancies||"")}</textarea></div>
+    <div id="rcv-disc-ncr-wrap" style="margin-top:10px;${(o.discrepancies||"").trim()?"":"display:none"}">
+      ${o.ncrId?rcvLinkRowHTML("Linked NCR","ncrId",o.ncrId,`rcvGotoRecord('${cesc(o.ncrId)}')`,"#10403d"):`<button class="btn" style="background:#C00000" onclick="rcvCreateNCR()">&#9888; Generate NCR from Discrepancy</button>`}
+    </div>`:"";
+  return `<div class="rcv-block">
+    <div class="rcv-block-title">6 · ${isShip?"Departure Clearance":"Overall Assessment"}</div>
+    <div class="rcv-grid">
+      <div><label class="form-label">${resultLabel}</label><select class="crisis-input" id="rcv-overallResult" onchange="rcvOnResultChange()">${optList(RCV_RESULTS,o.overallResult)}</select></div>
+    </div>
+    ${discBlock}
+    <div style="margin-top:10px"><label class="form-label">Notes</label><textarea class="crisis-input" id="rcv-notes" style="min-height:64px">${cesc(parsed.notes)}</textarea></div>
+    <div id="rcv-ncr-wrap" style="margin-top:12px;${(o.overallResult==="Rejected"||o.overallResult==="Conditional Accept")?"":"display:none"}">
+      ${o.ncrId?rcvLinkRowHTML("Linked NCR","ncrId",o.ncrId,`rcvGotoRecord('${cesc(o.ncrId)}')`,"#10403d"):`<button class="btn" style="background:#C00000" onclick="rcvCreateNCR()">&#9888; Generate NCR</button> <span style="font-size:11px;color:#4a5568">Pre-populates an NCR with this record ID and reason.</span>`}
+    </div>
+  </div>`;
+}
+
+function rcvSignaturesBlockHTML(){
+  return `<div class="rcv-block">
+    <div class="rcv-block-title">7 · Signatures</div>
+    <div id="sig-section-rcv"></div>
+  </div>`;
+}
+
+// FIX 9 — once an outbound Shipping record has been received against its Internal
+// Transfer, show who received it, when, and at which site.
+function rcvReceivedBlockHTML(o){
+  if(o.recordType!=="Shipping"||!o.receivedAt)return "";
+  return `<div class="rcv-block" style="border:1px solid #548235;background:#F2F8EE">
+    <div class="rcv-block-title" style="color:#375623;border-color:#cfe3c0">&#10003; Received — Chain of Custody Closed</div>
+    <div class="rcv-grid">
+      <div><label class="form-label">Received By</label><input class="crisis-input" value="${cesc(o.receivedBy)||"—"}" disabled style="opacity:0.85"></div>
+      <div><label class="form-label">Received At</label><input class="crisis-input" value="${cesc(rcvFmtDate(o.receivedAt))}" disabled style="opacity:0.85"></div>
+      <div><label class="form-label">Arrival Site</label><input class="crisis-input" value="${cesc(o.arrivalSite)||"—"}" disabled style="opacity:0.85"></div>
+    </div>
+  </div>`;
+}
+
+function rcvFooterBarHTML(isShip){
+  return `<div style="position:sticky;bottom:0;background:linear-gradient(transparent,#eef2f6 30%);padding:14px 0;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+    <button class="btn-ghost" onclick="showReceivingList()">Close</button>
+    <button class="btn" onclick="saveReceiving()">&#128190; Save</button>
+    <button class="btn" style="background:#1F6F6B;padding:10px 22px" onclick="rcvComplete()">&#10003; ${isShip?"Clear &amp; Complete":"Complete Inspection"}</button>
+  </div>`;
+}
+
+// Switch record type — persists current edits then re-renders for the new type.
+async function rcvSetRecordType(t){
+  if(!activeRcv||activeRcv.recordType===t)return;
+  if(activeRcv.status&&activeRcv.status!=="Open"){toast("This record is completed and its type is locked.","red");return;}
+  activeRcv.recordType=t;
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(rcvCollectHeader())});
+    if(res.ok)activeRcv=await res.json();
+  }catch(e){}
+  renderReceivingEditor();
+}
+
+// ── Internal Transfer — link to an outbound shipment & auto-populate ────────
+async function rcvLinkLookup(){
+  if(!activeRcv)return;
+  const tid=((document.getElementById("rcv-link-transfer")||{}).value||"").trim();
+  if(!tid){toast("Enter a Transfer ID.","red");return;}
+  try{
+    const res=await fetch(RECEIVING_API+"?action=link-lookup&transfer_id="+encodeURIComponent(tid));
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const ship=await res.json();
+    activeRcv._shipped=ship;
+    activeRcv.linkedTransferId=ship.linkedTransferId||tid;
+    // FIX 8 — inherit carrier/driver, trailer, seal, cold-chain + departure temp
+    // from the shipment so the receiving clerk verifies against what was shipped.
+    activeRcv.carrier=ship.carrier||"";
+    activeRcv.trailerNumber=ship.trailerNumber||"";
+    activeRcv.sealNumber=ship.sealNumber||"";
+    activeRcv.departureTemp=ship.departureTemp||"";
+    activeRcv.coldShipment=ship.coldShipment||"No";
+    activeRcv.requiredTempRange=ship.requiredTempRange||"";
+    // Copy the shipped materials onto this transfer record when none added yet.
+    if(!(activeRcv.lineItems||[]).length&&(ship.lineItems||[]).length){
+      for(const li of ship.lineItems){
+        await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=save-line-item",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({materialName:li.materialName,supplier:li.supplier,lotNumber:li.lotNumber,quantity:li.quantity,quantityUnit:li.quantityUnit,coaReceived:li.coaReceived,coaReference:li.coaReference,internalBatchLot:li.internalBatchLot,originSite:li.originSite||ship.site||""})});
+      }
+    }
+    // Persist the link + inherited header (this also stamps the shipment as received).
+    const body=rcvCollectHeader();
+    body.linkedTransferId=activeRcv.linkedTransferId;
+    body.carrier=activeRcv.carrier;
+    body.trailerNumber=activeRcv.trailerNumber;
+    body.sealNumber=activeRcv.sealNumber;
+    body.departureTemp=activeRcv.departureTemp;
+    body.coldShipment=activeRcv.coldShipment;
+    body.requiredTempRange=activeRcv.requiredTempRange;
+    const up=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(up.ok){const updated=await up.json();updated._shipped=ship;activeRcv=updated;}
+    renderReceivingEditor();
+    toast("Linked to "+activeRcv.linkedTransferId+" — fields auto-populated from the shipment.","green");
+  }catch(e){toast("Lookup failed: "+e.message,"red");}
+}
+
+// Silently refetch the linked shipment to feed the comparison view on reopen.
+async function rcvHydrateShipped(tid){
+  try{
+    const res=await fetch(RECEIVING_API+"?action=link-lookup&transfer_id="+encodeURIComponent(tid));
+    if(!res.ok)return;
+    const ship=await res.json();
+    if(activeRcv&&activeRcv.linkedTransferId===tid){
+      activeRcv._shipped=ship;
+      rcvRenderComparison();
+      const info=document.getElementById("rcv-link-info");if(info)info.innerHTML=rcvLinkInfoHTML(activeRcv);
+    }
+  }catch(e){}
+}
+
+// Two-column Shipped vs Received comparison; mismatched rows are highlighted.
+function rcvRenderComparison(){
+  const host=document.getElementById("rcv-comparison");if(!host||!activeRcv)return;
+  const shipped=((activeRcv._shipped||{}).lineItems)||[];
+  const received=activeRcv.lineItems||[];
+  if(!shipped.length&&!received.length){host.innerHTML=`<div style="font-size:11px;color:#4a5568">Link an outbound shipment above to compare what was shipped against what arrived.</div>`;return;}
+  const n=Math.max(shipped.length,received.length);
+  let rows="";
+  let variances=0;
+  for(let i=0;i<n;i++){
+    const s=shipped[i]||{},r=received[i]||{};
+    const sQty=`${s.quantity||"—"} ${s.quantityUnit||""}`.trim();
+    const rQty=`${r.quantity||"—"} ${r.quantityUnit||""}`.trim();
+    const mismatch=(String(s.quantity||"")!==String(r.quantity||""))||(String(s.lotNumber||"")!==String(r.lotNumber||""));
+    if(mismatch)variances++;
+    rows+=`<tr${mismatch?' style="background:#FFF2CC"':""}>
+      <td>${cesc(s.materialName||r.materialName||"—")}</td>
+      <td>${cesc(s.lotNumber||"—")}</td><td>${cesc(sQty)||"—"}</td>
+      <td>${cesc(r.lotNumber||"—")}</td><td>${cesc(rQty)||"—"}</td>
+      <td style="text-align:center">${mismatch?"&#9888;":"&#10003;"}</td>
+    </tr>`;
+  }
+  host.innerHTML=`<table class="crisis-tbl" style="width:100%"><thead><tr><th>Material</th><th>Shipped Lot</th><th>Shipped Qty</th><th>Received Lot</th><th>Received Qty</th><th style="width:50px">Match</th></tr></thead><tbody>${rows}</tbody></table>`+
+    (variances?`<div style="margin-top:10px;font-size:11px;color:#7F6000;background:#FFF2CC;border:1px solid #BF9000;border-radius:6px;padding:8px 12px">&#9888; ${variances} variance(s) detected between shipped and received. Document them under Discrepancies and generate an NCR if warranted.</div>`:`<div style="margin-top:10px;font-size:11px;color:#375623">&#10003; Shipped and received quantities / lots match.</div>`);
+}
+
+function rcvOnDiscrepancyChange(){
+  const ta=document.getElementById("rcv-discrepancies");
+  const wrap=document.getElementById("rcv-disc-ncr-wrap");
+  if(wrap&&!(activeRcv&&activeRcv.ncrId))wrap.style.display=(ta&&ta.value.trim())?"":"none";
+}
+
+function rcvCopyTransferId(){
+  const tid=activeRcv&&activeRcv.linkedTransferId;if(!tid)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tid).then(()=>toast("Transfer ID copied.","green"),()=>toast("Transfer ID: "+tid,"green"));}
+  else toast("Transfer ID: "+tid,"green");
+}
+
+// One-page transfer document that travels with the shipment. FIX 12 — embeds a
+// QR code deep-linking to the Internal Transfer receiving form pre-filled with
+// this Transfer ID, so a receiver scans it and lands on a ready-to-sign form.
+async function rcvPrintTransferDoc(){
+  const o=activeRcv;if(!o)return;
+  const items=o.lineItems||[];
+  const rows=items.length?items.map(li=>`<tr><td>${cesc(li.materialName)||"—"}</td><td>${cesc(li.lotNumber)||"—"}</td><td>${cesc(li.quantity)} ${cesc(li.quantityUnit||"")}</td></tr>`).join(""):`<tr><td colspan="3">(no materials listed)</td></tr>`;
+  // Build the QR deep link and render it to an inline PNG before printing.
+  const qrUrl=location.origin+location.pathname+"?module=truck-inspections&type=internal-transfer&transfer_id="+encodeURIComponent(o.linkedTransferId||"");
+  let qrBlock="";
+  if(o.linkedTransferId){
+    try{
+      await rcvLoadQRLib();
+      const tmp=document.createElement("div");
+      new window.QRCode(tmp,{text:qrUrl,width:150,height:150,colorDark:"#1F3864",colorLight:"#ffffff",correctLevel:window.QRCode.CorrectLevel.M});
+      await new Promise(r=>setTimeout(r,80));
+      const data=rcvQRImageFrom(tmp);
+      if(data)qrBlock=`<div style="text-align:center;margin:10px 0 4px"><img src="${data}" style="width:150px;height:150px"><div style="font-size:10px;color:#666;max-width:220px;margin:4px auto 0">Scan to open the Internal Transfer receiving form pre-filled with this Transfer ID.</div></div>`;
+    }catch(e){}
+  }
+  const w=window.open("","_blank");if(!w){toast("Pop-up blocked — allow pop-ups to print.","red");return;}
+  w.document.write(`<html><head><title>Transfer Document — ${cesc(o.linkedTransferId||o.id)}</title>
+    <style>body{font-family:Arial,sans-serif;padding:36px;color:#1a1a2e}h1{color:#1F3864;font-size:20px;margin-bottom:4px}h2{font-size:13px;color:#6B2E9E;margin-top:22px;border-bottom:1px solid #ccc;padding-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:8px}td,th{border:1px solid #bbb;padding:6px 9px;font-size:12px;text-align:left}.tid{font-family:monospace;font-size:26px;font-weight:bold;color:#6B2E9E;letter-spacing:1px;margin:6px 0 2px}.kv{font-size:12px;margin:4px 0}.kv b{display:inline-block;min-width:150px;color:#444}.hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}</style></head>
+    <body>
+    <div class="hdr"><div>
+    <h1>SOMAFINA UST — Internal Transfer Document</h1>
+    <div class="tid">${cesc(o.linkedTransferId||"(pending — save to issue)")}</div>
+    <p style="font-size:11px;color:#666;max-width:420px">This document travels with the shipment. The receiving site enters this Transfer ID — or scans the QR code — to open the matching Internal Transfer receipt with what was shipped auto-loaded.</p>
+    </div>${qrBlock}</div>
+    <h2>Shipment</h2>
+    <div class="kv"><b>Origin Site:</b> ${cesc(o.site)||"—"}</div>
+    <div class="kv"><b>Destination:</b> ${cesc(o.destination)||"—"}</div>
+    <div class="kv"><b>Carrier / Trailer:</b> ${cesc(o.carrier)||"—"} / ${cesc(o.trailerNumber)||"—"}</div>
+    <div class="kv"><b>Shipped By:</b> ${cesc(o.inspectedBy)||"—"}</div>
+    <div class="kv"><b>Departure Date/Time:</b> ${cesc(rcvFmtDate(o.inspectionDate))}</div>
+    <div class="kv"><b>Seal Number:</b> ${cesc(o.sealNumber)||"—"}</div>
+    ${o.coldShipment==="Yes"?`<div class="kv"><b>Departure Temperature:</b> ${cesc(o.departureTemp)||"—"} (required ${cesc(o.requiredTempRange)||"—"})</div>`:""}
+    <h2>Materials Shipped</h2>
+    <table><thead><tr><th>Material</th><th>Lot Number</th><th>Quantity</th></tr></thead><tbody>${rows}</tbody></table>
+    <h2>Chain of Custody</h2>
+    <table><tr><td style="width:50%"><b>Shipped By</b><br>${cesc(o.inspectedBy)||"—"}<br>${cesc(rcvFmtDate(o.inspectionDate))}</td><td><b>Received By</b><br>__________________________<br>Date / Time: ______________</td></tr></table>
+    <p style="font-size:10px;color:#888;margin-top:24px">SOMAFINA UST — Internal Chain of Custody Record | SQF Edition 9 §17.5 traceability</p>
+    <script>window.onload=function(){window.print();}<\/script></body></html>`);
+  w.document.close();
+}
+
+// ── Materials (line items) ──────────────────────────────────────────────────
+function renderRcvLineItems(){
+  const host=document.getElementById("rcv-materials");if(!host||!activeRcv)return;
+  const items=activeRcv.lineItems||[];
+  const type=activeRcv.recordType||"Receiving";
+  const isXfer=type==="Internal Transfer";
+  const isRcv=type==="Receiving";
+  // Origin Site defaults to the linked shipment's site for an Internal Transfer.
+  const originDefault=isXfer?((activeRcv._shipped||{}).site||activeRcv.site||""):"";
+  if(!items.length){host.innerHTML=`<div style="font-size:11px;color:#4a5568">No materials added yet. Click <b>+ Add Material</b>.</div>`;return;}
+  host.innerHTML=items.map(li=>{
+    // FIX 10 — Internal Transfer rows drop the external Supplier / CoA fields and
+    // gain an Internal Batch/Lot Reference and an Origin Site (from the shipment).
+    const supplierField=isXfer
+      ? `<div><label class="form-label">Internal Batch/Lot Reference</label><input class="crisis-input" id="rli-${li.id}-internalBatchLot" value="${cesc(li.internalBatchLot)}" placeholder="Internal production batch / lot" onchange="rcvSaveLineItemRow('${cesc(li.id)}')"></div>`
+      : `<div><label class="form-label">Supplier</label><input class="crisis-input" id="rli-${li.id}-supplier" value="${cesc(li.supplier)}" onchange="rcvSaveLineItemRow('${cesc(li.id)}')"></div>`;
+    const coaFields=isXfer
+      ? `<div><label class="form-label">Origin Site <span style="color:#4a5568;font-weight:400">(from shipment)</span></label><input class="crisis-input" id="rli-${li.id}-originSite" value="${cesc(li.originSite||originDefault)}" placeholder="Origin production site" onchange="rcvSaveLineItemRow('${cesc(li.id)}')"></div>`
+      : `<div><label class="form-label">CoA Received</label><select class="crisis-input" id="rli-${li.id}-coaReceived" onchange="rcvSaveLineItemRow('${cesc(li.id)}')">${optList(["","Yes","No"],li.coaReceived)}</select></div>
+        <div><label class="form-label">CoA Reference #</label><input class="crisis-input" id="rli-${li.id}-coaReference" value="${cesc(li.coaReference)}" onchange="rcvSaveLineItemRow('${cesc(li.id)}')"></div>`;
+    // FIX 11 — per-line-item CoA / receiving-doc attachment, Receiving type only.
+    const attachBlock=isRcv?rcvLineItemAttachHTML(li):"";
+    return `<div style="border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:10px;background:#fafbfc">
+      <div class="rcv-grid">
+        <div><label class="form-label">Material Name</label><input class="crisis-input" id="rli-${li.id}-materialName" value="${cesc(li.materialName)}" onchange="rcvSaveLineItemRow('${cesc(li.id)}')"></div>
+        ${supplierField}
+        <div><label class="form-label">Lot Number</label><input class="crisis-input" id="rli-${li.id}-lotNumber" value="${cesc(li.lotNumber)}" onchange="rcvSaveLineItemRow('${cesc(li.id)}')"></div>
+        <div style="display:flex;gap:6px"><div style="flex:2"><label class="form-label">Quantity</label><input class="crisis-input" id="rli-${li.id}-quantity" value="${cesc(li.quantity)}" onchange="rcvSaveLineItemRow('${cesc(li.id)}')"></div><div style="flex:1.4"><label class="form-label">Unit</label><select class="crisis-input" id="rli-${li.id}-quantityUnit" onchange="rcvSaveLineItemRow('${cesc(li.id)}')">${optList(RCV_UNITS,li.quantityUnit)}</select></div></div>
+        ${coaFields}
+      </div>
+      ${attachBlock}
+      <div style="text-align:right;margin-top:8px"><button class="btn-ghost" style="color:#C00000;padding:5px 10px;font-size:11px" onclick="rcvRemoveLineItem('${cesc(li.id)}')">✕ Remove Material</button></div>
+    </div>`;
+  }).join("");
+}
+
+// FIX 11 — per-line-item CoA / receiving-doc attachment control + file list.
+function rcvLineItemAttachHTML(li){
+  const files=li.attachments||[];
+  const list=files.length
+    ? `<div style="margin-top:6px">`+files.map(a=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:3px">
+        <a href="${RECEIVING_API}?id=${encodeURIComponent(activeRcv.id)}&file=${encodeURIComponent(a.key)}" target="_blank" rel="noopener" style="color:#1F6F6B;text-decoration:underline">&#128206; ${cesc(a.filename)}</a>
+        <span style="font-size:10px;color:#4a5568">${rcvFmtBytes(a.size)}</span>
+        <button class="btn-ghost" style="color:#C00000;padding:2px 6px;font-size:11px" onclick="rcvRemoveLineItemFile('${cesc(li.id)}','${cesc(a.key)}')">&#10005;</button>
+      </div>`).join("")+`</div>`
+    : `<div style="font-size:10px;color:#4a5568;margin-top:4px">No CoA / receiving docs attached for this material yet.</div>`;
+  return `<div style="margin-top:8px;border-top:1px dashed var(--border2);padding-top:8px">
+    <button class="btn-ghost" style="padding:5px 10px;font-size:11px;background:#E6F2F1;color:#10403d" onclick="document.getElementById('rli-file-${cesc(li.id)}').click()">&#128206; Attach CoA / Receiving Doc</button>
+    <span style="font-size:10px;color:#4a5568;margin-left:8px">PDF · JPG · PNG · Word</span>
+    <input type="file" id="rli-file-${cesc(li.id)}" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" onchange="rcvUploadLineItemFile('${cesc(li.id)}',this)">
+    ${list}
+  </div>`;
+}
+
+async function rcvUploadLineItemFile(liId,input){
+  if(!activeRcv)return;
+  const files=Array.from(input.files||[]);
+  if(!files.length)return;
+  let ok=0;
+  for(const f of files){
+    try{
+      const dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("read error"));r.readAsDataURL(f);});
+      const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=attach-line-item",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({lineItemId:liId,filename:f.name,contentType:f.type||"application/octet-stream",data:dataUrl})});
+      if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+      activeRcv=await res.json();
+      ok++;
+    }catch(e){toast("Upload failed for "+f.name+": "+e.message,"red");}
+  }
+  input.value="";
+  renderRcvLineItems();
+  if(ok)toast(ok+" CoA / receiving doc(s) attached.","green");
+}
+
+async function rcvRemoveLineItemFile(liId,key){
+  if(!activeRcv)return;
+  if(!confirm("Remove this attachment? This permanently deletes the file."))return;
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=delete-line-item-file",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({lineItemId:liId,key})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv=await res.json();
+    renderRcvLineItems();
+    toast("Attachment removed.","green");
+  }catch(e){toast("Could not remove attachment: "+e.message,"red");}
+}
+
+async function rcvAddMaterial(){
+  if(!activeRcv)return;
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=save-line-item",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv=await res.json();
+    renderRcvLineItems();
+  }catch(e){toast("Could not add material: "+e.message,"red");}
+}
+
+async function rcvSaveLineItemRow(liId){
+  if(!activeRcv)return;
+  // Fall back to the cached value for any field not in the current DOM (the
+  // transfer / receiving layouts render different field sets) so switching type
+  // never wipes a stored value.
+  const cached=(activeRcv.lineItems||[]).find(x=>x.id===liId)||{};
+  const g=f=>{const el=document.getElementById("rli-"+liId+"-"+f);return el?el.value:(cached[f]!==undefined?cached[f]:"");};
+  const body={id:liId,materialName:g("materialName"),supplier:g("supplier"),lotNumber:g("lotNumber"),quantity:g("quantity"),quantityUnit:g("quantityUnit"),coaReceived:g("coaReceived"),coaReference:g("coaReference"),internalBatchLot:g("internalBatchLot"),originSite:g("originSite")};
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=save-line-item",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    // Update the cached record silently — do NOT re-render, to preserve focus.
+    activeRcv=await res.json();
+  }catch(e){toast("Could not save material: "+e.message,"red");}
+}
+
+async function rcvRemoveLineItem(liId){
+  if(!activeRcv)return;
+  if(!confirm("Remove this material from the inspection?"))return;
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=delete-line-item",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({lineItemId:liId})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv=await res.json();
+    renderRcvLineItems();
+  }catch(e){toast("Could not remove material: "+e.message,"red");}
+}
+
+// ── Photos ──────────────────────────────────────────────────────────────────
+function renderRcvAttachments(){
+  const el=document.getElementById("rcv-attachments");if(!el||!activeRcv)return;
+  const list=activeRcv.attachments||[];
+  if(!list.length){el.innerHTML=`<div style="font-size:11px;color:#4a5568">No photos attached yet.</div>`;return;}
+  el.innerHTML=`<table class="crisis-tbl" style="width:100%"><thead><tr><th style="width:160px">Description</th><th>File</th><th style="width:80px">Size</th><th style="width:40px"></th></tr></thead><tbody>`+
+    list.map(a=>`<tr>
+      <td>${cesc(a.description)||"—"}</td>
+      <td><a href="${RECEIVING_API}?id=${encodeURIComponent(activeRcv.id)}&file=${encodeURIComponent(a.key)}" target="_blank" rel="noopener" style="color:#1F6F6B;text-decoration:underline">${cesc(a.filename)}</a></td>
+      <td style="font-size:10px;color:#4a5568">${rcvFmtBytes(a.size)}</td>
+      <td><button class="btn-ghost" style="color:#C00000" onclick="removeRcvAttachment('${cesc(a.key)}')">&#10005;</button></td>
+    </tr>`).join("")+`</tbody></table>`;
+}
+
+async function rcvUpload(input){
+  if(!activeRcv){toast("Start an inspection first.","red");return;}
+  const desc=document.getElementById("rcv-photo-desc").value;
+  const files=Array.from(input.files||[]);
+  if(!files.length)return;
+  let ok=0;
+  for(const f of files){
+    try{
+      const dataUrl=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(new Error("read error"));r.readAsDataURL(f);});
+      const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=attach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filename:f.name,contentType:f.type||"application/octet-stream",description:desc,data:dataUrl})});
+      if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+      const entry=await res.json();
+      (activeRcv.attachments=activeRcv.attachments||[]).push(entry);
+      ok++;
+    }catch(e){toast("Upload failed for "+f.name+": "+e.message,"red");}
+  }
+  input.value="";
+  renderRcvAttachments();
+  if(ok)toast(ok+" photo(s) attached.","green");
+}
+
+async function removeRcvAttachment(key){
+  if(!activeRcv)return;
+  if(!confirm("Remove this photo? This permanently deletes the file."))return;
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&file="+encodeURIComponent(key),{method:"DELETE"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv.attachments=(activeRcv.attachments||[]).filter(a=>a.key!==key);
+    renderRcvAttachments();
+    toast("Photo removed.","green");
+  }catch(e){toast("Could not remove photo: "+e.message,"red");}
+}
+
+// ── Cold shipment / temperatures ────────────────────────────────────────────
+function rcvSetCold(v){
+  if(!activeRcv)return;
+  activeRcv.coldShipment=v;
+  const yes=document.getElementById("rcv-cold-yes"),no=document.getElementById("rcv-cold-no"),fields=document.getElementById("rcv-cold-fields");
+  if(yes)yes.className=v==="Yes"?"on-yes":"";
+  if(no)no.className=v==="No"?"on-no":"";
+  if(fields)fields.style.display=v==="Yes"?"":"none";
+  rcvRecalcTemp();
+}
+
+function rcvRecalcTemp(){
+  const host=document.getElementById("rcv-temp-verdict");if(!host)return;
+  if((activeRcv&&activeRcv.coldShipment)!=="Yes"){host.innerHTML="";return;}
+  const v=id=>{const el=document.getElementById(id);return el?el.value:"";};
+  const range=v("rcv-requiredTempRange");
+  const t=activeRcv.recordType;
+  let temps,label;
+  if(t==="Shipping"){temps=[v("rcv-departureTemp")];label="departure temperature";}
+  else if(t==="Internal Transfer"){temps=[v("rcv-arrivalTemp")||activeRcv.arrivalTemp,v("rcv-departureTemp")||activeRcv.departureTemp];label="departure and arrival temperatures";}
+  else{temps=[v("rcv-truckTemp"),v("rcv-trailerTemp"),v("rcv-productTemp")];label="recorded temperatures";}
+  const verdict=rcvComputeTempAcceptable(range,temps);
+  if(verdict===""){host.innerHTML=`<div style="font-size:11px;color:#4a5568">Enter the required range and at least one temperature to evaluate.</div>`;return;}
+  const showOOS=t!=="Shipping";
+  if(verdict==="Yes"){
+    host.innerHTML=`<div class="rcv-temp-alert rcv-temp-ok"><b>&#10003; Temperature Acceptable</b> — all ${label} are within ${cesc(range)}.</div>`;
+  }else{
+    host.innerHTML=`<div class="rcv-temp-alert"><div style="flex:1;min-width:200px"><b>&#9888; Temperature deviation detected</b> — one or more ${label} are outside ${cesc(range)}.${showOOS?" Consider generating an OOS record.":""}</div>${(showOOS&&!activeRcv.oosId)?`<button class="btn" style="background:#C00000" onclick="rcvOpenOOSDialog()">Create OOS</button>`:(activeRcv.oosId?rcvLinkRowHTML("Linked OOS","oosId",activeRcv.oosId,`rcvGotoOOS('${cesc(activeRcv.oosId)}')`,"#a30000"):"")}</div>`;
+  }
+}
+
+// ── Overall result ──────────────────────────────────────────────────────────
+function rcvOnResultChange(){
+  const sel=document.getElementById("rcv-overallResult");if(!sel||!activeRcv)return;
+  const v=sel.value;
+  const wrap=document.getElementById("rcv-ncr-wrap");
+  if(wrap)wrap.style.display=(v==="Rejected"||v==="Conditional Accept")?"":"none";
+}
+
+// Read the editable header (+ checklist + cold + overall + type-specific
+// fields) into a payload. Each field falls back to the cached record value when
+// its input is not in the current DOM (so switching record type never wipes a
+// field that the new layout does not render).
+function rcvCollectHeader(){
+  const o=activeRcv;
+  const g=(id,fb)=>{const el=document.getElementById(id);return el?el.value:(fb!==undefined?fb:"");};
+  const ck=field=>{const el=document.querySelector('input[name="rcv-ck-'+field+'"]:checked');return el?el.value:"";};
+  const itemNotes={};
+  RCV_CHECKLIST.forEach(it=>{const el=document.getElementById("rcv-note-"+it.key);if(el&&el.value.trim())itemNotes[it.key]=el.value.trim();else if((o._itemNotes||{})[it.key])itemNotes[it.key]=o._itemNotes[it.key];});
+  const unit=g("rcv-temp-unit","°F")||"°F";
+  const withUnit=s=>{const t=(s||"").trim();return t===""?"":(/[°]/.test(t)?t:(t+" "+unit));};
+  const cold=(o.coldShipment==="Yes")?"Yes":"No";
+  const type=o.recordType||"Receiving";
+  const body={
+    recordType:type,
+    site:g("rcv-site",o.site)||o.site,carrier:g("rcv-carrier",o.carrier),trailerNumber:g("rcv-trailerNumber",o.trailerNumber),poNumber:g("rcv-poNumber",o.poNumber),
+    destination:g("rcv-destination",o.destination),
+    sealNumber:g("rcv-sealNumber",o.sealNumber),
+    expectedArrival:g("rcv-expectedArrival",o.expectedArrival),
+    discrepancies:g("rcv-discrepancies",o.discrepancies),
+    coldShipment:cold,
+    requiredTempRange:cold==="Yes"?g("rcv-requiredTempRange",o.requiredTempRange):"",
+    truckTemp:cold==="Yes"?withUnit(g("rcv-truckTemp",o.truckTemp)):"",
+    trailerTemp:cold==="Yes"?withUnit(g("rcv-trailerTemp",o.trailerTemp)):"",
+    productTemp:cold==="Yes"?withUnit(g("rcv-productTemp",o.productTemp)):"",
+    departureTemp:cold==="Yes"?withUnit(g("rcv-departureTemp",o.departureTemp)):"",
+    arrivalTemp:cold==="Yes"?withUnit(g("rcv-arrivalTemp",o.arrivalTemp)):"",
+    overallResult:g("rcv-overallResult",o.overallResult),
+    notes:rcvComposeNotes(g("rcv-notes",rcvParseNotes(o.notes).notes),itemNotes),
+    ncrId:o.ncrId||"",oosId:o.oosId||"",
+  };
+  // Only an Internal Transfer carries a client-supplied linked Transfer ID; a
+  // Shipping record's own Transfer ID is owned server-side.
+  if(type==="Internal Transfer")body.linkedTransferId=g("rcv-link-transfer",o.linkedTransferId||"");
+  RCV_CHECKLIST.forEach(it=>{const val=ck(it.key);body[it.key]=val||o[it.key]||"";});
+  return body;
+}
+
+async function saveReceiving(){
+  const o=activeRcv;if(!o)return;
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(rcvCollectHeader())});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv=await res.json();
+    renderReceivingEditor();
+    toast("Inspection "+activeRcv.id+" saved.","green");
+  }catch(e){toast("Could not save: "+e.message,"red");}
+}
+
+async function rcvComplete(){
+  const o=activeRcv;if(!o)return;
+  const result=(document.getElementById("rcv-overallResult")||{}).value||"";
+  if(!result){toast("Choose an Overall Result before completing.","red");return;}
+  // Persist all current edits first so the completed record is consistent.
+  try{
+    await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(rcvCollectHeader())});
+  }catch(e){}
+  // Step-up re-authentication before locking the disposition.
+  if(!(await requireReauth({actionLabel:"Complete inspection "+o.id+" — "+result,recordId:o.id})))return;
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id)+"&action=complete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({overallResult:result})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv=await res.json();
+    renderReceivingEditor();
+    toast("Inspection completed — "+result+".","green");
+  }catch(e){toast("Could not complete: "+e.message,"red");}
+}
+
+async function deleteReceiving(id){
+  if(!isAdminUser){toast("Only an administrator can delete inspections.","red");return;}
+  if(!confirm("Delete inspection "+id+"? This permanently removes the record, its materials and all photos. This cannot be undone."))return;
+  if(!(await requireReauth({actionLabel:"Delete inspection "+id,recordId:id})))return;
+  try{
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(id),{method:"DELETE"});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    await showReceivingList();
+    toast("Inspection "+id+" deleted.","green");
+  }catch(e){toast("Delete failed: "+e.message,"red");}
+}
+
+// ── Generate NCR from a rejected / conditional receipt ──────────────────────
+async function rcvCreateNCR(){
+  const o=activeRcv;if(!o)return;
+  // Persist current edits so the NCR reason reflects the latest state.
+  await saveReceiving().catch(()=>{});
+  const r=activeRcv||o;
+  const mats=(r.lineItems||[]).map(li=>li.materialName).filter(Boolean).join(", ")||"(materials not listed)";
+  const typeLbl=r.recordType==="Internal Transfer"?"Internal transfer receipt":(r.recordType==="Shipping"?"Shipping inspection":"Receiving inspection");
+  let reason=`${typeLbl} ${r.id} resulted in "${r.overallResult||"Rejected"}". Carrier ${r.carrier||"—"}, trailer ${r.trailerNumber||"—"}, ${r.recordType==="Shipping"?"ref":"PO"} ${r.poNumber||"—"}. Materials: ${mats}.${r.coldShipment==="Yes"&&r.tempAcceptable==="No"?" Temperature deviation recorded.":""}`;
+  if(r.recordType==="Internal Transfer"){
+    if(r.linkedTransferId)reason+=` Linked to outbound transfer ${r.linkedTransferId}.`;
+    if((r.discrepancies||"").trim())reason+=` Discrepancies noted: ${r.discrepancies.trim()}`;
+  }
+  try{
+    const res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({user:ensureUser(),type:"NCR",severity:r.overallResult==="Rejected"?"Major":"Minor",desc:reason,clause:"Receiving / Incoming Material Control",owner:"",status:"Open",site:r.site,photos:[],evidence:"Linked receiving inspection "+r.id})});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const ncr=await res.json();
+    // FIX 6 — refresh the shared records list so the new NCR is immediately
+    // visible in the CAPA / NCR / Audit tab without a manual page refresh.
+    await aiReloadRecords().catch(()=>{});
+    if(typeof renderTable==="function"){try{renderTable();}catch(_){}}
+    // Link the NCR id back onto the inspection.
+    const body=rcvCollectHeader();body.ncrId=ncr.id;
+    const up=await fetch(RECEIVING_API+"?id="+encodeURIComponent(r.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(up.ok)activeRcv=await up.json();
+    renderReceivingEditor();
+    toast("NCR "+ncr.id+" generated and linked.","green");
+  }catch(e){toast("Could not generate NCR: "+e.message,"red");}
+}
+
+// ── Generate OOS from a temperature deviation ───────────────────────────────
+// Parse a required-range string into {lo,hi} numeric bounds (mirrors the
+// server / live-verdict logic) so a single temperature can be tested.
+function rcvParseRange(requiredRange){
+  const range=String(requiredRange||"").replace(/[°FfCc]/g,"").trim();
+  if(!range)return null;
+  let lo=-Infinity,hi=Infinity;
+  const between=range.match(/(-?\d+(?:\.\d+)?)\s*(?:-|to|–|—|\.\.)\s*(-?\d+(?:\.\d+)?)/i);
+  if(between){lo=parseFloat(between[1]);hi=parseFloat(between[2]);if(lo>hi){const t=lo;lo=hi;hi=t;}}
+  else if(/(?:<=|≤|<|max|below|under)/i.test(range)){const m=range.match(/-?\d+(\.\d+)?/);if(m)hi=parseFloat(m[0]);}
+  else if(/(?:>=|≥|>|min|above|over)/i.test(range)){const m=range.match(/-?\d+(\.\d+)?/);if(m)lo=parseFloat(m[0]);}
+  else{const m=range.match(/-?\d+(\.\d+)?/);if(m)hi=parseFloat(m[0]);}
+  if(lo===-Infinity&&hi===Infinity)return null;
+  return {lo,hi};
+}
+function rcvTempNum(s){if(s==null)return null;const m=String(s).replace(/[°]/g,"").match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):null;}
+
+// Build the OOS pre-population from the temperature deviation: the specific
+// measurement that is out of range (analyte), its value (result), the required
+// range (specification) and the selected temperature unit (°F / °C).
+function rcvComputeOOSPrefill(){
+  const o=activeRcv||{};
+  const v=id=>{const el=document.getElementById(id);return el?el.value:"";};
+  const range=v("rcv-requiredTempRange")||o.requiredTempRange||"";
+  const unitSel=document.getElementById("rcv-temp-unit");
+  let units=(unitSel?unitSel.value:"°F")||"°F";
+  units=units.replace(/&deg;/g,"°");
+  if(!/[°]/.test(units))units=(units.indexOf("C")>=0?"°C":"°F");
+  let items;
+  if(o.recordType==="Internal Transfer"){
+    items=[{label:"Arrival Temperature",value:v("rcv-arrivalTemp")||o.arrivalTemp}];
+  }else{
+    items=[
+      {label:"Trailer Temperature",value:v("rcv-trailerTemp")||o.trailerTemp},
+      {label:"Product Temperature",value:v("rcv-productTemp")||o.productTemp},
+      {label:"Truck / Cab Temperature",value:v("rcv-truckTemp")||o.truckTemp},
+    ];
+  }
+  const rng=rcvParseRange(range);
+  let chosen=null;
+  if(rng){for(const it of items){const n=rcvTempNum(it.value);if(n!=null&&!(n>=rng.lo&&n<=rng.hi)){chosen=it;break;}}}
+  if(!chosen)chosen=items.find(it=>(it.value||"").toString().trim())||items[0]||{label:"Temperature",value:""};
+  const withUnit=s=>{const t=(s||"").toString().trim();return t===""?"":(/[°]/.test(t)?t:(t+" "+units));};
+  return {analyte:chosen.label,result:withUnit(chosen.value),spec:range,units,productName:((o.lineItems||[])[0]||{}).materialName||"Incoming material"};
+}
+
+// FIX 5 — open a confirmation dialog (with a Cancel option) before creating the
+// OOS, showing the pre-populated values the new record will carry.
+function rcvOpenOOSDialog(){
+  const o=activeRcv;if(!o)return;
+  if(o.oosId){toast("An OOS is already linked to this record.","yellow");return;}
+  const pf=rcvComputeOOSPrefill();
+  activeRcv._oosPrefill=pf;
+  const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val||"—";};
+  set("rcv-oos-analyte",pf.analyte);
+  set("rcv-oos-result",pf.result);
+  set("rcv-oos-spec",pf.spec);
+  set("rcv-oos-units",pf.units);
+  document.getElementById("rcv-oos-modal").classList.add("open");
+}
+function rcvCloseOOSDialog(){const m=document.getElementById("rcv-oos-modal");if(m)m.classList.remove("open");}
+
+// Confirm the dialog — create the linked OOS record using the pre-population.
+async function rcvConfirmOOS(){
+  const o=activeRcv;if(!o)return;
+  const pf=activeRcv._oosPrefill||rcvComputeOOSPrefill();
+  rcvCloseOOSDialog();
+  await saveReceiving().catch(()=>{});
+  const r=activeRcv||o;
+  const first=(r.lineItems||[])[0]||{};
+  try{
+    const res=await fetch(OOS_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      site:r.site,materialType:"Raw Material",productName:first.materialName||pf.productName||"Incoming material",supplier:first.supplier||"",
+      internalLot:"",supplierLot:first.lotNumber||"",
+      testAnalyte:pf.analyte||"Receiving Temperature",testMethod:"Calibrated temperature gun / spot check",
+      specification:pf.spec||r.requiredTempRange||"",resultObtained:pf.result||"",units:pf.units||"°F",passFail:"Fail",
+      classification:"Phase 2A Manufacturing Investigation",
+      phase1Notes:"Auto-generated from truck inspection "+r.id+". "+(pf.analyte||"Temperature")+" recorded outside the required range "+(pf.spec||r.requiredTempRange||"—")+". Carrier "+(r.carrier||"—")+", trailer "+(r.trailerNumber||"—")+", PO "+(r.poNumber||"—")+".",
+    })});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const oos=await res.json();
+    const body=rcvCollectHeader();body.oosId=oos.id;
+    const up=await fetch(RECEIVING_API+"?id="+encodeURIComponent(r.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(up.ok)activeRcv=await up.json();
+    renderReceivingEditor();
+    toast("OOS "+oos.id+" generated from the temperature deviation and linked.","green");
+  }catch(e){toast("Could not generate OOS: "+e.message,"red");}
+}
+
+// ── QR code — deep link to the new-inspection form for the current site ─────
+async function rcvLoadQRLib(){
+  if(window.QRCode)return;
+  await new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";s.onload=res;s.onerror=()=>rej(new Error("QR library failed to load"));document.head.appendChild(s);});
+}
+function rcvQRUrl(type){
+  return location.origin+location.pathname+"?module=receiving&type="+encodeURIComponent(type||"Receiving")+"&site="+encodeURIComponent(currentSite);
+}
+// One QR code per record type, each deep-linking to a fresh record of that type.
+const RCV_QR_STATIONS=[
+  {type:"Receiving",label:"Receiving Dock",color:"#1F4E79"},
+  {type:"Shipping",label:"Shipping Dock",color:"#6B2E9E"},
+  {type:"Internal Transfer",label:"Transfer Staging",color:"#1F6F6B"},
+];
+async function openReceivingQR(){
+  const siteEl=document.getElementById("rcv-qr-site");if(siteEl)siteEl.textContent=currentSite;
+  const host=document.getElementById("rcv-qr-canvases");
+  if(host)host.innerHTML=RCV_QR_STATIONS.map(s=>`
+    <div style="border:1px solid var(--border2);border-radius:8px;padding:12px;min-width:180px">
+      <div style="font-size:12px;font-weight:700;color:${s.color};margin-bottom:8px">${cesc(s.label)}</div>
+      <div class="rcv-qr-canvas" data-type="${cesc(s.type)}" style="display:flex;justify-content:center;min-height:180px;align-items:center"><div style="font-size:11px;color:#4a5568">Generating…</div></div>
+      <div style="font-size:10px;color:#6B7280;margin-top:6px">New ${cesc(s.type)} record</div>
+    </div>`).join("");
+  document.getElementById("rcv-qr-modal").classList.add("open");
+  try{
+    await rcvLoadQRLib();
+    document.querySelectorAll("#rcv-qr-canvases .rcv-qr-canvas").forEach(el=>{
+      const type=el.getAttribute("data-type");
+      el.innerHTML="";
+      new window.QRCode(el,{text:rcvQRUrl(type),width:170,height:170,colorDark:"#1F3864",colorLight:"#ffffff",correctLevel:window.QRCode.CorrectLevel.M});
+    });
+  }catch(e){
+    if(host)host.innerHTML='<div style="font-size:11px;color:#C00000">Could not generate QR codes: '+cesc(e.message)+'</div>';
+  }
+}
+function closeReceivingQR(){document.getElementById("rcv-qr-modal").classList.remove("open");}
+function rcvQRImageFrom(el){
+  if(!el)return null;
+  const cv=el.querySelector("canvas");
+  if(cv)try{return cv.toDataURL("image/png");}catch(e){}
+  const img=el.querySelector("img");
+  return img?img.src:null;
+}
+function printReceivingQR(){
+  const w=window.open("","_blank");if(!w){toast("Pop-up blocked — allow pop-ups to print.","red");return;}
+  const cards=RCV_QR_STATIONS.map(s=>{
+    const el=document.querySelector('#rcv-qr-canvases .rcv-qr-canvas[data-type="'+s.type+'"]');
+    const data=rcvQRImageFrom(el);
+    return `<div style="display:inline-block;text-align:center;margin:18px 24px;vertical-align:top">
+      <h3 style="color:${s.color};margin:0 0 6px">${cesc(s.label)}</h3>
+      <div style="font-size:12px;color:#444;margin-bottom:6px">New ${cesc(s.type)} record — ${cesc(currentSite)}</div>
+      ${data?`<img src="${data}" style="width:240px;height:240px">`:"(QR not ready)"}
+      <div style="font-family:monospace;font-size:9px;word-break:break-all;color:#666;max-width:240px;margin:6px auto 0">${cesc(rcvQRUrl(s.type))}</div>
+    </div>`;
+  }).join("");
+  w.document.write(`<html><head><title>Receiving QR Codes — ${cesc(currentSite)}</title></head>
+    <body style="font-family:sans-serif;text-align:center;padding:30px">
+    <h2 style="color:#1F3864">SOMAFINA UST — Receiving / Shipping / Transfer QR Codes</h2>
+    <p style="font-size:12px;color:#555">Post each code at its station. Scanning opens a new record of that type for ${cesc(currentSite)}.</p>
+    ${cards}
+    <script>window.onload=function(){window.print();}<\/script></body></html>`);
+  w.document.close();
+}
+
+// On load, a "?module=receiving" / "?module=truck-inspections" deep link (from a
+// scanned QR code) jumps straight to a fresh inspection form for the requested
+// site. A transfer_id additionally opens the Internal Transfer receipt and
+// auto-loads the linked shipment so the receiver just verifies and signs.
+function maybeReceivingDeepLink(){
+  try{
+    const params=new URLSearchParams(location.search);
+    const mod=(params.get("module")||"").toLowerCase();
+    if(mod!=="receiving"&&mod!=="truck-inspections")return;
+    const site=params.get("site");
+    if(site&&SITES.includes(site)){currentSite=site;try{localStorage.setItem("qis-site",site);}catch(e){}renderSiteSwitcher();}
+    const transferId=(params.get("transfer_id")||params.get("transferId")||"").trim();
+    // Normalise the requested type (accepts hyphenated forms from the QR link).
+    const rawType=(params.get("type")||"").toLowerCase().replace(/[\s_]+/g,"-");
+    const typeMap={"receiving":"Receiving","shipping":"Shipping","internal-transfer":"Internal Transfer"};
+    let type=typeMap[rawType]||"Receiving";
+    if(transferId)type="Internal Transfer"; // a transfer_id always opens the receipt
+    // Clear the query string so a refresh doesn't open another blank form.
+    try{history.replaceState(null,"",location.origin+location.pathname);}catch(e){}
+    // Activate the Truck Inspections tab directly (not via switchTab, whose
+    // showReceivingList would race the createReceiving render below).
+    document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    const sec=document.getElementById("receiving");if(sec)sec.classList.add("active");
+    const tab=[...document.querySelectorAll("nav .tab")].find(t=>/'receiving'/.test(t.getAttribute("onclick")||""));
+    if(tab)tab.classList.add("active");
+    Promise.resolve(createReceiving(type)).then(()=>{
+      if(transferId&&activeRcv){
+        const inp=document.getElementById("rcv-link-transfer");
+        if(inp)inp.value=transferId;
+        rcvLinkLookup();
+      }
+    });
+  }catch(e){}
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // C-SUITE REPORTS — Monthly Quality Flash & Annual Management Review
 //
@@ -11304,6 +12868,8 @@ window.qisBoot=async function(user){
   await loadData();
   await loadDashAux();
   render();
+  // A "?module=receiving" QR deep link jumps straight to a new inspection form.
+  if(typeof maybeReceivingDeepLink==="function")maybeReceivingDeepLink();
   // Reveal the dashboard body now that the first load has rendered into it.
   const _dl=document.getElementById("dash-loading"),_db=document.getElementById("dash-body");
   if(_dl)_dl.style.display="none";if(_db)_db.style.display="";
