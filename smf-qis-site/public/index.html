@@ -463,7 +463,7 @@ main{padding:24px 32px 80px;}
       <div class="site-menu" id="site-menu"></div>
     </div>
     <div class="user-badge">
-      <span class="site-badge" id="user-badge-btn" style="cursor:pointer" title="Signed-in user — edit your profile (full name &amp; title)" onclick="openProfileModal()">&#128100; <strong id="user-badge-name">—</strong><span id="user-badge-title" style="font-size:10px;color:#BDD7EE;margin-left:4px"></span><span class="admin-tag" id="user-admin-tag" style="display:none">ADMIN</span></span>
+      <span class="site-badge" id="user-badge-btn" style="cursor:pointer" title="Signed-in user — edit your profile (full name &amp; title)" onclick="openProfileModal()">&#128100; <strong id="user-badge-name">—</strong><span id="user-badge-title" style="font-size:10px;color:#BDD7EE;margin-left:4px"></span><span class="admin-tag" id="user-role-tag" style="display:none">MEMBER</span><span class="admin-tag" id="user-admin-tag" style="display:none">ADMIN</span></span>
       <button class="signout-btn" onclick="qisSignOut()">Sign out</button>
     </div>
     <div class="deadline-badge" id="deadline-hdr" style="display:none"></div>
@@ -491,6 +491,7 @@ main{padding:24px 32px 80px;}
   <div class="tab" onclick="switchTab('oos',this)">&#129514; OOS</div>
   <div class="tab" onclick="switchTab('receiving',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#E53E3E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Truck Inspections</div>
   <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
+  <div class="tab" id="tab-settings" data-tab="settings" onclick="switchTab('settings',this)" style="display:none">&#9881; Settings</div>
 </nav>
 <main>
 
@@ -713,6 +714,59 @@ main{padding:24px 32px 80px;}
 </div>
 
 <!-- AI REPORT -->
+<div class="section" id="settings">
+  <div class="table-header"><div class="section-title">&#9881; Settings · Access Control</div></div>
+  <div id="settings-denied" style="display:none;padding:24px;color:#E53E3E;font-size:13px">You do not have permission to view this page.</div>
+  <div id="settings-body" style="display:none">
+    <!-- ── Role Management ────────────────────────────────────────────────── -->
+    <div class="chart-card" style="margin-bottom:16px">
+      <div class="table-header" style="margin-bottom:10px"><div class="chart-title">Role Management</div>
+        <button class="btn" style="background:var(--accent);padding:5px 12px;font-size:12px" onclick="openRoleAssign()">+ Add / Update Role</button>
+      </div>
+      <div style="font-size:11px;color:#718096;margin-bottom:10px">Assign one of four roles to a user. Role hierarchy (lowest → highest): <strong>Dock</strong> → <strong>Member</strong> → <strong>Quality Manager</strong> → <strong>Admin</strong>. A user with no assignment defaults to Member.</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;font-size:12px" id="roles-table">
+          <thead><tr><th>Email</th><th>Role</th><th>Site</th><th>Assigned By</th><th>Assigned</th><th></th></tr></thead>
+          <tbody id="roles-tbody"><tr><td colspan="6" style="padding:12px;color:#718096">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <!-- ── Action Log ─────────────────────────────────────────────────────── -->
+    <div class="chart-card">
+      <div class="table-header" style="margin-bottom:10px"><div class="chart-title">Action Log</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="alog-user" type="text" placeholder="Filter by email…" style="font-size:11px;padding:4px 8px;border:1px solid #cbd5e0;border-radius:4px" oninput="alogDebounced()">
+          <select id="alog-type" style="font-size:11px;padding:4px 8px;border:1px solid #cbd5e0;border-radius:4px" onchange="loadActionLog(1)">
+            <option value="">All actions</option>
+            <option value="role_assigned">role_assigned</option>
+            <option value="role_removed">role_removed</option>
+            <option value="record_created">record_created</option>
+            <option value="record_closed">record_closed</option>
+            <option value="record_deleted">record_deleted</option>
+            <option value="effectiveness_completed">effectiveness_completed</option>
+            <option value="sign_added">sign_added</option>
+            <option value="link_added">link_added</option>
+            <option value="link_removed">link_removed</option>
+            <option value="concurrency_conflict_rejected">concurrency_conflict_rejected</option>
+            <option value="permission_denied">permission_denied</option>
+          </select>
+          <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActionLog(1)">Refresh</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" style="width:100%;font-size:11px" id="alog-table">
+          <thead><tr><th>Timestamp</th><th>User</th><th>Role</th><th>Action</th><th>Record Type</th><th>Record ID</th><th>Site</th></tr></thead>
+          <tbody id="alog-tbody"><tr><td colspan="7" style="padding:12px;color:#718096">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:11px">
+        <button class="btn" id="alog-prev" style="padding:3px 10px;font-size:11px" onclick="alogPage(-1)">‹ Prev</button>
+        <span id="alog-pageinfo" style="color:#718096">Page 1</span>
+        <button class="btn" id="alog-next" style="padding:3px 10px;font-size:11px" onclick="alogPage(1)">Next ›</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="section" id="ai-report">
   <div class="table-header"><div class="section-title">AI Report Generator</div></div>
   <div style="display:grid;grid-template-columns:280px 1fr;gap:14px">
@@ -833,6 +887,44 @@ main{padding:24px 32px 80px;}
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeProfileModal()">Cancel</button>
       <button class="btn" onclick="saveProfile()">Save Profile</button>
+    </div>
+  </div>
+</div>
+
+<!-- ROLE ASSIGNMENT MODAL (Admin only) -->
+<div class="modal-overlay" id="role-assign-modal">
+  <div class="modal" style="border-top:3px solid #1F4E79;max-width:460px">
+    <div class="modal-title" style="color:#1F3864">Assign / Update Role</div>
+    <div class="form-grid">
+      <div class="form-group form-full"><label class="form-label">User Email</label><input class="form-input" id="ra-email" type="text" placeholder="user@somafina.com"></div>
+      <div class="form-group form-full"><label class="form-label">Role</label>
+        <select class="form-input" id="ra-role">
+          <option value="Dock">Dock</option>
+          <option value="Member" selected>Member</option>
+          <option value="Quality Manager">Quality Manager</option>
+          <option value="Admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group form-full"><label class="form-label">Site</label><input class="form-input" id="ra-site" type="text" value="ALL" placeholder="ALL or a site code"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeRoleAssign()">Cancel</button>
+      <button class="btn" onclick="submitRoleAssign()">Save Role</button>
+    </div>
+  </div>
+</div>
+
+<!-- OPTIMISTIC CONCURRENCY CONFLICT MODAL -->
+<div class="modal-overlay" id="conflict-modal">
+  <div class="modal" style="border-top:3px solid #C00000;max-width:760px">
+    <div class="modal-title" style="color:#7a0000">Editing conflict — your changes were NOT lost</div>
+    <div id="conflict-msg" style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#7a0000">—</div>
+    <div id="conflict-diff" style="display:none;max-height:340px;overflow:auto;margin-bottom:14px"></div>
+    <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
+      <button class="btn-ghost" onclick="closeConflictModal()">Cancel</button>
+      <button class="btn" id="conflict-review-btn" style="background:#7a6000" onclick="conflictReviewDifferences()">Review Differences</button>
+      <button class="btn" id="conflict-reload-btn" style="background:#1F6F6B" onclick="conflictReloadTheirVersion()">Reload Their Version</button>
+      <button class="btn" id="conflict-savemine-btn" style="display:none;background:#C00000" onclick="conflictSaveAgainstLatest()">Keep My Values &amp; Save</button>
     </div>
   </div>
 </div>
@@ -3610,8 +3702,10 @@ function setCurrentUser(user){
   currentUserEmail=(user&&user.email)||"";
   currentUser=currentUserHasName?fullName.trim():(currentUserEmail||"");
   currentUserTitle=(meta.title||"").toString().trim();
-  const roles=(user&&user.roles)||[];
-  isAdminUser=ADMIN_EMAILS.includes(currentUserEmail.toLowerCase())||(!!user&&user.role==="admin")||(Array.isArray(roles)&&roles.includes("admin"));
+  // Admin status is now driven by the server-resolved role (getCurrentUserRole),
+  // NOT by an email allow-list or Identity app_metadata roles. isAdminUser is set
+  // to (role === Admin) once the role has been fetched; here we only ensure the
+  // body class reflects the current value.
   document.body.classList.toggle("is-admin",isAdminUser);
   renderUserBadge();
   // Prompt the user to complete their profile so reports show a name, not email.
@@ -3629,7 +3723,73 @@ function renderUserBadge(){
   const el=document.getElementById("user-badge-name");if(el)el.textContent=currentUser||"—";
   const ti=document.getElementById("user-badge-title");if(ti)ti.textContent=currentUserTitle?("· "+currentUserTitle):(currentUserHasName?"":"· set profile");
   const tag=document.getElementById("user-admin-tag");if(tag)tag.style.display=isAdminUser?"inline-block":"none";
+  // Small role badge next to the user's name. Hidden for Admin (the ADMIN tag
+  // already shows) to avoid duplication.
+  const rt=document.getElementById("user-role-tag");
+  if(rt){
+    if(currentUserRole&&currentUserRole!=="Admin"){rt.textContent=currentUserRole.toUpperCase();rt.style.display="inline-block";}
+    else{rt.style.display="none";}
+  }
 }
+
+// ── ROLE-BASED ACCESS CONTROL (front-end mirror of lib/auth.ts) ──────────────
+// The authoritative role lives server-side in user_roles; this is the UI mirror
+// used to show / hide / disable controls. The server re-enforces every rule, so
+// tampering with these values only changes what the browser draws.
+let currentUserRole="Member"; // resolved from /api/user-roles?action=my-role
+const ROLE_RANK={Dock:0,Member:1,"Quality Manager":2,Admin:3};
+function roleAtLeast(min){return (ROLE_RANK[currentUserRole]||0)>=(ROLE_RANK[min]||0);}
+function roleCanDelete(){return roleAtLeast("Admin");}        // record deletion, role assignment, cost library
+function roleCanManage(){return roleAtLeast("Quality Manager");} // close / complete / sign-off / effectiveness / unlink
+function roleCanEdit(){return roleAtLeast("Member");}  // create / edit / attach / sign
+function isDockRole(){return currentUserRole==="Dock";}
+// Back-compat aliases (callable) — distinct names avoid shadowing by the local
+// `const canDelete` / `canEdit` booleans used in some list-render scopes.
+function canManage(){return roleCanManage();}
+// Tooltip text explaining why a control is unavailable.
+function roleReq(min){return "Requires the "+min+" role or higher (your role: "+currentUserRole+").";}
+
+async function getCurrentUserRole(){
+  try{
+    const r=await fetch("/api/user-roles?action=my-role");
+    if(r.ok){const d=await r.json();currentUserRole=(d&&d.role)?d.role:"Member";}
+    else currentUserRole="Member";
+  }catch(e){currentUserRole="Member";}
+  // Keep the legacy isAdminUser flag meaning "Admin role" so existing delete
+  // gates keep working; close/complete gates now use canManage().
+  isAdminUser=roleAtLeast("Admin");
+  document.body.classList.toggle("is-admin",isAdminUser);
+  document.body.classList.toggle("role-dock",isDockRole());
+  document.body.classList.toggle("can-manage",canManage());
+  document.body.classList.toggle("can-delete",roleCanDelete());
+  applyRoleNav();
+  renderUserBadge();
+  return currentUserRole;
+}
+
+// Dock users see only the Truck Inspections tab; every other module tab is
+// hidden. Admins additionally see the Settings tab.
+function applyRoleNav(){
+  const dock=isDockRole();
+  document.querySelectorAll("nav .tab").forEach(t=>{
+    const oc=(t.getAttribute("onclick")||"");
+    const m=/switchTab\('([^']+)'/.exec(oc);
+    const id=m?m[1]:"";
+    if(id==="settings"){t.style.display=roleCanDelete()?"":"none";return;}
+    if(dock){t.style.display=(id==="receiving")?"":"none";}
+    else{t.style.display="";}
+  });
+  // If a Dock user is currently on a now-hidden tab, send them to receiving.
+  if(dock){
+    const active=document.querySelector("nav .tab.active");
+    const oc=active?active.getAttribute("onclick")||"":"";
+    if(!/switchTab\('receiving'/.test(oc)){
+      const recTab=[...document.querySelectorAll("nav .tab")].find(t=>/switchTab\('receiving'/.test(t.getAttribute("onclick")||""));
+      if(recTab)switchTab("receiving",recTab);
+    }
+  }
+}
+
 // Retained for compatibility with existing call sites; identity is enforced
 // server-side, so this simply returns the signed-in display name.
 function ensureUser(){return currentUser||"Unknown";}
@@ -5251,7 +5411,7 @@ function applyCloseGate(currentStatus){
   const sel=document.getElementById("f-status");if(!sel)return;
   const isClosed=s=>/^Closed/.test(s||"");
   Array.from(sel.options).forEach(o=>{
-    o.disabled=isClosed(o.value)&&!isAdminUser&&!isClosed(currentStatus);
+    o.disabled=isClosed(o.value)&&!canManage()&&!isClosed(currentStatus);
   });
 }
 
@@ -5361,9 +5521,9 @@ async function saveRecord(){
   const recType=document.getElementById("f-type").value;
   const wasClosed=existing&&/^Closed/.test(existing.status||"");
   const isClosing=/^Closed/.test(newStatus)&&!wasClosed;
-  // Only an administrator may move a record into a closed state.
-  if(isClosing&&!isAdminUser){
-    toast("Only an administrator can close a finding.","red");return;
+  // Quality Manager and above may move a record into a closed state.
+  if(isClosing&&!canManage()){
+    toast("Closing a record requires the Quality Manager role or above.","red");return;
   }
   // CAPA closing to Closed-Pending EC requires an effectiveness-check owner — if
   // none is assigned yet, prompt for one before the status change is allowed.
@@ -5398,10 +5558,29 @@ async function saveRecord(){
     data.postCaRemarks=(document.getElementById("resid-remarks")||{}).value||"";
   }
   // Record IDs are permanent — the id is never sent in the PUT body.
+  // Optimistic concurrency: send the version the editor loaded so the server can
+  // reject a stale field edit with 409.
+  if(wasEditing&&existing)data.expected_modified_at=existing.modifiedAt||existing.modified_at||null;
   try{
     let res;
     if(wasEditing){
-      res=await fetch(API+"?id="+encodeURIComponent(editId),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+      const doPut=(exp)=>{const b=Object.assign({},data);if(exp!==undefined)b.expected_modified_at=exp;return fetch(API+"?id="+encodeURIComponent(editId),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});};
+      res=await doPut(data.expected_modified_at);
+      if(res.status===409){
+        let cbody={};try{cbody=await res.json();}catch(_){}
+        _conflictCtx={
+          localValues:data,server:cbody,
+          reload:async(srv)=>{closeModal();await loadData();renderTable();const rid=(srv&&srv.id)||editId;if(rid)editRecord(rid);},
+          retry:async(latest)=>{
+            const r2=await doPut(latest===undefined?null:latest);
+            if(r2.status===409){let b2={};try{b2=await r2.json();}catch(_){}_conflictCtx.server=b2;showConflictModal(b2);return;}
+            if(!r2.ok){let m="HTTP "+r2.status;try{m=(await r2.json()).error||m;}catch(_){}throw new Error(m);}
+            toast("Saved over the latest version.","green");closeModal();await loadData();renderTable();
+          }
+        };
+        showConflictModal(cbody);
+        return;
+      }
     }else{
       res=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
     }
@@ -5496,7 +5675,7 @@ function renderAuditList(){
     const bld=a.building?(" · "+a.building):"";
     const sectionCount=(Array.isArray(a.sections)?a.sections.length:0);
     const canStart=(disp==="Scheduled"||disp==="Past Due");
-    const canComplete=(disp==="In Progress");
+    const canComplete=(disp==="In Progress")&&canManage();
     const canDelete=(disp==="Scheduled"||disp==="Past Due");
     const canEdit=(disp!=="Closed");
     const aid=a.id.replace(/'/g,"\\'");
@@ -9054,10 +9233,14 @@ function importJSON(event){
 async function resetData(){await refresh();toast("Reloaded latest data from the database.","yellow");}
 
 function switchTab(id,el){
+  // Dock users may only open the Truck Inspections module.
+  if(isDockRole()&&id!=="receiving"){toast("Your role only has access to Truck Inspections.","yellow");return;}
+  // The Settings module is Admin-only.
+  if(id==="settings"&&!roleCanDelete()){toast("Settings is restricted to administrators.","yellow");return;}
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.getElementById(id).classList.add("active");
-  el.classList.add("active");
+  if(el&&el.classList)el.classList.add("active");
   if(id==="audit-program")showAuditList();
   if(id==="dashboard")refreshDashboard();
   if(id==="oos")showOOSList();
@@ -9065,6 +9248,149 @@ function switchTab(id,el){
   if(id==="crisis"){stopCrisisPoll();showCrisisList();}else{stopCrisisPoll();}
   if(id==="recall")showRecallList();
   if(id==="ai-report")onReportTypeChange();
+  if(id==="settings")openSettings();
+}
+
+// ── SETTINGS · ROLE MANAGEMENT + ACTION LOG (Admin only) ─────────────────────
+function openSettings(){
+  const denied=document.getElementById("settings-denied"),body=document.getElementById("settings-body");
+  if(!roleCanDelete()){if(denied)denied.style.display="";if(body)body.style.display="none";return;}
+  if(denied)denied.style.display="none";if(body)body.style.display="";
+  loadRoles();
+  loadActionLog(1);
+}
+async function loadRoles(){
+  const tb=document.getElementById("roles-tbody");if(!tb)return;
+  tb.innerHTML='<tr><td colspan="6" style="padding:12px;color:#718096">Loading…</td></tr>';
+  try{
+    const r=await fetch("/api/user-roles?action=list");
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const rows=await r.json();
+    if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="padding:12px;color:#718096">No explicit role assignments yet. Users default to Member.</td></tr>';return;}
+    tb.innerHTML=rows.map(u=>{
+      const when=u.assignedAt?new Date(u.assignedAt).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+      return `<tr><td style="padding:6px 8px">${cesc(u.email)}</td><td style="padding:6px 8px"><strong>${cesc(u.role)}</strong></td><td style="padding:6px 8px">${cesc(u.site||"ALL")}</td><td style="padding:6px 8px">${cesc(u.assignedBy||"—")}</td><td style="padding:6px 8px">${cesc(when)}</td><td style="padding:6px 8px;text-align:right"><button class="btn-ghost" style="padding:2px 8px;font-size:11px" onclick="editRole('${cesc(u.email)}','${cesc(u.role)}','${cesc(u.site||'ALL')}')">Edit</button> <button class="btn-danger" style="padding:2px 8px;font-size:11px" onclick="removeRole('${cesc(u.email)}')">Remove</button></td></tr>`;
+    }).join("");
+  }catch(e){tb.innerHTML='<tr><td colspan="6" style="padding:12px;color:#E53E3E">Could not load roles: '+cesc(e.message||e)+'</td></tr>';}
+}
+function openRoleAssign(){document.getElementById("ra-email").value="";document.getElementById("ra-role").value="Member";document.getElementById("ra-site").value="ALL";document.getElementById("role-assign-modal").classList.add("open");}
+function editRole(email,role,site){document.getElementById("ra-email").value=email;document.getElementById("ra-role").value=role;document.getElementById("ra-site").value=site||"ALL";document.getElementById("role-assign-modal").classList.add("open");}
+function closeRoleAssign(){document.getElementById("role-assign-modal").classList.remove("open");}
+async function submitRoleAssign(){
+  const email=document.getElementById("ra-email").value.trim().toLowerCase();
+  const role=document.getElementById("ra-role").value;
+  const site=document.getElementById("ra-site").value.trim()||"ALL";
+  if(!email||!email.includes("@")){toast("Enter a valid email.","red");return;}
+  try{
+    const r=await fetch("/api/user-roles?action=assign",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"assign",email,role,site})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    toast("Role saved: "+email+" → "+role,"green");
+    closeRoleAssign();loadRoles();
+    if(email===currentUserEmail.toLowerCase())await getCurrentUserRole();
+  }catch(e){toast("Could not save role: "+(e.message||e),"red");}
+}
+async function removeRole(email){
+  if(!confirm("Remove the role assignment for "+email+"? They will revert to the default Member role."))return;
+  try{
+    const r=await fetch("/api/user-roles?action=remove",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"remove",email})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    toast("Role removed for "+email,"green");loadRoles();
+  }catch(e){toast("Could not remove role: "+(e.message||e),"red");}
+}
+
+// ── ACTION LOG VIEW ──────────────────────────────────────────────────────────
+let _alogPage=1,_alogHasMore=false,_alogTimer=null;
+function alogDebounced(){clearTimeout(_alogTimer);_alogTimer=setTimeout(()=>loadActionLog(1),350);}
+function alogPage(d){const n=_alogPage+d;if(n<1)return;if(d>0&&!_alogHasMore)return;loadActionLog(n);}
+async function loadActionLog(page){
+  _alogPage=page||1;
+  const tb=document.getElementById("alog-tbody");if(!tb)return;
+  const user=(document.getElementById("alog-user")||{}).value||"";
+  const type=(document.getElementById("alog-type")||{}).value||"";
+  tb.innerHTML='<tr><td colspan="7" style="padding:12px;color:#718096">Loading…</td></tr>';
+  try{
+    const qs="action=action-log&page="+_alogPage+(user?("&user="+encodeURIComponent(user.trim().toLowerCase())):"")+(type?("&type="+encodeURIComponent(type)):"");
+    const r=await fetch("/api/user-roles?"+qs);
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const d=await r.json();_alogHasMore=!!d.hasMore;
+    const rows=d.rows||[];
+    if(!rows.length){tb.innerHTML='<tr><td colspan="7" style="padding:12px;color:#718096">No matching log entries.</td></tr>';}
+    else{
+      tb.innerHTML=rows.map(e=>{
+        const ts=e.timestamp?new Date(e.timestamp).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"—";
+        return `<tr><td style="padding:5px 8px;white-space:nowrap">${cesc(ts)}</td><td style="padding:5px 8px">${cesc(e.userEmail||"—")}</td><td style="padding:5px 8px">${cesc(e.userRole||"—")}</td><td style="padding:5px 8px"><span style="font-family:'DM Mono',monospace;font-size:10px">${cesc(e.action||"")}</span></td><td style="padding:5px 8px">${cesc(e.recordType||"—")}</td><td style="padding:5px 8px">${cesc(e.recordId||"—")}</td><td style="padding:5px 8px">${cesc(e.site||"—")}</td></tr>`;
+      }).join("");
+    }
+    const pi=document.getElementById("alog-pageinfo");if(pi)pi.textContent="Page "+_alogPage;
+    const pv=document.getElementById("alog-prev");if(pv)pv.disabled=_alogPage<=1;
+    const nx=document.getElementById("alog-next");if(nx)nx.disabled=!_alogHasMore;
+  }catch(e){tb.innerHTML='<tr><td colspan="7" style="padding:12px;color:#E53E3E">Could not load action log: '+cesc(e.message||e)+'</td></tr>';}
+}
+
+// ── OPTIMISTIC CONCURRENCY CONFLICT MODAL ────────────────────────────────────
+// A save site that may conflict calls saveWithConcurrency(doFetchFn, ctx). If the
+// server replies 409 the conflict modal is shown; the editor's unsaved values are
+// preserved and never silently overwritten or merged.
+let _conflictCtx=null;
+function fmtTime(t){try{return new Date(t).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});}catch(e){return t||"";}}
+// doFetch(expectedModifiedAt) MUST perform the save and return the raw Response.
+// ctx: { label, localValues, getModifiedAt, reload(record), retry(expected) }
+async function saveWithConcurrency(doFetch, ctx){
+  const res=await doFetch(ctx?ctx.expected:undefined);
+  if(res&&res.status===409){
+    let body={};try{body=await res.json();}catch(e){}
+    _conflictCtx=Object.assign({},ctx,{server:body});
+    showConflictModal(body);
+    return {conflict:true,response:res,body};
+  }
+  return {conflict:false,response:res};
+}
+function showConflictModal(body){
+  const who=(body&&body.last_modified_by)||"Another user";
+  const when=body&&body.last_modified_at?fmtTime(body.last_modified_at):"just now";
+  document.getElementById("conflict-msg").textContent=who+" saved changes to this record at "+when+" while you were editing. Your unsaved changes have NOT been lost.";
+  const diff=document.getElementById("conflict-diff");diff.style.display="none";diff.innerHTML="";
+  document.getElementById("conflict-savemine-btn").style.display="none";
+  document.getElementById("conflict-modal").classList.add("open");
+}
+function closeConflictModal(){document.getElementById("conflict-modal").classList.remove("open");_conflictCtx=null;}
+function conflictReviewDifferences(){
+  if(!_conflictCtx)return;
+  const server=(_conflictCtx.server&&_conflictCtx.server.current_record)||{};
+  const local=(_conflictCtx.localValues)||{};
+  const keys=[...new Set([...Object.keys(local),...Object.keys(server)])].filter(k=>{
+    // Only show meaningful, comparable scalar fields.
+    if(["expected_modified_at","expectedModifiedAt","modifiedAt","modified_at","photos","signatures","attachments","lineItems"].includes(k))return false;
+    const a=local[k],b=server[k];
+    if(typeof a==="object"||typeof b==="object")return false;
+    return String(a==null?"":a)!==String(b==null?"":b);
+  });
+  const diff=document.getElementById("conflict-diff");
+  if(!keys.length){diff.innerHTML='<div style="padding:10px;font-size:12px;color:#718096">No differing scalar fields detected — the change may be in line items, attachments or signatures. Reload Their Version is recommended.</div>';}
+  else{
+    diff.innerHTML='<table class="data-table" style="width:100%;font-size:11px"><thead><tr><th>Field</th><th>Their saved value</th><th>Your unsaved value</th></tr></thead><tbody>'+
+      keys.map(k=>`<tr><td style="padding:5px 8px;font-weight:600">${cesc(k)}</td><td style="padding:5px 8px;background:#EDF2F7">${cesc(String(server[k]==null?"":server[k]))}</td><td style="padding:5px 8px;background:#FFF6E5">${cesc(String(local[k]==null?"":local[k]))}</td></tr>`).join("")+
+      '</tbody></table><div style="padding:8px 2px;font-size:11px;color:#718096">Choose <strong>Keep My Values &amp; Save</strong> to overwrite their version with yours (saved against their latest), or <strong>Reload Their Version</strong> to discard your edits.</div>';
+  }
+  diff.style.display="";
+  document.getElementById("conflict-savemine-btn").style.display="";
+}
+async function conflictReloadTheirVersion(){
+  const ctx=_conflictCtx;closeConflictModal();
+  if(ctx&&typeof ctx.reload==="function"){
+    const server=(ctx.server&&ctx.server.current_record)||null;
+    try{await ctx.reload(server);}catch(e){}
+  }
+  toast("Reloaded the latest saved version.","yellow");
+}
+async function conflictSaveAgainstLatest(){
+  const ctx=_conflictCtx;if(!ctx||typeof ctx.retry!=="function"){closeConflictModal();return;}
+  const server=ctx.server&&ctx.server.current_record;
+  const latest=server&&(server.modifiedAt||server.modified_at);
+  closeConflictModal();
+  try{await ctx.retry(latest);}catch(e){toast("Save failed: "+(e.message||e),"red");}
 }
 
 function filterRecords(f,el){
@@ -9307,9 +9633,21 @@ async function saveEditAudit(){
     clausesLabel,
     sections,
     execState:ex,
+    // Optimistic concurrency: the version the editor loaded.
+    expected_modified_at:raw.modifiedAt||raw.modified_at||null,
   };
+  const doPost=(exp)=>{const b=Object.assign({},body);if(exp!==undefined)b.expected_modified_at=exp;return fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=save-header",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});};
   try{
-    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=save-header",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const res=await doPost(body.expected_modified_at);
+    if(res.status===409){
+      let cbody={};try{cbody=await res.json();}catch(_){}
+      _conflictCtx={
+        localValues:body,server:cbody,
+        reload:async()=>{closeEditAuditModal();await loadAuditSessions();if(activeAuditId===id)loadAuditExec(id);else renderAuditList();},
+        retry:async(latest)=>{const r2=await doPost(latest===undefined?null:latest);if(r2.status===409){let b2={};try{b2=await r2.json();}catch(_){}_conflictCtx.server=b2;showConflictModal(b2);return;}if(!r2.ok){let m="HTTP "+r2.status;try{m=(await r2.json()).error||m;}catch(_){}throw new Error(m);}closeEditAuditModal();await loadAuditSessions();if(activeAuditId===id)loadAuditExec(id);else renderAuditList();toast("Saved over the latest version.","green");}
+      };
+      showConflictModal(cbody);return;
+    }
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     closeEditAuditModal();
     await loadAuditSessions();
@@ -9660,7 +9998,7 @@ function renderCrisisEditor(){
   const e=activeCrisis;if(!e)return;
   document.getElementById("crisis-back-btn").style.display="";
   document.getElementById("crisis-refresh-btn").style.display="";
-  const canComplete=isAdminUser;
+  const canComplete=canManage();
   const c=document.getElementById("crisis-content");
   c.innerHTML=`
     <!-- (1) HEADER -->
@@ -9952,12 +10290,24 @@ async function saveCrisis(quiet){
   };
   function val(id){const el=document.getElementById(id);return el?el.value:"";}
   // Exercise IDs are permanent — the id is never sent in the PUT body.
+  // Optimistic concurrency: send the loaded version's modified_at.
+  body.expected_modified_at=e.modifiedAt||e.modified_at||null;
   // Step-up re-auth when completing the exercise (its closed/terminal status).
   if(body.status==="Complete"&&e.status!=="Complete"){
     if(!(await requireReauth({actionLabel:"Set Crisis Exercise "+e.id+" status to Complete",recordId:e.id})))return;
   }
+  const doPut=(exp)=>{const b=Object.assign({},body);if(exp!==undefined)b.expected_modified_at=exp;return fetch(CRISIS_API+"?id="+encodeURIComponent(e.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});};
   try{
-    const res=await fetch(CRISIS_API+"?id="+encodeURIComponent(e.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const res=await doPut(body.expected_modified_at);
+    if(res.status===409){
+      let cbody={};try{cbody=await res.json();}catch(_){}
+      _conflictCtx={
+        localValues:body,server:cbody,
+        reload:async(srv)=>{try{const r=await fetch(CRISIS_API+"?id="+encodeURIComponent(e.id));if(r.ok){activeCrisis=await r.json();renderCrisisEditor&&renderCrisisEditor();}}catch(_){}},
+        retry:async(latest)=>{const r2=await doPut(latest===undefined?null:latest);if(r2.status===409){let b2={};try{b2=await r2.json();}catch(_){}_conflictCtx.server=b2;showConflictModal(b2);return;}if(!r2.ok){let m="HTTP "+r2.status;try{m=(await r2.json()).error||m;}catch(_){}throw new Error(m);}const fr=await r2.json();activeCrisis.modifiedAt=fr.modifiedAt;activeCrisis.status=fr.status;toast("Saved over the latest version.","green");}
+      };
+      showConflictModal(cbody);return;
+    }
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     const fresh=await res.json();
     // Keep live arrays/log from the authoritative response.
@@ -10099,8 +10449,24 @@ async function openRecallExercise(id){
 }
 
 // Shared POST helper — every recall mutation returns the full refreshed object.
+// The field-editing actions (save-setup / save-assessment) carry the optimistic
+// concurrency token and surface the conflict modal on a 409.
 async function recallPost(action,body){
-  const res=await fetch(RECALL_API+"?id="+encodeURIComponent(activeRecall.id)+(action?("&action="+action):""),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});
+  const cc=(action==="save-setup"||action==="save-assessment");
+  const base=Object.assign({},body||{});
+  if(cc&&activeRecall)base.expected_modified_at=activeRecall.modifiedAt||activeRecall.modified_at||null;
+  const doPost=(exp)=>{const bb=Object.assign({},base);if(cc&&exp!==undefined)bb.expected_modified_at=exp;return fetch(RECALL_API+"?id="+encodeURIComponent(activeRecall.id)+(action?("&action="+action):""),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(bb)});};
+  const res=await doPost(cc?base.expected_modified_at:undefined);
+  if(cc&&res.status===409){
+    let cbody={};try{cbody=await res.json();}catch(_){}
+    _conflictCtx={
+      localValues:base,server:cbody,
+      reload:async()=>{try{const r=await fetch(RECALL_API+"?id="+encodeURIComponent(activeRecall.id));if(r.ok){activeRecall=await r.json();renderRecallEditor();}}catch(_){}},
+      retry:async(latest)=>{const r2=await doPost(latest===undefined?null:latest);if(r2.status===409){let b2={};try{b2=await r2.json();}catch(_){}_conflictCtx.server=b2;showConflictModal(b2);return;}if(!r2.ok){let m="HTTP "+r2.status;try{m=(await r2.json()).error||m;}catch(_){}throw new Error(m);}activeRecall=await r2.json();renderRecallEditor();toast("Saved over the latest version.","green");}
+    };
+    showConflictModal(cbody);
+    return activeRecall;
+  }
   if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
   return await res.json();
 }
@@ -10511,7 +10877,7 @@ function renderRecallComplete(){
     <div style="margin-top:18px;padding:14px;background:${done?"#E2EFDA":"#E3F1EF"};border:1px solid ${done?"#548235":"#1F6F6B"};border-radius:8px;text-align:center">
       ${done?`<div style="color:#375623;font-weight:700">&#9989; This recall exercise is Completed and locked as the final traceability record.</div>`:`
       <div style="font-size:11px;color:#0F4A46;margin-bottom:10px">Completing the exercise marks it as the final traceability record. Requires at least one electronic signature and password re-authentication.</div>
-      <button class="btn" style="background:#1F6F6B;padding:10px 26px" onclick="completeRecall()">&#9989; Complete Exercise</button>`}
+      ${canManage()?`<button class="btn" style="background:#1F6F6B;padding:10px 26px" onclick="completeRecall()">&#9989; Complete Exercise</button>`:`<button class="btn" style="background:#9aa5b1;padding:10px 26px;cursor:not-allowed" disabled title="${cesc(roleReq("Quality Manager"))}">&#9989; Complete Exercise</button>`}`}
     </div>
     <div style="margin-top:16px;display:flex;gap:10px;justify-content:space-between">
       <button class="btn-ghost" onclick="gotoRecallStage(4)">← Findings</button>
@@ -10527,6 +10893,7 @@ async function saveRecallNotes(){
 }
 async function completeRecall(){
   const e=activeRecall;if(!e)return;
+  if(!canManage()){toast("Completing a recall exercise requires the Quality Manager role or above.","red");return;}
   if(!(e.signatures||[]).some(s=>s.signedAt)){toast("Add and apply at least one signature before completing.","red");return;}
   if(!(await requireReauth({actionLabel:"Complete Recall Exercise "+e.id,recordId:e.id})))return;
   try{
@@ -10626,7 +10993,7 @@ async function openOOS(id){
 function renderOOSEditor(){
   const o=activeOOS;if(!o)return;
   const back=document.getElementById("oos-back-btn");if(back)back.style.display="";
-  const canClose=isAdminUser;
+  const canClose=canManage();
   const c=document.getElementById("oos-content");
   c.innerHTML=`
     <div class="crisis-block">
@@ -10778,12 +11145,24 @@ async function saveOOS(){
     disposition:val("oo-disposition"),capaId:val("oo-capaId"),status:val("oo-status"),
   };
   // OOS record IDs are permanent — the id is never sent in the PUT body.
+  // Optimistic concurrency: send the loaded version's modified_at.
+  body.expected_modified_at=o.modifiedAt||o.modified_at||null;
   // Step-up re-auth when closing the OOS (transition into a "Closed …" status).
   if(OOS_CLOSED.includes(body.status)&&o.status!==body.status){
     if(!(await requireReauth({actionLabel:"Close OOS "+o.id+" — "+body.status,recordId:o.id})))return;
   }
+  const doPut=(exp)=>{const b=Object.assign({},body);if(exp!==undefined)b.expected_modified_at=exp;return fetch(OOS_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});};
   try{
-    const res=await fetch(OOS_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const res=await doPut(body.expected_modified_at);
+    if(res.status===409){
+      let cbody={};try{cbody=await res.json();}catch(_){}
+      _conflictCtx={
+        localValues:body,server:cbody,
+        reload:async(srv)=>{if(srv){activeOOS=srv;}else{try{const r=await fetch(OOS_API+"?id="+encodeURIComponent(o.id));if(r.ok)activeOOS=await r.json();}catch(_){}}renderOOSEditor();},
+        retry:async(latest)=>{const r2=await doPut(latest===undefined?null:latest);if(r2.status===409){let b2={};try{b2=await r2.json();}catch(_){}_conflictCtx.server=b2;showConflictModal(b2);return;}if(!r2.ok){let m="HTTP "+r2.status;try{m=(await r2.json()).error||m;}catch(_){}throw new Error(m);}activeOOS=await r2.json();renderOOSEditor();toast("Saved over the latest version.","green");}
+      };
+      showConflictModal(cbody);return;
+    }
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     activeOOS=await res.json();
     renderOOSEditor();
@@ -11743,8 +12122,20 @@ function rcvCollectHeader(){
 
 async function saveReceiving(){
   const o=activeRcv;if(!o)return;
+  const header=rcvCollectHeader();
+  header.expected_modified_at=o.modifiedAt||o.modified_at||null;
+  const doPut=(exp)=>{const b=Object.assign({},header);if(exp!==undefined)b.expected_modified_at=exp;return fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});};
   try{
-    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(rcvCollectHeader())});
+    const res=await doPut(header.expected_modified_at);
+    if(res.status===409){
+      let cbody={};try{cbody=await res.json();}catch(_){}
+      _conflictCtx={
+        localValues:header,server:cbody,
+        reload:async(srv)=>{if(srv){activeRcv=srv;}else{try{const r=await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id));if(r.ok)activeRcv=await r.json();}catch(_){}}renderReceivingEditor();},
+        retry:async(latest)=>{const r2=await doPut(latest===undefined?null:latest);if(r2.status===409){let b2={};try{b2=await r2.json();}catch(_){}_conflictCtx.server=b2;showConflictModal(b2);return;}if(!r2.ok){let m="HTTP "+r2.status;try{m=(await r2.json()).error||m;}catch(_){}throw new Error(m);}activeRcv=await r2.json();renderReceivingEditor();toast("Saved over the latest version.","green");}
+      };
+      showConflictModal(cbody);return;
+    }
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     activeRcv=await res.json();
     renderReceivingEditor();
@@ -12856,6 +13247,9 @@ renderUserBadge();
 let qisBooted=false;
 window.qisBoot=async function(user){
   setCurrentUser(user);
+  // Resolve the signed-in user's role before the first render so role-gated
+  // controls and navigation draw correctly from the start.
+  await getCurrentUserRole();
   // Default the optional report "Lead Auditor / Prepared By" field (if present)
   // to the signed-in user's full name and title while it is still blank.
   const auditorEl=document.getElementById("ai-auditor");

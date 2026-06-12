@@ -14,6 +14,7 @@ import { getUser } from "@netlify/identity";
 import { eq, and, asc, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { records, auditLog, effectivenessChecks, capaLinks, oosRecords } from "../../db/schema.js";
+import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -84,22 +85,11 @@ function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
 }
 
-// Admin users may additionally delete records and close findings. Everyone else
-// has full create/edit access. Membership is enforced here on the server so the
-// rules hold regardless of what the browser sends.
-const ADMIN_EMAILS = new Set([
-  "jkolstad@somafina.com",
-  "chad.hinson@somafina.com",
-]);
-
+// Authorization is now resolved through the shared role helper (lib/auth.ts):
+// delete is Admin-only; close / sign / complete is Quality Manager and above;
+// create / edit is Member and above. The legacy email-list / app_metadata
+// isAdmin() check has been removed in favour of the user_roles table.
 type Identity = NonNullable<Awaited<ReturnType<typeof getUser>>>;
-
-function isAdmin(user: Identity): boolean {
-  const email = (user.email || "").toLowerCase();
-  if (ADMIN_EMAILS.has(email)) return true;
-  if (user.role === "admin") return true;
-  return Array.isArray(user.roles) && user.roles.includes("admin");
-}
 
 // Build the string stamped into created_by / modified_by / changed_by. Per
 // policy this shows the user's full name and title, never their email address;
@@ -394,10 +384,24 @@ export default async (req: Request) => {
   try {
     // Every operation requires an authenticated Identity user. The created_by /
     // modified_by trail is taken from this user, never from the request body.
-    const user = await getUser();
-    if (!user) return json(401, { error: "Sign in required." });
-    const actor = actorString(user);
-    const admin = isAdmin(user);
+    const auth = await getAuth();
+    if (!auth) return json(401, { error: "Sign in required." });
+    const user = auth.user;
+    const actor = auth.actor;
+    // Role-based capabilities (replaces the legacy admin-only gate):
+    //   • delete → Admin only
+    //   • close / sign / complete / status change → Quality Manager and above
+    //   • create / edit → Member and above (Dock has no access to this module)
+    const admin = roleAtLeast(auth.role, "Admin");
+    const canClose = roleAtLeast(auth.role, "Quality Manager");
+    const canEdit = roleAtLeast(auth.role, "Member");
+
+    // Dock users have no access to the CAPA / NCR / Audit-finding module beyond
+    // read-only. Block every mutation for them up front.
+    if (req.method !== "GET" && !canEdit) {
+      await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "record", detail: { method: req.method } });
+      return json(403, { error: "Your role does not have access to modify these records." });
+    }
 
     if (req.method === "GET") {
       await ensureSeed();
@@ -493,6 +497,7 @@ export default async (req: Request) => {
           .where(eq(records.id, id))
           .returning();
         await logChange(id, "signoff", `Electronic sign-off (${role}) by ${signerName}`, actor);
+        await logAction({ email: auth.email, role: auth.role, action: "sign_added", recordType: existing.type || "record", recordId: id, site: existing.site, detail: { role } });
         return json(200, toClient(updated));
       }
 
@@ -512,6 +517,14 @@ export default async (req: Request) => {
         const evidence = (body.evidence || "").toString();
         const recurred = (body.recurred || "").toString();
         const determination = (body.determination || "").toString().trim();
+
+        // Completing an effectiveness check (recording a determination) requires
+        // the Quality Manager role or above. Member users may still schedule the
+        // check (assign owner / due date) but cannot complete it.
+        if (determination && !canClose) {
+          await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "CAPA", recordId: capaId, site: existing.site, detail: { attempted: "complete_effectiveness", determination } });
+          return json(403, { error: "Completing an effectiveness check requires the Quality Manager role or above." });
+        }
 
         // Derive the resulting effectiveness_status, the CAPA record status and
         // whether the verification stamp / failure note should be written.
@@ -638,6 +651,9 @@ export default async (req: Request) => {
           `Effectiveness check saved${determination ? ` — determination: ${determination}` : ""}`,
           actor
         );
+        if (determination) {
+          await logAction({ email: auth.email, role: auth.role, action: "effectiveness_completed", recordType: "CAPA", recordId: capaId, site: existing.site, detail: { determination } });
+        }
         return json(200, toClient(updated));
       }
 
@@ -767,6 +783,7 @@ export default async (req: Request) => {
       }
       if (!created) return json(409, { error: "A record with id " + id + " already exists." });
       await logChange(id, "create", `Created ${created.type} (${created.severity}) — status ${created.status}`, actor);
+      await logAction({ email: auth.email, role: auth.role, action: "record_created", recordType: created.type || "record", recordId: id, site: created.site, detail: { severity: created.severity } });
       return json(201, toClient(created));
     }
 
@@ -777,6 +794,20 @@ export default async (req: Request) => {
 
       const [existing] = await db.select().from(records).where(eq(records.id, id));
       if (!existing) return json(404, { error: "Record not found." });
+
+      // Optimistic concurrency: a field edit must be made against the version the
+      // editor loaded. If someone else saved in the meantime, reject with 409 so
+      // the client can show the conflict resolution UI (never silent overwrite).
+      const expectedModifiedAt = body.expected_modified_at ?? body.expectedModifiedAt;
+      if (!concurrencyMatches(expectedModifiedAt, existing.modifiedAt)) {
+        await logAction({ email: auth.email, role: auth.role, action: "concurrency_conflict_rejected", recordType: existing.type || "record", recordId: id, site: existing.site, detail: { expected: expectedModifiedAt, actual: existing.modifiedAt } });
+        return conflictResponse({
+          currentRecord: toClient(existing),
+          lastModifiedBy: existing.modifiedBy || "",
+          lastModifiedAt: existing.modifiedAt,
+          attemptedChanges: body,
+        });
+      }
 
       const now = new Date();
       const row = toRow(body);
@@ -844,11 +875,14 @@ export default async (req: Request) => {
       // body is ignored — the id is never changed by an update.
 
       // A transition into any closed state ("Closed" for NCR / Audit findings,
-      // "Closed-Pending EC" / "Closed-EC Verified" for CAPAs) is admin-only.
+      // "Closed-Pending EC" / "Closed-EC Verified" for CAPAs) requires the
+      // Quality Manager role or above (previously admin-only — the bug that
+      // blocked Quality Managers from closing records).
       const wasClosed = /^Closed/.test(existing.status || "");
       const isClosing = /^Closed/.test(row.status || "") && !wasClosed;
-      if (isClosing && !admin) {
-        return json(403, { error: "Only an administrator can close a finding." });
+      if (isClosing && !canClose) {
+        await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: existing.type || "record", recordId: id, site: existing.site, detail: { attempted: "close", status: row.status } });
+        return json(403, { error: "Closing a record requires the Quality Manager role or above." });
       }
 
       // Map a legacy plain "Closed" request on a CAPA onto the new lifecycle entry
@@ -897,20 +931,27 @@ export default async (req: Request) => {
       const changed = tracked.filter(([, a, b]) => a !== b).map(([f]) => f);
       if (existing.status !== updated.status) {
         await logChange(id, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
+        if (/^Closed/.test(updated.status || "") && !/^Closed/.test(existing.status || "")) {
+          await logAction({ email: auth.email, role: auth.role, action: "record_closed", recordType: existing.type || "record", recordId: id, site: existing.site, detail: { from: existing.status, to: updated.status } });
+        }
       }
       await logChange(id, "update", changed.length ? `Updated: ${changed.join(", ")}` : "Saved (no field changes)", actor);
       return json(200, toClient(updated));
     }
 
     if (req.method === "DELETE") {
-      // Only admins may delete records.
-      if (!admin) return json(403, { error: "Only an administrator can delete records." });
+      // Record deletion remains Admin-only.
+      if (!admin) {
+        await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "record", detail: { attempted: "delete" } });
+        return json(403, { error: "Only an administrator can delete records." });
+      }
       const id = (url.searchParams.get("id") || "").toString();
       if (!id) return json(400, { error: "Missing record id." });
       const [existing] = await db.select().from(records).where(eq(records.id, id));
       if (!existing) return json(404, { error: "Record not found." });
       await db.delete(records).where(eq(records.id, id));
       await logChange(id, "delete", `Deleted ${existing.type} (${existing.severity}) — ${existing.clause || "no clause"}`, actor);
+      await logAction({ email: auth.email, role: auth.role, action: "record_deleted", recordType: existing.type || "record", recordId: id, site: existing.site, detail: { severity: existing.severity, clause: existing.clause } });
       return json(200, { ok: true });
     }
 

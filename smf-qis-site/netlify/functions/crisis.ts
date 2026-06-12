@@ -20,6 +20,7 @@ import { getUser } from "@netlify/identity";
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { crisisExercises, crisisResponseLog, auditLog } from "../../db/schema.js";
+import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -70,19 +71,11 @@ function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
 }
 
-const ADMIN_EMAILS = new Set([
-  "jkolstad@somafina.com",
-  "chad.hinson@somafina.com",
-]);
+// Authorization is now resolved through the shared role-based helper
+// (./lib/auth.js) — the former email-allowlist isAdmin()/ADMIN_EMAILS were
+// removed in favour of the user_roles table and roleAtLeast().
 
 type Identity = NonNullable<Awaited<ReturnType<typeof getUser>>>;
-
-function isAdmin(user: Identity): boolean {
-  const email = (user.email || "").toLowerCase();
-  if (ADMIN_EMAILS.has(email)) return true;
-  if (user.role === "admin") return true;
-  return Array.isArray(user.roles) && user.roles.includes("admin");
-}
 
 // Display name used in the live timeline / sign-off (full name preferred, else
 // email). The separate attendee "Title" column carries the title here.
@@ -232,11 +225,29 @@ export default async (req: Request) => {
   const url = new URL(req.url);
 
   try {
-    const user = await getUser();
-    if (!user) return json(401, { error: "Sign in required." });
+    const auth = await getAuth();
+    if (!auth) return json(401, { error: "Sign in required." });
+    const user = auth.user;
     const actor = actorString(user);
     const name = displayName(user);
-    const admin = isAdmin(user);
+    const admin = roleAtLeast(auth.role, "Admin");
+    const canClose = roleAtLeast(auth.role, "Quality Manager");
+    const canEdit = roleAtLeast(auth.role, "Member");
+
+    // Crisis exercises are not a truck-inspection module, so the Dock role is
+    // read-only here. Any non-GET (all of which are mutations: create, save,
+    // response-log append, respond, sign-off, sign, delete) requires Member+.
+    if (req.method !== "GET" && !canEdit) {
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "permission_denied",
+        recordType: "Crisis Exercise",
+        site: auth.roleSite,
+        detail: { method: req.method },
+      });
+      return json(403, { error: "Your role does not have access to modify crisis exercises." });
+    }
 
     if (req.method === "GET") {
       const id = url.searchParams.get("id");
@@ -364,6 +375,15 @@ export default async (req: Request) => {
           .set({ signatures, status: "Signed", modifiedBy: actor, modifiedAt: new Date() })
           .where(eq(crisisExercises.id, id));
         await logChange(id, "signoff", `Electronic sign-off (${role}) by ${name}`, actor);
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "sign_added",
+          recordType: "Crisis Exercise",
+          recordId: id,
+          site: ex.site,
+          detail: { role },
+        });
         return json(200, await loadFull(id));
       }
 
@@ -385,6 +405,14 @@ export default async (req: Request) => {
         .returning();
       if (!created) return json(409, { error: "Exercise id collision, please retry." });
       await logChange(newId, "create", `Created crisis exercise — ${created.scenarioName || created.exerciseType}`, actor);
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "record_created",
+        recordType: "Crisis Exercise",
+        recordId: newId,
+        site: created.site || row.site,
+      });
       return json(201, await loadFull(newId));
     }
 
@@ -395,6 +423,29 @@ export default async (req: Request) => {
       if (!existing) return json(404, { error: "Exercise not found." });
 
       const body = await req.json();
+
+      // ── Optimistic concurrency guard ──────────────────────────────────────
+      // This is the main field-editing path (header + objectives + discussion +
+      // assessment). Reject a save when the row changed underneath the editor.
+      const expectedModifiedAt = body.expected_modified_at ?? body.expectedModifiedAt;
+      if (!concurrencyMatches(expectedModifiedAt, existing.modifiedAt)) {
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "concurrency_conflict_rejected",
+          recordType: "Crisis Exercise",
+          recordId: existing.id,
+          site: existing.site,
+          detail: { expected: expectedModifiedAt, actual: existing.modifiedAt },
+        });
+        return conflictResponse({
+          currentRecord: toClient(existing),
+          lastModifiedBy: existing.modifiedBy || "",
+          lastModifiedAt: existing.modifiedAt,
+          attemptedChanges: body,
+        });
+      }
+
       const now = new Date();
       const row = toRow(body);
       if (!body.site) row.site = existing.site;
@@ -403,9 +454,19 @@ export default async (req: Request) => {
       // Exercise IDs are permanent and non-editable. Any id field in the
       // request body is ignored — the id is never changed by an update.
 
-      // Only admins may mark an exercise Complete (close it out).
-      if (row.status === "Complete" && existing.status !== "Complete" && !admin) {
-        return json(403, { error: "Only an administrator can mark an exercise Complete." });
+      // Marking an exercise Complete (closing it out) requires Quality Manager+.
+      const completing = row.status === "Complete" && existing.status !== "Complete";
+      if (completing && !canClose) {
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "permission_denied",
+          recordType: "Crisis Exercise",
+          recordId: existing.id,
+          site: existing.site,
+          detail: { attempted: "complete" },
+        });
+        return json(403, { error: "Marking an exercise Complete requires the Quality Manager role or above." });
       }
 
       // Recompute per-lesson risk scores and the rolled-up risk summary.
@@ -416,12 +477,34 @@ export default async (req: Request) => {
       if (existing.status !== row.status) {
         await logChange(id, "status_change", `Status ${existing.status} → ${row.status}`, actor);
       }
+      if (completing) {
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "record_closed",
+          recordType: "Crisis Exercise",
+          recordId: id,
+          site: row.site || existing.site,
+          detail: { from: existing.status, to: row.status },
+        });
+      }
       await logChange(id, "update", "Exercise saved", actor);
       return json(200, await loadFull(id));
     }
 
     if (req.method === "DELETE") {
-      if (!admin) return json(403, { error: "Only an administrator can delete exercises." });
+      if (!admin) {
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "permission_denied",
+          recordType: "Crisis Exercise",
+          recordId: (url.searchParams.get("id") || "").toString(),
+          site: auth.roleSite,
+          detail: { attempted: "delete" },
+        });
+        return json(403, { error: "Only an administrator can delete exercises." });
+      }
       const id = (url.searchParams.get("id") || "").toString();
       if (!id) return json(400, { error: "Missing exercise id." });
       const [existing] = await db.select().from(crisisExercises).where(eq(crisisExercises.id, id));
@@ -429,6 +512,14 @@ export default async (req: Request) => {
       await db.delete(crisisResponseLog).where(eq(crisisResponseLog.exerciseId, id));
       await db.delete(crisisExercises).where(eq(crisisExercises.id, id));
       await logChange(id, "delete", `Deleted crisis exercise ${id}`, actor);
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "record_deleted",
+        recordType: "Crisis Exercise",
+        recordId: id,
+        site: existing.site,
+      });
       return json(200, { ok: true });
     }
 

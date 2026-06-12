@@ -32,6 +32,7 @@ import { getUser } from "@netlify/identity";
 import { eq, and, asc, desc, gte, lte } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { receivingInspections, receivingLineItems, auditLog } from "../../db/schema.js";
+import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -46,12 +47,11 @@ const ADMIN_EMAILS = new Set([
 
 type Identity = NonNullable<Awaited<ReturnType<typeof getUser>>>;
 
-function isAdmin(user: Identity): boolean {
-  const email = (user.email || "").toLowerCase();
-  if (ADMIN_EMAILS.has(email)) return true;
-  if (user.role === "admin") return true;
-  return Array.isArray(user.roles) && user.roles.includes("admin");
-}
+// Authorization is resolved through the shared role helper (lib/auth.ts). The
+// legacy email-list / app_metadata isAdmin() check has been removed in favour of
+// the user_roles table. ADMIN_EMAILS is retained only as documentation of the
+// original bootstrap admins and is no longer consulted for access decisions.
+void ADMIN_EMAILS;
 
 // Identity string stamped into inspected_by / created_by / modified_by. Per
 // policy these show the full name and title, NOT the email. Falls back to email
@@ -356,10 +356,18 @@ export default async (req: Request) => {
   const url = new URL(req.url);
 
   try {
-    const user = await getUser();
-    if (!user) return json(401, { error: "Sign in required." });
-    const actor = actorString(user);
-    const admin = isAdmin(user);
+    const auth = await getAuth();
+    if (!auth) return json(401, { error: "Sign in required." });
+    const user = auth.user;
+    const actor = auth.actor;
+    // Truck inspections are the ONE module Dock users can write to. Capabilities:
+    //   • create (RCV / SHP / IXFR), attach, sign → any authenticated user (Dock+)
+    //   • complete (close the inspection) → Quality Manager and above
+    //   • delete → Admin only
+    //   • Dock may edit only their OWN inspections while still Open
+    const admin = roleAtLeast(auth.role, "Admin");
+    const canClose = roleAtLeast(auth.role, "Quality Manager");
+    const isDock = auth.role === "Dock";
 
     if (req.method === "GET") {
       const id = url.searchParams.get("id");
@@ -640,6 +648,7 @@ export default async (req: Request) => {
           .set({ signatures, modifiedBy: actor, modifiedAt: new Date() })
           .where(eq(receivingInspections.id, id));
         await logChange(id, "signoff", `Electronic sign-off (${role}) by ${signerName}`, actor);
+        await logAction({ email: auth.email, role: auth.role, action: "sign_added", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: { role } });
         return json(200, await loadFull(id));
       }
 
@@ -653,6 +662,13 @@ export default async (req: Request) => {
       if (id && action === "complete") {
         const [existing] = await db.select().from(receivingInspections).where(eq(receivingInspections.id, id));
         if (!existing) return json(404, { error: "Inspection not found." });
+        // Completing (closing) an inspection requires the Quality Manager role or
+        // above. Dock and Member users build and sign the record; a QM finalizes
+        // the Accept / Reject disposition.
+        if (!canClose) {
+          await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: { attempted: "complete" } });
+          return json(403, { error: "Completing an inspection requires the Quality Manager role or above." });
+        }
         const body = await req.json().catch(() => ({}));
         const overallResult = (body.overallResult || existing.overallResult || "").toString();
         if (!overallResult) return json(400, { error: "An overall result is required to complete the inspection." });
@@ -663,6 +679,7 @@ export default async (req: Request) => {
           .where(eq(receivingInspections.id, id))
           .returning();
         await logChange(id, "status_change", `Inspection completed — ${overallResult} (status ${status})`, actor);
+        await logAction({ email: auth.email, role: auth.role, action: "record_closed", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: { result: overallResult, status } });
         return json(200, await loadFull(updated.id));
       }
 
@@ -733,6 +750,7 @@ export default async (req: Request) => {
         }
       }
       await logChange(newId, "create", `Created receiving inspection — ${created.carrier || "carrier"} / ${created.poNumber || "(no PO)"}`, actor);
+      await logAction({ email: auth.email, role: auth.role, action: "record_created", recordType: "Truck Inspection", recordId: newId, site: created.site, detail: { recordType: created.recordType } });
       // Closing the chain: an Internal Transfer record marks its linked outbound
       // Shipping record as received.
       if (row.recordType === "Internal Transfer" && row.linkedTransferId) {
@@ -747,7 +765,30 @@ export default async (req: Request) => {
       const [existing] = await db.select().from(receivingInspections).where(eq(receivingInspections.id, id));
       if (!existing) return json(404, { error: "Inspection not found." });
 
+      // Dock users may edit ONLY their own inspections, and only while still Open.
+      if (isDock) {
+        const ownsIt = (existing.createdBy || "") === actor || (existing.inspectedBy || "") === actor;
+        if (!ownsIt || existing.status !== "Open") {
+          await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: { reason: !ownsIt ? "not_owner" : "not_open" } });
+          return json(403, { error: "Dock users may only edit their own open inspections." });
+        }
+      }
+
       const body = await req.json();
+
+      // Optimistic concurrency: a field edit must be made against the version the
+      // editor loaded. A mismatch returns 409 so the client can resolve it.
+      const expectedModifiedAt = body.expected_modified_at ?? body.expectedModifiedAt;
+      if (!concurrencyMatches(expectedModifiedAt, existing.modifiedAt)) {
+        await logAction({ email: auth.email, role: auth.role, action: "concurrency_conflict_rejected", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: { expected: expectedModifiedAt, actual: existing.modifiedAt } });
+        return conflictResponse({
+          currentRecord: await loadFull(id),
+          lastModifiedBy: existing.modifiedBy || "",
+          lastModifiedAt: existing.modifiedAt,
+          attemptedChanges: body,
+        });
+      }
+
       const now = new Date();
       const row = toRow(body);
       if (!body.site) row.site = existing.site;
@@ -799,7 +840,10 @@ export default async (req: Request) => {
       }
 
       // ── Delete the whole inspection (admin only) ──────────────────────────
-      if (!admin) return json(403, { error: "Only an administrator can delete inspections." });
+      if (!admin) {
+        await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: { attempted: "delete" } });
+        return json(403, { error: "Only an administrator can delete inspections." });
+      }
       const store = await blobStore(ATTACH_STORE);
       for (const a of arr(existing.attachments)) {
         await store.delete(a.key).catch(() => {});
@@ -811,6 +855,7 @@ export default async (req: Request) => {
       await db.delete(receivingLineItems).where(eq(receivingLineItems.inspectionId, id));
       await db.delete(receivingInspections).where(eq(receivingInspections.id, id));
       await logChange(id, "delete", `Deleted receiving inspection ${id}`, actor);
+      await logAction({ email: auth.email, role: auth.role, action: "record_deleted", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: {} });
       return json(200, { ok: true });
     }
 

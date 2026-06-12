@@ -45,3 +45,8 @@
   from = "/api/receiving"
   to = "/.netlify/functions/receiving"
   status = 200
+
+[[redirects]]
+  from = "/api/user-roles"
+  to = "/.netlify/functions/user-roles"
+  status = 200

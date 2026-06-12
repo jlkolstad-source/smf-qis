@@ -13,6 +13,7 @@
 // wrapped in try/catch so failures surface as a meaningful JSON error message.
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
+import { getAuth, roleAtLeast, logAction } from "./lib/auth.js";
 import { eq, asc, desc } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { db } from "../../db/index.js";
@@ -369,9 +370,24 @@ export default async (req: Request) => {
   const url = new URL(req.url);
 
   try {
-    const user = await getUser();
-    if (!user) return json(401, { error: "Sign in required." });
+    const auth = await getAuth();
+    if (!auth) return json(401, { error: "Sign in required." });
+    const user = auth.user;
     const actor = actorString(user);
+    const canEdit = roleAtLeast(auth.role, "Member");
+
+    // Culture surveys are not a truck-inspection module, so Dock is read-only:
+    // any non-GET request requires at least the Member role.
+    if (req.method !== "GET" && !canEdit) {
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "permission_denied",
+        recordType: "Culture Survey",
+        site: auth.roleSite,
+      });
+      return json(403, { error: "Your role does not have access to modify culture surveys." });
+    }
 
     if (req.method === "GET") {
       // Single survey + its categories.
@@ -415,6 +431,14 @@ export default async (req: Request) => {
 
       if (action === "create") {
         const saved = await createSurvey(body, actor);
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "record_created",
+          recordType: "Culture Survey",
+          recordId: saved.id,
+          site: saved.site,
+        });
         return json(201, saved);
       }
 
@@ -473,6 +497,14 @@ export default async (req: Request) => {
           });
         }
         console.log(`[culture-survey] upload saved survey ${saved.id} for site ${site}`);
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "record_created",
+          recordType: "Culture Survey",
+          recordId: saved.id,
+          site: saved.site,
+        });
         return json(201, { survey: saved, found, missing });
       }
 
@@ -505,6 +537,14 @@ export default async (req: Request) => {
         const payload = parsedToPayload(parsed, site, body);
         try {
           const saved = await createSurvey(payload, actor, GRAPH_FILE_URL);
+          await logAction({
+            email: auth.email,
+            role: auth.role,
+            action: "record_created",
+            recordType: "Culture Survey",
+            recordId: saved.id,
+            site: saved.site,
+          });
           return json(201, { survey: saved, found, missing });
         } catch (e: any) {
           console.error("[culture-survey] sharepoint save failed:", e?.message || e);
