@@ -20,6 +20,7 @@
 // also writes a row to the shared `audit_log` table keyed by the session id.
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
+import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
 import { eq, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { auditSessions, records, auditLog } from "../../db/schema.js";
@@ -168,9 +169,25 @@ export default async (req: Request) => {
   const url = new URL(req.url);
 
   try {
-    const user = await getUser();
-    if (!user) return json(401, { error: "Sign in required." });
+    const auth = await getAuth();
+    if (!auth) return json(401, { error: "Sign in required." });
+    const user = auth.user;
     const actor = actorString(user);
+    const canClose = roleAtLeast(auth.role, "Quality Manager");
+    const canEdit = roleAtLeast(auth.role, "Member");
+    const admin = roleAtLeast(auth.role, "Admin");
+
+    // Dock is read-only on audit sessions: allow GET (incl. file-download GET),
+    // refuse every mutating verb.
+    if (req.method !== "GET" && !canEdit) {
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "permission_denied",
+        recordType: "Audit Session",
+      });
+      return json(403, { error: "Your role does not have access to modify audit sessions." });
+    }
 
     if (req.method === "GET") {
       const id = url.searchParams.get("id");
@@ -290,6 +307,17 @@ export default async (req: Request) => {
       if (action === "complete") {
         const sid = (id || body.id || "").toString();
         if (!sid) return json(400, { error: "Missing audit session id." });
+        if (!canClose) {
+          await logAction({
+            email: auth.email,
+            role: auth.role,
+            action: "permission_denied",
+            recordType: "Audit Session",
+            recordId: sid,
+            detail: { attempted: "complete" },
+          });
+          return json(403, { error: "Completing an audit session requires the Quality Manager role or above." });
+        }
         const [existing] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
         if (!existing) return json(404, { error: "Audit session not found." });
 
@@ -314,6 +342,15 @@ export default async (req: Request) => {
           .where(eq(auditSessions.id, sid))
           .returning();
         await logChange(sid, "status_change", `Audit completed — status ${existing.status} → Closed`, actor);
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "record_closed",
+          recordType: "Audit Session",
+          recordId: sid,
+          site: existing.site,
+          detail: { to: "Closed" },
+        });
         return json(200, toClient(updated));
       }
 
@@ -350,6 +387,15 @@ export default async (req: Request) => {
           .where(eq(auditSessions.id, sid))
           .returning();
         await logChange(sid, "signoff", `Electronic sign-off (${role}) by ${name}`, actor);
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "sign_added",
+          recordType: "Audit Session",
+          recordId: sid,
+          site: existing.site,
+          detail: { role },
+        });
         return json(200, toClient(updated));
       }
 
@@ -365,6 +411,24 @@ export default async (req: Request) => {
         if (!existing) return json(404, { error: "Audit session not found." });
         if (existing.status === "Closed") {
           return json(403, { error: "A closed audit session's details can no longer be edited." });
+        }
+        const expectedModifiedAt = body.expected_modified_at ?? body.expectedModifiedAt;
+        if (!concurrencyMatches(expectedModifiedAt, existing.modifiedAt)) {
+          await logAction({
+            email: auth.email,
+            role: auth.role,
+            action: "concurrency_conflict_rejected",
+            recordType: "Audit Session",
+            recordId: existing.id,
+            site: existing.site,
+            detail: { expected: expectedModifiedAt, actual: existing.modifiedAt },
+          });
+          return conflictResponse({
+            currentRecord: toClient(existing),
+            lastModifiedBy: existing.modifiedBy || "",
+            lastModifiedAt: existing.modifiedAt,
+            attemptedChanges: body,
+          });
         }
         const now = new Date();
         const row = toRow(body);
@@ -403,6 +467,14 @@ export default async (req: Request) => {
         .returning();
       if (!created) return json(409, { error: "An audit session with id " + newId + " already exists." });
       await logChange(newId, "create", `Created audit session — ${created.clausesLabel || created.facilityName || "session"}`, actor);
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "record_created",
+        recordType: "Audit Session",
+        recordId: newId,
+        site: created.site,
+      });
       return json(201, toClient(created));
     }
 
@@ -413,6 +485,18 @@ export default async (req: Request) => {
       if (!sid) return json(400, { error: "Missing audit session id." });
       const [existing] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
       if (!existing) return json(404, { error: "Audit session not found." });
+
+      // Optimistic concurrency: reject a field edit made against a stale version.
+      const expectedModifiedAt = body.expected_modified_at ?? body.expectedModifiedAt;
+      if (!concurrencyMatches(expectedModifiedAt, existing.modifiedAt)) {
+        await logAction({ email: auth.email, role: auth.role, action: "concurrency_conflict_rejected", recordType: "Audit Session", recordId: sid, site: existing.site, detail: { expected: expectedModifiedAt, actual: existing.modifiedAt } });
+        return conflictResponse({
+          currentRecord: toClient(existing),
+          lastModifiedBy: existing.modifiedBy || "",
+          lastModifiedAt: existing.modifiedAt,
+          attemptedChanges: body,
+        });
+      }
 
       const now = new Date();
       const row = toRow(body);
@@ -461,6 +545,17 @@ export default async (req: Request) => {
   // Progress or Closed it is part of the audit record and must be retained.
   async function deleteSession(sid: string, who: string) {
     if (!sid) return json(400, { error: "Missing audit session id." });
+    if (!admin) {
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "permission_denied",
+        recordType: "Audit Session",
+        recordId: sid,
+        detail: { attempted: "delete" },
+      });
+      return json(403, { error: "Only an administrator can delete audit sessions." });
+    }
     const [existing] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
     if (!existing) return json(404, { error: "Audit session not found." });
     if (existing.status !== "Scheduled") {
@@ -471,6 +566,14 @@ export default async (req: Request) => {
     }
     await db.delete(auditSessions).where(eq(auditSessions.id, sid));
     await logChange(sid, "delete", `Deleted audit session ${sid}`, who);
+    await logAction({
+      email: auth.email,
+      role: auth.role,
+      action: "record_deleted",
+      recordType: "Audit Session",
+      recordId: sid,
+      site: existing.site,
+    });
     return json(200, { ok: true });
   }
 };

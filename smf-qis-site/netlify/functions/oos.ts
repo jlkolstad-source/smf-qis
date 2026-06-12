@@ -23,6 +23,7 @@ import { getUser } from "@netlify/identity";
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { oosRecords, auditLog } from "../../db/schema.js";
+import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -51,19 +52,10 @@ function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
 }
 
-const ADMIN_EMAILS = new Set([
-  "jkolstad@somafina.com",
-  "chad.hinson@somafina.com",
-]);
+// Authorization (role lookup + Admin/QM/Member checks) moved to lib/auth.ts.
+// The signed-in user's role is resolved via getAuth() in the request handler.
 
 type Identity = NonNullable<Awaited<ReturnType<typeof getUser>>>;
-
-function isAdmin(user: Identity): boolean {
-  const email = (user.email || "").toLowerCase();
-  if (ADMIN_EMAILS.has(email)) return true;
-  if (user.role === "admin") return true;
-  return Array.isArray(user.roles) && user.roles.includes("admin");
-}
 
 // Identity string stamped into initiated_by / closed_by / created_by /
 // modified_by. Per policy these show the full name and title, NOT the email.
@@ -233,10 +225,22 @@ export default async (req: Request) => {
   const url = new URL(req.url);
 
   try {
-    const user = await getUser();
-    if (!user) return json(401, { error: "Sign in required." });
-    const actor = actorString(user);
-    const admin = isAdmin(user);
+    const auth = await getAuth();
+    if (!auth) return json(401, { error: "Sign in required." });
+    const user = auth.user;
+    const actor = auth.actor;
+    const admin = roleAtLeast(auth.role, "Admin");
+    const canClose = roleAtLeast(auth.role, "Quality Manager");
+    const canEdit = roleAtLeast(auth.role, "Member");
+
+    // Dock users get read-only access to OOS (not a truck-inspection module).
+    // Every non-GET OOS route is a mutation (save / attach / sign / delete) and
+    // requires Member or above. GET reads — including binary file downloads —
+    // are not blocked here.
+    if (req.method !== "GET" && !canEdit) {
+      await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "OOS", detail: { method: req.method } });
+      return json(403, { error: "Your role does not have access to modify OOS records." });
+    }
 
     if (req.method === "GET") {
       const id = url.searchParams.get("id");
@@ -354,6 +358,7 @@ export default async (req: Request) => {
           .where(eq(oosRecords.id, id))
           .returning();
         await logChange(id, "signoff", `Electronic sign-off (${role}) by ${signerName}`, actor);
+        await logAction({ email: auth.email, role: auth.role, action: "sign_added", recordType: "OOS", recordId: id, site: updated.site || existing.site || "", detail: { role } });
         return json(200, toClient(updated));
       }
 
@@ -384,6 +389,7 @@ export default async (req: Request) => {
         `Created OOS investigation — ${created.materialType || "material"} / ${created.productName || "(unnamed)"} · ${created.testAnalyte || "test"}`,
         actor,
       );
+      await logAction({ email: auth.email, role: auth.role, action: "record_created", recordType: "OOS", recordId: newId, site: created.site || "", detail: {} });
       return json(201, toClient(created));
     }
 
@@ -395,6 +401,16 @@ export default async (req: Request) => {
 
       const body = await req.json();
       const now = new Date();
+
+      // Optimistic concurrency: reject a field-edit save when the record was
+      // changed by someone else since the client loaded it. Legacy clients that
+      // send no expected_modified_at are allowed through (concurrencyMatches).
+      const expectedModifiedAt = body.expected_modified_at ?? body.expectedModifiedAt;
+      if (!concurrencyMatches(expectedModifiedAt, existing.modifiedAt)) {
+        await logAction({ email: auth.email, role: auth.role, action: "concurrency_conflict_rejected", recordType: "OOS", recordId: existing.id, site: existing.site, detail: { expected: expectedModifiedAt, actual: existing.modifiedAt } });
+        return conflictResponse({ currentRecord: toClient(existing), lastModifiedBy: existing.modifiedBy || "", lastModifiedAt: existing.modifiedAt, attemptedChanges: body });
+      }
+
       const row = toRow(body);
       if (!body.site) row.site = existing.site;
 
@@ -418,10 +434,11 @@ export default async (req: Request) => {
       // OOS record IDs are permanent and non-editable. Any id field in the
       // request body is ignored — the id is never changed by an update.
 
-      // Only admins may close out an OOS investigation.
+      // Closing an OOS investigation requires Quality Manager or above.
       const closingNow = CLOSED_STATUSES.has(row.status) && !CLOSED_STATUSES.has(existing.status);
-      if (closingNow && !admin) {
-        return json(403, { error: "Only an administrator can close an OOS investigation." });
+      if (closingNow && !canClose) {
+        await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "OOS", recordId: id, site: existing.site || "", detail: { attempted: "close" } });
+        return json(403, { error: "Closing an OOS investigation requires the Quality Manager role or above." });
       }
 
       // Auto-fill / clear closure stamps based on the status transition.
@@ -443,6 +460,9 @@ export default async (req: Request) => {
 
       if (existing.status !== updated.status) {
         await logChange(id, "status_change", `Status ${existing.status} → ${updated.status}`, actor);
+      }
+      if (closingNow) {
+        await logAction({ email: auth.email, role: auth.role, action: "record_closed", recordType: "OOS", recordId: id, site: updated.site || existing.site || "", detail: { from: existing.status, to: updated.status } });
       }
       if (existing.disposition !== updated.disposition) {
         await logChange(id, "disposition", `Disposition ${existing.disposition} → ${updated.disposition}`, actor);
@@ -474,13 +494,17 @@ export default async (req: Request) => {
       }
 
       // ── Delete the whole record (admin only) ──────────────────────────────
-      if (!admin) return json(403, { error: "Only an administrator can delete OOS records." });
+      if (!admin) {
+        await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "OOS", recordId: id, site: existing.site || "", detail: { attempted: "delete" } });
+        return json(403, { error: "Only an administrator can delete OOS records." });
+      }
       const store = await blobStore(ATTACH_STORE);
       for (const a of arr(existing.attachments)) {
         await store.delete(a.key).catch(() => {});
       }
       await db.delete(oosRecords).where(eq(oosRecords.id, id));
       await logChange(id, "delete", `Deleted OOS investigation ${id}`, actor);
+      await logAction({ email: auth.email, role: auth.role, action: "record_deleted", recordType: "OOS", recordId: id, site: existing.site || "", detail: {} });
       return json(200, { ok: true });
     }
 

@@ -17,6 +17,7 @@ import { getUser } from "@netlify/identity";
 import { eq, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { capaLinks, auditLog } from "../../db/schema.js";
+import { getAuth, roleAtLeast, logAction } from "./lib/auth.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -69,9 +70,23 @@ export default async (req: Request) => {
   const url = new URL(req.url);
 
   try {
-    const user = await getUser();
-    if (!user) return json(401, { error: "Sign in required." });
+    const auth = await getAuth();
+    if (!auth) return json(401, { error: "Sign in required." });
+    const user = auth.user;
     const actor = actorString(user);
+    const canEdit = roleAtLeast(auth.role, "Member");
+    const canManageLinks = roleAtLeast(auth.role, "Quality Manager");
+
+    // Dock is read-only: any non-GET request from a role below Member is denied.
+    if (req.method !== "GET" && !canEdit) {
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "permission_denied",
+        recordType: "capa_link",
+      });
+      return json(403, { error: "Your role does not have access to modify CAPA links." });
+    }
 
     if (req.method === "GET") {
       // Links are fetched by capa_id or source_id — both indexed columns
@@ -111,10 +126,28 @@ export default async (req: Request) => {
           .values({ id, capaId, sourceType, sourceId, linkedBy: actor, linkedAt: now })
           .returning();
         await logChange(capaId, "link", `Linked ${sourceType} ${sourceId} to CAPA ${capaId}`, actor);
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "link_added",
+          recordType: "capa_link",
+          recordId: capaId,
+          detail: { sourceType, sourceId },
+        });
         return json(201, toClient(created));
       }
 
       if (action === "delete") {
+        if (!canManageLinks) {
+          await logAction({
+            email: auth.email,
+            role: auth.role,
+            action: "permission_denied",
+            recordType: "capa_link",
+            detail: { attempted: "unlink" },
+          });
+          return json(403, { error: "Unlinking records requires the Quality Manager role or above." });
+        }
         const id = (body.id || "").toString().trim();
         if (!id) return json(400, { error: "Missing link id." });
         const [existing] = await db.select().from(capaLinks).where(eq(capaLinks.id, id));
@@ -126,6 +159,14 @@ export default async (req: Request) => {
           `Removed link to ${existing.sourceType} ${existing.sourceId} from CAPA ${existing.capaId}`,
           actor
         );
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "link_removed",
+          recordType: "capa_link",
+          recordId: existing.capaId,
+          detail: { sourceType: existing.sourceType, sourceId: existing.sourceId },
+        });
         return json(200, { ok: true });
       }
 

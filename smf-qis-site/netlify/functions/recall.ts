@@ -28,6 +28,7 @@ import { getUser } from "@netlify/identity";
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { recallExercises, recallNodes, recallFindings, auditLog } from "../../db/schema.js";
+import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -56,19 +57,11 @@ function json(status: number, obj: unknown) {
   return new Response(JSON.stringify(obj), { status, headers: JSON_HEADERS });
 }
 
-const ADMIN_EMAILS = new Set([
-  "jkolstad@somafina.com",
-  "chad.hinson@somafina.com",
-]);
-
+// Authorization now comes from the user_roles table via getAuth()/roleAtLeast()
+// (Dock < Member < Quality Manager < Admin); the legacy ADMIN_EMAILS allow-list
+// and isAdmin() have been removed. The getUser import is retained only for the
+// Identity type alias below.
 type Identity = NonNullable<Awaited<ReturnType<typeof getUser>>>;
-
-function isAdmin(user: Identity): boolean {
-  const email = (user.email || "").toLowerCase();
-  if (ADMIN_EMAILS.has(email)) return true;
-  if (user.role === "admin") return true;
-  return Array.isArray(user.roles) && user.roles.includes("admin");
-}
 
 // Display name used on sign-offs (full name preferred, else email).
 function displayName(user: Identity): string {
@@ -276,11 +269,30 @@ export default async (req: Request) => {
   const url = new URL(req.url);
 
   try {
-    const user = await getUser();
-    if (!user) return json(401, { error: "Sign in required." });
+    const auth = await getAuth();
+    if (!auth) return json(401, { error: "Sign in required." });
+    const user = auth.user;
     const actor = actorString(user);
     const name = displayName(user);
-    const admin = isAdmin(user);
+    const admin = roleAtLeast(auth.role, "Admin");
+    const canClose = roleAtLeast(auth.role, "Quality Manager");
+    const canEdit = roleAtLeast(auth.role, "Member");
+
+    // Recall exercises are not a truck-inspection module, so the Dock role is
+    // read-only here. Any non-GET (create, save, node/finding/attachment append,
+    // sign, complete, delete) requires Member+. GET — including the file-download
+    // GET — is never blocked.
+    if (req.method !== "GET" && !canEdit) {
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "permission_denied",
+        recordType: "Recall Exercise",
+        site: auth.roleSite,
+        detail: { method: req.method },
+      });
+      return json(403, { error: "Your role does not have access to modify recall exercises." });
+    }
 
     if (req.method === "GET") {
       const id = url.searchParams.get("id");
@@ -347,6 +359,25 @@ export default async (req: Request) => {
       if (id && action === "save-setup") {
         const ex = await exists();
         if (!ex) return json(404, { error: "Exercise not found." });
+        // Optimistic concurrency guard — main header field-editing path.
+        const expectedModifiedAt = body.expected_modified_at ?? body.expectedModifiedAt;
+        if (!concurrencyMatches(expectedModifiedAt, ex.modifiedAt)) {
+          await logAction({
+            email: auth.email,
+            role: auth.role,
+            action: "concurrency_conflict_rejected",
+            recordType: "Recall Exercise",
+            recordId: ex.id,
+            site: ex.site,
+            detail: { expected: expectedModifiedAt, actual: ex.modifiedAt },
+          });
+          return conflictResponse({
+            currentRecord: toClient(ex),
+            lastModifiedBy: ex.modifiedBy || "",
+            lastModifiedAt: ex.modifiedAt,
+            attemptedChanges: body,
+          });
+        }
         await db
           .update(recallExercises)
           .set({
@@ -570,6 +601,25 @@ export default async (req: Request) => {
       if (id && action === "save-assessment") {
         const ex = await exists();
         if (!ex) return json(404, { error: "Exercise not found." });
+        // Optimistic concurrency guard — main assessment/notes field-editing path.
+        const expectedModifiedAt = body.expected_modified_at ?? body.expectedModifiedAt;
+        if (!concurrencyMatches(expectedModifiedAt, ex.modifiedAt)) {
+          await logAction({
+            email: auth.email,
+            role: auth.role,
+            action: "concurrency_conflict_rejected",
+            recordType: "Recall Exercise",
+            recordId: ex.id,
+            site: ex.site,
+            detail: { expected: expectedModifiedAt, actual: ex.modifiedAt },
+          });
+          return conflictResponse({
+            currentRecord: toClient(ex),
+            lastModifiedBy: ex.modifiedBy || "",
+            lastModifiedAt: ex.modifiedAt,
+            attemptedChanges: body,
+          });
+        }
         await db
           .update(recallExercises)
           .set({
@@ -613,6 +663,15 @@ export default async (req: Request) => {
           .set({ signatures, modifiedBy: actor, modifiedAt: new Date() })
           .where(eq(recallExercises.id, id));
         await logChange(id, "signoff", `Electronic sign-off (${role}) by ${name}`, actor);
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "sign_added",
+          recordType: "Recall Exercise",
+          recordId: id,
+          site: ex.site,
+          detail: { role },
+        });
         return json(200, await loadFull(id));
       }
 
@@ -620,6 +679,21 @@ export default async (req: Request) => {
       if (id && action === "complete") {
         const ex = await exists();
         if (!ex) return json(404, { error: "Exercise not found." });
+        // Transitioning a recall exercise to Completed (closing it out) requires
+        // Quality Manager+. Re-completing an already-Completed exercise is a no-op
+        // for the gate's purposes but is treated the same to keep behaviour simple.
+        if (!canClose) {
+          await logAction({
+            email: auth.email,
+            role: auth.role,
+            action: "permission_denied",
+            recordType: "Recall Exercise",
+            recordId: id,
+            site: ex.site,
+            detail: { attempted: "complete" },
+          });
+          return json(403, { error: "Completing a recall exercise requires the Quality Manager role or above." });
+        }
         if (!arr(ex.signatures).some((s: any) => s.signedAt)) {
           return json(400, { error: "At least one electronic signature is required to complete the exercise." });
         }
@@ -629,6 +703,15 @@ export default async (req: Request) => {
           .set({ status: "Completed", facilitatorNotes, modifiedBy: actor, modifiedAt: new Date() })
           .where(eq(recallExercises.id, id));
         await logChange(id, "status_change", `Status ${ex.status} → Completed`, actor);
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "record_closed",
+          recordType: "Recall Exercise",
+          recordId: id,
+          site: ex.site,
+          detail: { from: ex.status, to: "Completed" },
+        });
         return json(200, await loadFull(id));
       }
 
@@ -672,11 +755,29 @@ export default async (req: Request) => {
       }
       if (!created) return json(500, { error: "Could not generate a unique exercise id, please retry." });
       await logChange(newId, "create", `Created recall exercise — ${created.exerciseType}`, actor);
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "record_created",
+        recordType: "Recall Exercise",
+        recordId: newId,
+        site: created.site || site,
+      });
       return json(201, await loadFull(newId));
     }
 
     if (req.method === "DELETE") {
-      if (!admin) return json(403, { error: "Only an administrator can delete exercises." });
+      if (!admin) {
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "permission_denied",
+          recordType: "Recall Exercise",
+          recordId: (url.searchParams.get("id") || "").toString(),
+          detail: { attempted: "delete" },
+        });
+        return json(403, { error: "Only an administrator can delete exercises." });
+      }
       const id = (url.searchParams.get("id") || "").toString();
       if (!id) return json(400, { error: "Missing exercise id." });
       const [existing] = await db.select().from(recallExercises).where(eq(recallExercises.id, id));
@@ -693,6 +794,14 @@ export default async (req: Request) => {
       await db.delete(recallFindings).where(eq(recallFindings.recallId, id));
       await db.delete(recallExercises).where(eq(recallExercises.id, id));
       await logChange(id, "delete", `Deleted recall exercise ${id}`, actor);
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "record_deleted",
+        recordType: "Recall Exercise",
+        recordId: id,
+        site: existing.site,
+      });
       return json(200, { ok: true });
     }
 
