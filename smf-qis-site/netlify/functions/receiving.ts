@@ -839,10 +839,19 @@ export default async (req: Request) => {
         return json(200, { ok: true });
       }
 
-      // ── Delete the whole inspection (admin only) ──────────────────────────
-      if (!admin) {
-        await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: { attempted: "delete" } });
-        return json(403, { error: "Only an administrator can delete inspections." });
+      // ── Delete the whole inspection ───────────────────────────────────────
+      // A normal delete is Admin-only. A "discard" (action=discard) is the narrow
+      // exception used when a new-inspection draft changes record type: the owner
+      // (or Quality Manager+) may remove their OWN still-Open record so its ID can
+      // be re-issued with the new type's prefix.
+      const isDiscard = (url.searchParams.get("action") === "discard");
+      const ownsOpenDraft =
+        isDiscard &&
+        existing.status === "Open" &&
+        (canClose || (existing.createdBy || "") === actor || (existing.inspectedBy || "") === actor);
+      if (!admin && !ownsOpenDraft) {
+        await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: { attempted: isDiscard ? "discard" : "delete" } });
+        return json(403, { error: isDiscard ? "Only the owner can discard their own open draft." : "Only an administrator can delete inspections." });
       }
       const store = await blobStore(ATTACH_STORE);
       for (const a of arr(existing.attachments)) {
@@ -854,8 +863,8 @@ export default async (req: Request) => {
       }
       await db.delete(receivingLineItems).where(eq(receivingLineItems.inspectionId, id));
       await db.delete(receivingInspections).where(eq(receivingInspections.id, id));
-      await logChange(id, "delete", `Deleted receiving inspection ${id}`, actor);
-      await logAction({ email: auth.email, role: auth.role, action: "record_deleted", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: {} });
+      await logChange(id, "delete", isDiscard ? `Discarded unsaved inspection draft ${id}` : `Deleted receiving inspection ${id}`, actor);
+      await logAction({ email: auth.email, role: auth.role, action: isDiscard ? "record_discarded" : "record_deleted", recordType: "Truck Inspection", recordId: id, site: existing.site, detail: isDiscard ? { reason: "record_type_change" } : {} });
       return json(200, { ok: true });
     }
 

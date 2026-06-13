@@ -11191,6 +11191,12 @@ const RECEIVING_API="/api/receiving";
 let receivingList=[], activeRcv=null;
 // Client-side Record Type filter for the list view ("" = All Types).
 let rcvTypeFilter="";
+// True only during the new-inspection window — from "+ New Inspection" until the
+// record is first saved/completed. While true the Record Type may still change,
+// which re-issues the ID with the new type's prefix; once false the type (and so
+// the ID) is locked. Reset on save/complete and whenever an existing record is
+// opened, so a reopened (already-saved) record can never change type.
+let rcvDraftUncommitted=false;
 // Signature roles specific to truck inspections (Receiving / Shipping / Internal
 // Transfer), distinct from the shared SIG_ROLES used elsewhere.
 const RCV_SIG_ROLES=["Prepared By","Inspected By","Shipped By","Received By","Reviewed By","Quality Manager","Supervisor"];
@@ -11295,6 +11301,7 @@ async function loadReceiving(){
 
 async function showReceivingList(){
   activeRcv=null;
+  rcvDraftUncommitted=false;
   const back=document.getElementById("rcv-back-btn");if(back)back.style.display="none";
   await loadReceiving();
   renderReceivingList();
@@ -11339,12 +11346,34 @@ function onRcvTypeFilterChange(){
   renderReceivingList();
 }
 
+// "+ New Inspection" opens the form WITHOUT issuing an ID: the user must pick a
+// record type first, and the ID prefix (RCV / SHP / IXFR) follows that choice. A
+// caller may pass an explicit type — e.g. a per-station QR scan or deep link —
+// which is treated as the type selection and creates the record immediately.
 async function createReceiving(recordType){
+  if(recordType&&RCV_RECORD_TYPES.some(r=>r.key===recordType)){
+    return rcvCreateRecord(recordType);
+  }
+  // Blank draft: no id, no type yet. renderReceivingEditor shows the record-type
+  // selector and an "ID will generate on type selection" placeholder only.
+  activeRcv={__draft:true,id:"",recordType:"",site:currentSite,coldShipment:"No",status:"Open"};
+  rcvDraftUncommitted=true;
+  renderReceivingEditor();
+}
+
+// Create the backing record for a freshly chosen record type. The backend issues
+// the prefixed, per-site/per-year sequential ID (RCV-/SHP-/IXFR-) and the editor
+// then shows it locked. The record stays "uncommitted" so the type may still be
+// changed (re-issuing the ID) until the user saves.
+async function rcvCreateRecord(recordType){
   const rt=RCV_RECORD_TYPES.some(r=>r.key===recordType)?recordType:"Receiving";
+  const cold=(activeRcv&&activeRcv.coldShipment)||"No";
+  const site=(activeRcv&&activeRcv.site)||currentSite;
   try{
-    const res=await fetch(RECEIVING_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({site:currentSite,coldShipment:"No",recordType:rt})});
+    const res=await fetch(RECEIVING_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({site:site,coldShipment:cold,recordType:rt})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     activeRcv=await res.json();
+    rcvDraftUncommitted=true;
     renderReceivingEditor();
     const lbl=(RCV_RECORD_TYPES.find(r=>r.key===rt)||{}).label||"Inspection";
     toast(lbl+" "+activeRcv.id+" started.","green");
@@ -11356,6 +11385,7 @@ async function openReceiving(id){
     const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(id));
     if(!res.ok)throw new Error("HTTP "+res.status);
     activeRcv=await res.json();
+    rcvDraftUncommitted=false;
     renderReceivingEditor();
   }catch(e){toast("Could not open inspection: "+e.message,"red");}
 }
@@ -11468,8 +11498,16 @@ function rcvYNNA(field,val){
 
 function renderReceivingEditor(){
   const o=activeRcv;if(!o)return;
-  if(!o.recordType)o.recordType="Receiving";
   const back=document.getElementById("rcv-back-btn");if(back)back.style.display="";
+  // New-inspection draft: no record type chosen yet, so no ID has been issued.
+  // Show only the record-type selector and an ID placeholder; the full form and
+  // the locked ID appear once a type is picked and the record is created.
+  if(!o.id){
+    const c=document.getElementById("rcv-content");
+    if(c)c.innerHTML=[rcvTypeSelectorHTML(o),rcvDraftIdHintHTML()].join("");
+    return;
+  }
+  if(!o.recordType)o.recordType="Receiving";
   const parsed=rcvParseNotes(o.notes);
   o._itemNotes=parsed.itemNotes||{};
   const cold=o.coldShipment==="Yes";
@@ -11516,13 +11554,33 @@ function rcvToLocalInput(iso){
 
 // ── Editor section builders (shared across the three record types) ──────────
 function rcvTypeSelectorHTML(o){
-  const locked=o.status&&o.status!=="Open";
-  const meta=RCV_RECORD_TYPES.find(r=>r.key===o.recordType)||RCV_RECORD_TYPES[0];
-  return `<div class="rcv-block" style="border-top:3px solid ${meta.color}">
-    <div class="rcv-block-title">Record Type${locked?` <span style="color:#4a5568;font-weight:400">(locked — record completed)</span>`:""}</div>
+  const completed=o.status&&o.status!=="Open";
+  // Type is editable only inside the new-inspection window (before the first
+  // save); afterwards — and for any reopened record — it is locked so the ID
+  // prefix can never drift from the record's type.
+  const locked=completed||!rcvDraftUncommitted;
+  const meta=RCV_RECORD_TYPES.find(r=>r.key===o.recordType);
+  const topColor=meta?meta.color:"#9aa5b1";
+  const note=completed?` <span style="color:#4a5568;font-weight:400">(locked — record completed)</span>`
+            :(locked?` <span style="color:#4a5568;font-weight:400">(locked — type set)</span>`
+            :(o.recordType?"":` <span style="color:#4a5568;font-weight:400">— choose one to generate the ID</span>`));
+  return `<div class="rcv-block" style="border-top:3px solid ${topColor}">
+    <div class="rcv-block-title">Record Type${note}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${RCV_RECORD_TYPES.map(rt=>{const on=o.recordType===rt.key;return `<button type="button" ${locked?"disabled":`onclick="rcvSetRecordType('${rt.key}')"`} style="flex:1;min-width:150px;padding:14px;border-radius:10px;border:2px solid ${on?rt.color:"var(--border2)"};background:${on?rt.bg:"#fff"};color:${on?rt.color:"#4a5568"};font-weight:700;font-size:13px;cursor:${locked?"default":"pointer"};opacity:${locked&&!on?"0.5":"1"}">${rt.icon} ${rt.label}</button>`;}).join("")}
     </div>
+  </div>`;
+}
+
+// Placeholder shown in the new-inspection draft before a type is picked: no ID is
+// generated or locked yet — it is issued the moment a record type is selected.
+function rcvDraftIdHintHTML(){
+  return `<div class="rcv-block">
+    <div class="rcv-block-title">Inspection ID</div>
+    <div class="crisis-input" style="display:flex;align-items:center;gap:8px;opacity:0.7;font-family:'DM Mono',monospace" title="The ID is issued once you choose a record type">
+      <span>&#128275;</span><span>ID will generate on type selection</span>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:#4a5568">Pick a record type above to generate and lock this record's ID — Receiving issues <b>RCV-</b>, Shipping issues <b>SHP-</b>, Internal Transfer issues <b>IXFR-</b>.</div>
   </div>`;
 }
 
@@ -11722,16 +11780,30 @@ function rcvFooterBarHTML(isShip){
   </div>`;
 }
 
-// Switch record type — persists current edits then re-renders for the new type.
+// Switch record type during the new-inspection window. Each type owns its own ID
+// prefix (RCV / SHP / IXFR) and an independent per-site/per-year counter, so a
+// change discards the current draft (releasing its ID) and creates a fresh record
+// of the new type — the backend then issues a correctly-prefixed ID. Once the
+// record has been saved (rcvDraftUncommitted false) the type is locked.
 async function rcvSetRecordType(t){
-  if(!activeRcv||activeRcv.recordType===t)return;
-  if(activeRcv.status&&activeRcv.status!=="Open"){toast("This record is completed and its type is locked.","red");return;}
-  activeRcv.recordType=t;
-  try{
-    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(rcvCollectHeader())});
-    if(res.ok)activeRcv=await res.json();
-  }catch(e){}
-  renderReceivingEditor();
+  if(!activeRcv||!RCV_RECORD_TYPES.some(r=>r.key===t))return;
+  if(activeRcv.recordType===t&&activeRcv.id)return;
+  if(!rcvDraftUncommitted||(activeRcv.status&&activeRcv.status!=="Open")){
+    toast("This record is saved — its type and ID are locked.","red");return;
+  }
+  // Discard the already-issued draft (if any) so its prefixed ID is released and
+  // its counter slot freed before the new type's ID is generated.
+  if(activeRcv.id){
+    const hasData=(activeRcv.lineItems&&activeRcv.lineItems.length)||(activeRcv.attachments&&activeRcv.attachments.length);
+    if(hasData&&!confirm("Changing the record type discards this draft — including any materials or photos added — and issues a new ID. Continue?"))return;
+    try{
+      const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=discard",{method:"DELETE"});
+      if(!res.ok&&res.status!==404){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    }catch(e){toast("Could not change type: "+e.message,"red");return;}
+  }
+  // Carry the site / cold-chain choice into the fresh draft, then generate.
+  activeRcv={__draft:true,id:"",recordType:"",site:activeRcv.site||currentSite,coldShipment:activeRcv.coldShipment||"No",status:"Open"};
+  await rcvCreateRecord(t);
 }
 
 // ── Internal Transfer — link to an outbound shipment & auto-populate ────────
@@ -12138,6 +12210,7 @@ async function saveReceiving(){
     }
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     activeRcv=await res.json();
+    rcvDraftUncommitted=false;
     renderReceivingEditor();
     toast("Inspection "+activeRcv.id+" saved.","green");
   }catch(e){toast("Could not save: "+e.message,"red");}
@@ -12157,6 +12230,7 @@ async function rcvComplete(){
     const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id)+"&action=complete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({overallResult:result})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     activeRcv=await res.json();
+    rcvDraftUncommitted=false;
     renderReceivingEditor();
     toast("Inspection completed — "+result+".","green");
   }catch(e){toast("Could not complete: "+e.message,"red");}
