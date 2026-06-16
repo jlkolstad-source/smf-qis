@@ -389,6 +389,22 @@ export default async (req: Request) => {
         return json(200, await loadFull(shipping.id));
       }
 
+      // ── Reverse link lookup ───────────────────────────────────────────────
+      // Resolve a Transfer ID to the Internal Transfer receipt that received the
+      // shipment (the inverse of link-lookup), so an outbound Shipping record can
+      // surface a clickable link to the receiving-side record that closed its
+      // chain of custody. Returns 404 when no receipt has been logged yet.
+      if (action === "transfer-receipt") {
+        const transferId = (url.searchParams.get("transfer_id") || "").trim();
+        if (!transferId) return json(400, { error: "Missing transfer_id." });
+        const [receipt] = await db
+          .select()
+          .from(receivingInspections)
+          .where(and(eq(receivingInspections.linkedTransferId, transferId), eq(receivingInspections.recordType, "Internal Transfer")));
+        if (!receipt) return json(404, { error: `No Internal Transfer receipt found for Transfer ID ${transferId}.` });
+        return json(200, await loadFull(receipt.id));
+      }
+
       // ── Download one attachment (binary) ──────────────────────────────────
       if (id && fileKey) {
         const [rec] = await db.select().from(receivingInspections).where(eq(receivingInspections.id, id));
@@ -693,10 +709,37 @@ export default async (req: Request) => {
       if (row.recordType === "Shipping" && !row.linkedTransferId) {
         row.linkedTransferId = await generateTransferId(row.site);
       }
-      let seq = await highestInspectionSeq(idPrefixForType(row.recordType), row.site, year);
       let created: typeof receivingInspections.$inferSelect | undefined;
       let newId = "";
       const idPrefix = idPrefixForType(row.recordType);
+      // The client generates and locks the record id the moment a record type is
+      // chosen (client-side, no write) and sends it here on the first save. Honour
+      // that id when it is well-formed, carries this record type's prefix and is
+      // still free, so the id the user saw never changes. Fall back to a fresh
+      // server-allocated sequential id when it is absent or already taken.
+      const requestedId = (body.id || "").toString().trim();
+      const idFormat = new RegExp("^" + idPrefix + "-[A-Za-z]+-" + year + "-\\d+$");
+      if (requestedId && idFormat.test(requestedId)) {
+        [created] = await db
+          .insert(receivingInspections)
+          .values({
+            id: requestedId,
+            ...row,
+            inspectionDate: now,
+            inspectedBy: actor,
+            attachments: [],
+            signatures: arr(body.signatures),
+            status: "Open",
+            createdBy: actor,
+            createdAt: now,
+            modifiedBy: actor,
+            modifiedAt: now,
+          })
+          .onConflictDoNothing()
+          .returning();
+        if (created) newId = requestedId;
+      }
+      let seq = await highestInspectionSeq(idPrefix, row.site, year);
       for (let attempt = 0; attempt < 100 && !created; attempt++) {
         seq += 1;
         newId = `${idPrefix}-${siteAbbr(row.site)}-${year}-${String(seq).padStart(4, "0")}`;
