@@ -6956,7 +6956,14 @@ Render a two-row signature table with columns Role | Name & Title | Date/Time: a
 ${signatoriesPromptSection()}
 
 Close with the footer line exactly: "SOMAFINA UST — CONFIDENTIAL | Internal Chain of Custody Record per SQF Edition 9 §17.5 | Living document — retain per SOP".`;
-  await streamSingleReport(prompt,wrap,{type:"receiving-coc",site:outbound.site,record:outbound,coverRecords:[outbound]});
+  // Fetch the attached photos for both legs so the PDF can embed them inline:
+  // Outbound photos from the SHP- shipping record, Inbound photos from the IXFR-
+  // Internal Transfer receipt. Each entry carries a data URL for jsPDF embedding.
+  const outboundPhotos=[];
+  for(const a of (outbound.attachments||[])){outboundPhotos.push({...a,dataUrl:await rcvFetchAttachmentData(outbound.id,a)});}
+  const inboundPhotos=[];
+  if(inbound){for(const a of (inbound.attachments||[])){inboundPhotos.push({...a,dataUrl:await rcvFetchAttachmentData(inbound.id,a)});}}
+  await streamSingleReport(prompt,wrap,{type:"receiving-coc",site:outbound.site,record:outbound,coverRecords:[outbound],transferId:transferId,outboundPhotos,inboundPhotos});
 }
 
 async function generateAIReport(){
@@ -7535,6 +7542,13 @@ async function downloadReportPDF(){
   const isOOS=!!oosMeta;
   const isOOSIndividual=window._lastReportMeta&&window._lastReportMeta.type==="oos-individual";
   const isReceivingIndividual=window._lastReportMeta&&window._lastReportMeta.type==="receiving-individual";
+  const isReceivingCoC=rptType==="receiving-coc";
+  // Truck-inspection report family (Receiving / Shipping / Internal Transfer).
+  // Risk scoring and the audit-style header table do not apply to these records,
+  // so isReceivingAny suppresses the Risk Profile and Priority Findings blocks
+  // and isReceivingMinHeader strips the cover to a minimal id/site/date block.
+  const isReceivingAny=rptType==="receiving-individual"||rptType==="receiving-summary"||rptType==="receiving-rejections"||rptType==="receiving-coc";
+  const isReceivingMinHeader=rptType==="receiving-individual"||rptType==="receiving-coc";
   // Cover-page "Prepared By / Lead Auditor / Facilitator" defaults to the first
   // assembled signatory, else the signed-in user — no hardcoded names.
   const _firstSig=getReportSignatories()[0];
@@ -7708,11 +7722,16 @@ async function downloadReportPDF(){
   doc.setFillColor(...navy);doc.rect(margin,y,contentW,3,'F');
   y+=22;
 
-  // Document info table
-  doc.setFillColor(...navy);doc.rect(margin,y,contentW,22,'F');
-  doc.setFontSize(10);doc.setTextColor(...white);doc.setFont('helvetica','bold');
-  doc.text('Document Information',margin+8,y+15);
-  y+=22;
+  // Document info table. Truck-inspection reports (Individual Receipt / Chain of
+  // Custody) omit the audit-style header table entirely — they carry no
+  // Audit/Session, Governing Standard or Risk Profile fields — and instead show a
+  // minimal id/site/date block plus the standard document-control rows below.
+  if(!isReceivingMinHeader){
+    doc.setFillColor(...navy);doc.rect(margin,y,contentW,22,'F');
+    doc.setFontSize(10);doc.setTextColor(...white);doc.setFont('helvetica','bold');
+    doc.text('Document Information',margin+8,y+15);
+    y+=22;
+  }
   const crisisMeta=window._lastReportMeta&&window._lastReportMeta.type==="crisis-exercise"?window._lastReportMeta:null;
   const recallMeta=window._lastReportMeta&&window._lastReportMeta.type==="recall-exercise"?window._lastReportMeta:null;
   const recallRec=recallMeta&&recallMeta.record?recallMeta.record:null;
@@ -7792,6 +7811,20 @@ async function downloadReportPDF(){
     ['Governing Standard','SQF Edition 9 — Dietary Supplements Manufacturing (Module 2 + 17)'],
     ['Governing SOP','SOP #22 — Audits and Inspections'],
   ];
+  // Truck-inspection reports replace the audit-style rows above with a minimal
+  // header: record ID, site and date. The standard document-control rows
+  // (record opened / opened by) are appended just below for all report types.
+  if(isReceivingMinHeader){
+    const _rr=(rMeta.coverRecords||[])[0]||rMeta.record||{};
+    const _rid=isReceivingCoC?(rMeta.transferId||_rr.linkedTransferId||_rr.id||'—'):(rMeta.receivingId||_rr.id||'—');
+    const _rsite=_rr.site||rMeta.site||(typeof currentSite!=="undefined"?currentSite:"")||'—';
+    infoRows.length=0;
+    infoRows.push(
+      [isReceivingCoC?'Transfer ID':'Inspection ID',_rid],
+      ['Site',_rsite],
+      ['Date',today]
+    );
+  }
   // Append the record-opened / -closed dates and ownership rows. Multi-record
   // summaries (NCR, CAPA, OOS) show ranges + counts; single-record reports show
   // the specific record's values. The covered record(s) ride on the report meta.
@@ -7814,7 +7847,9 @@ async function downloadReportPDF(){
   // risk distribution and the post-corrective-action residual distribution side
   // by side, with a one-line reduction summary. Other report types show the
   // single covered-record distribution. A "pending" note appears when unscored.
-  {
+  // Risk scoring is not applicable to truck-inspection (receiving) records, so the
+  // entire Risk Profile block is omitted for those report types.
+  if(!isReceivingAny){
     y+=14;
     doc.setFillColor(...navy);doc.rect(margin,y,contentW,22,'F');
     doc.setFontSize(10);doc.setTextColor(...white);doc.setFont('helvetica','bold');
@@ -8477,6 +8512,37 @@ async function downloadReportPDF(){
       drawExhibitImage(im,'Exhibit '+exhibitLabel(exhibitSeq++)+' — '+(a.description||a.filename||'')+' — '+(a.filename||''));
     }
   }
+  // Embed one truck-inspection photo at a maximum 480pt width, preserving aspect
+  // ratio (and never overflowing the page height), with an italic caption below.
+  // Same jsPDF addImage approach used by the OOS / audit exhibits — no new lib.
+  function drawTruckPhoto(im,caption){
+    let w=Math.min(480,contentW),h=im.h*(w/im.w);
+    const maxH=pageH-50-40;
+    if(h>maxH){h=maxH;w=im.w*(h/im.h);}
+    if(y+h+20>pageH-46){doc.addPage();y=50;}
+    try{doc.addImage(im.url,'JPEG',margin,y,w,h);}catch(e){drawEvidenceLine('[image could not be embedded]');return;}
+    y+=h+3;
+    doc.setFontSize(8);doc.setTextColor(90,90,110);doc.setFont('helvetica','italic');
+    doc.splitTextToSize(caption,contentW).forEach(cl=>{evEnsure(11);doc.text(cl,margin,y);y+=11;});
+    y+=6;doc.setTextColor(...black);doc.setFont('helvetica','normal');
+  }
+  // Render a Photos section for a set of receiving/shipping/transfer attachments.
+  // Caption = the attachment description if present, else "Photo N" (1-based);
+  // captionPrefix lets the Chain of Custody report tag "Outbound:" / "Inbound:".
+  // When no images are attached, the supplied empty-message line is shown.
+  async function flushTruckPhotos(list,sectionLabel,captionPrefix,emptyMsg){
+    drawEvidenceHeader(sectionLabel);
+    const imgs=(list||[]).filter(a=>classifyEv(a.filename,a.contentType)==='image'&&a.dataUrl);
+    if(!imgs.length){drawEvidenceLine(emptyMsg);return;}
+    let n=0;
+    for(const a of imgs){
+      n++;
+      const im=await evToJpeg(a.dataUrl);
+      if(!im){drawEvidenceLine('Photo unavailable — '+(a.filename||'(unnamed)'));continue;}
+      const desc=(a.description||'').trim();
+      drawTruckPhoto(im,(captionPrefix||'')+(desc||('Photo '+n)));
+    }
+  }
 
   // ── EVIDENCE EXHIBITS — gather attachment data before rendering ────────────
   // NCR / CAPA evidence is stored inline on each record (`photos`), so no fetch
@@ -8565,6 +8631,7 @@ async function downloadReportPDF(){
     }
   }
   let oosCurSection=null; // 'p1' | 'p2' | null — tracks the OOS phase section
+  let cocCurSection=null; // 'outbound' | 'inbound' | null — tracks the COC leg
   // Findings ordered longest-id-first so id matching in headings never collides
   // on a shorter prefix (QIS-0001 vs QIS-00010).
   const recList=(isNCR||isCapa)?(rMeta.findings||[]).slice().sort((a,b)=>(b.id||'').length-(a.id||'').length):[];
@@ -8582,7 +8649,9 @@ async function downloadReportPDF(){
   // ── PRIORITY FINDINGS — Immediate Attention Required (before the body) ──────
   // Lists only Critical and High risk records with their id, description and
   // score, so the highest-risk items are surfaced ahead of the full finding list.
-  {
+  // Omitted for truck-inspection (receiving) reports — risk scoring does not apply
+  // to receiving records, so there is never a priority-findings list to surface.
+  if(!isReceivingAny){
     const pri=riskItems.filter(it=>it.level==='Critical'||it.level==='High').sort((a,b)=>b.score-a.score);
     doc.setFillColor(139,0,0);doc.rect(margin,y,contentW,22,'F');
     doc.setFontSize(11);doc.setTextColor(...white);doc.setFont('helvetica','bold');
@@ -8648,6 +8717,14 @@ async function downloadReportPDF(){
       else if(oosCurSection==='p2'){await flushOOSImages(oosImgP2,'Phase 2 Evidence');oosCurSection=null;}
       if(ht.indexOf('PHASE 1')!==-1)oosCurSection='p1';
       else if(ht.indexOf('PHASE 2')!==-1)oosCurSection='p2';
+    } else if(isReceivingCoC&&_isH2){
+      const ht=line.replace(/^#+\s*/,'').toUpperCase();
+      // Leaving the OUTBOUND (shipping) or INBOUND (receiving) leg flushes that
+      // leg's photos right after its section and before the next section bar.
+      if(cocCurSection==='outbound'){await flushTruckPhotos(rMeta.outboundPhotos,'Outbound Photos','Outbound: ','No photos attached for this section.');cocCurSection=null;}
+      else if(cocCurSection==='inbound'){await flushTruckPhotos(rMeta.inboundPhotos,'Inbound Photos','Inbound: ','No photos attached for this section.');cocCurSection=null;}
+      if(ht.indexOf('OUTBOUND')!==-1)cocCurSection='outbound';
+      else if(ht.indexOf('INBOUND')!==-1)cocCurSection='inbound';
     }
 
     if(line.startsWith('## ')){
@@ -8722,8 +8799,11 @@ async function downloadReportPDF(){
     } else if(line.startsWith('- ')||line.startsWith('> ')){
       const bt=line.replace(/^[->\s]+/,'');
       if((isCapa||isNCR)&&tryDrawVerifiedStatusLine(bt.replace(/\*\*(.*?)\*\*/g,'$1')))continue;
-      const wrapped=doc.splitTextToSize('•  '+bt,contentW-14);
+      // Set the body font BEFORE measuring so splitTextToSize wraps to the same
+      // size the text is drawn at — otherwise a stale (smaller) font from a
+      // preceding table makes lines wrap too wide and overflow the right margin.
       doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      const wrapped=doc.splitTextToSize('•  '+bt,contentW-14);
       wrapped.forEach((wl,wi)=>{
         if(y>pageH-46){doc.addPage();y=50;}
         doc.text(wl,margin+(wi===0?6:14),y);
@@ -8732,8 +8812,10 @@ async function downloadReportPDF(){
     } else {
       const clean=line.replace(/\*\*(.*?)\*\*/g,'$1');
       if((isCapa||isNCR)&&tryDrawVerifiedStatusLine(clean))continue;
-      const wrapped=doc.splitTextToSize(clean,contentW);
+      // Set the body font BEFORE measuring (see note above) so wrapped lines stay
+      // within the content width and never spill past the page margins.
       doc.setFontSize(9);doc.setTextColor(...black);doc.setFont('helvetica','normal');
+      const wrapped=doc.splitTextToSize(clean,contentW);
       wrapped.forEach(wl=>{
         if(y>pageH-46){doc.addPage();y=50;}
         doc.text(wl,margin,y);
@@ -8758,12 +8840,20 @@ async function downloadReportPDF(){
     else if(oosCurSection==='p2'){await flushOOSImages(oosImgP2,'Phase 2 Evidence');oosCurSection=null;}
     await flushOOSImages(oosImgGen,'General Evidence');
   }
-  // Receiving Individual Receipt — embed all photo attachments inline as exhibits
-  // at the end of the body, before the signature block. Reuses the generic OOS
-  // image flusher; non-image attachments are listed by the AI prompt.
-  if(isReceivingIndividual&&Array.isArray(rMeta.attachments)){
-    const imgs=rMeta.attachments.filter(a=>classifyEv(a.filename,a.contentType)==='image'&&a.dataUrl);
-    if(imgs.length){toast("Embedding photos…","green");await flushOOSImages(imgs,'Receiving Inspection Photos');}
+  // Chain of Custody — flush any leg whose photos were not yet emitted (e.g. the
+  // INBOUND leg when no later section heading followed it), before the signature.
+  if(isReceivingCoC){
+    if(cocCurSection==='outbound'){await flushTruckPhotos(rMeta.outboundPhotos,'Outbound Photos','Outbound: ','No photos attached for this section.');cocCurSection=null;}
+    else if(cocCurSection==='inbound'){await flushTruckPhotos(rMeta.inboundPhotos,'Inbound Photos','Inbound: ','No photos attached for this section.');cocCurSection=null;}
+  }
+  // Receiving Individual Receipt (RCV / SHP) — embed all attached photos in a
+  // Photos section at the end of the body (after the visual inspection checklist)
+  // and before the signature block. Always renders the section header; shows a
+  // "no photos attached" line when the record carries none. Max 480pt width,
+  // aspect ratio preserved, caption = description or "Photo N".
+  if(isReceivingIndividual){
+    toast("Embedding photos…","green");
+    await flushTruckPhotos(Array.isArray(rMeta.attachments)?rMeta.attachments:[],'Photos','','No photos attached to this inspection record.');
   }
   // Single-record reports (OOS Individual Event, Crisis After-Action) carry one
   // record whose signatures render as an inline Record Signatures block at the
@@ -11209,6 +11299,36 @@ const RCV_RECORD_TYPES=[
   {key:"Shipping",label:"Shipping Inspection",icon:"&#128228;",color:"#6B2E9E",bg:"#EDE3F7"},
   {key:"Internal Transfer",label:"Internal Transfer",icon:"&#128260;",color:"#1F6F6B",bg:"#E6F2F1"},
 ];
+// The manual "+ New Inspection" form offers exactly two record types: Receiving
+// and Shipping. Internal Transfer records are created EXCLUSIVELY via the QR code
+// that travels on a Shipping record's Transfer Document (the transfer_id deep
+// link) — never from the manual selector — so it is excluded here. RCV_RECORD_TYPES
+// is kept whole for badges, the QR deep-link path and type metadata lookups.
+const RCV_MANUAL_TYPES=RCV_RECORD_TYPES.filter(r=>r.key!=="Internal Transfer");
+const RCV_TYPE_PREFIX={Receiving:"RCV",Shipping:"SHP","Internal Transfer":"IXFR"};
+// Client mirror of the server siteAbbr (receiving.ts): Lindon → LDN, any Layton
+// facility → LAY, all-sites / unset → ALL, otherwise the first three letters.
+function rcvSiteAbbr(site){
+  const s=(site||"").trim().toLowerCase();
+  if(s==="lindon")return "LDN";
+  if(s.includes("layton"))return "LAY";
+  if(s==="all sites"||s==="all"||s==="")return "ALL";
+  return (site||"SMF").replace(/[^A-Za-z]/g,"").slice(0,3).toUpperCase()||"SMF";
+}
+// Generate the next "[PREFIX]-[SITE]-[YYYY]-[####]" id for a record type entirely
+// client-side from the already-loaded list (no API call / no write). Each prefix
+// keeps its own independent per-site/per-year counter, mirroring the server. The
+// server re-validates this id on first save and only re-issues it on a rare
+// collision, so the id the user sees is locked the moment the type is chosen.
+function rcvGenerateDraftId(type,site){
+  const prefix=RCV_TYPE_PREFIX[type]||"RCV";
+  const year=String(new Date().getFullYear());
+  const abbr=rcvSiteAbbr(site);
+  const re=new RegExp("^"+prefix+"-"+abbr+"-"+year+"-(\\d+)$");
+  let max=0;
+  (receivingList||[]).forEach(r=>{if((r.site||"")!==site)return;const m=re.exec(r.id||"");if(m)max=Math.max(max,parseInt(m[1],10));});
+  return prefix+"-"+abbr+"-"+year+"-"+String(max+1).padStart(4,"0");
+}
 // Outbound shipment destinations. The "— Internal" entries identify an inter-site
 // transfer whose receiving half is logged as an Internal Transfer record.
 const RCV_DESTINATIONS=["","External Customer","Lindon — Internal Transfer","Layton Gordon Ave — Internal","Layton McCormick — Internal","Layton Angel — Internal","Other"];
@@ -11361,10 +11481,11 @@ async function createReceiving(recordType){
   renderReceivingEditor();
 }
 
-// Create the backing record for a freshly chosen record type. The backend issues
-// the prefixed, per-site/per-year sequential ID (RCV-/SHP-/IXFR-) and the editor
-// then shows it locked. The record stays "uncommitted" so the type may still be
-// changed (re-issuing the ID) until the user saves.
+// Create the backing record immediately for an explicit-type entry point — the
+// QR / deep-link path (a per-station dock QR, or a Transfer Document scan that
+// must then run a link lookup against the new record). The backend issues the
+// prefixed id and the editor shows it locked. Manual type selection does NOT use
+// this path — see rcvSetRecordType, which stays entirely client-side.
 async function rcvCreateRecord(recordType){
   const rt=RCV_RECORD_TYPES.some(r=>r.key===recordType)?recordType:"Receiving";
   const cold=(activeRcv&&activeRcv.coldShipment)||"No";
@@ -11373,7 +11494,8 @@ async function rcvCreateRecord(recordType){
     const res=await fetch(RECEIVING_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({site:site,coldShipment:cold,recordType:rt})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     activeRcv=await res.json();
-    rcvDraftUncommitted=true;
+    // The record is persisted with its type — lock the type / id immediately.
+    rcvDraftUncommitted=false;
     renderReceivingEditor();
     const lbl=(RCV_RECORD_TYPES.find(r=>r.key===rt)||{}).label||"Inspection";
     toast(lbl+" "+activeRcv.id+" started.","green");
@@ -11422,6 +11544,17 @@ async function rcvGotoTransfer(tid){
     if(res.ok){const ship=await res.json();rcvShowSection("receiving");await openReceiving(ship.id);return;}
   }catch(e){}
   toast("Could not find transfer "+tid+".","red");
+}
+// Open the Internal Transfer receipt that received an outbound shipment (the
+// reverse of rcvGotoTransfer), so a Shipping record links to the receiving-side
+// record that closed its chain of custody. The receipt may live at another site.
+async function rcvGotoReceipt(tid){
+  if(!tid)return;
+  try{
+    const res=await fetch(RECEIVING_API+"?action=transfer-receipt&transfer_id="+encodeURIComponent(tid));
+    if(res.ok){const rec=await res.json();rcvShowSection("receiving");await openReceiving(rec.id);return;}
+  }catch(e){}
+  toast("Could not find the Internal Transfer receipt for "+tid+".","red");
 }
 // From an NCR/record modal back-link, open the originating truck inspection.
 async function rcvGotoInspectionFromRecord(id){
@@ -11537,7 +11670,7 @@ function renderReceivingEditor(){
     // repopulate when an existing transfer record is reopened.
     if(o.linkedTransferId&&!o._shipped)rcvHydrateShipped(o.linkedTransferId);
   }
-  initSignatureSection("receiving","receiving",o.id,"sig-section-rcv",o.signatures||[],function(updated){if(activeRcv&&updated)activeRcv.signatures=updated.signatures;},RCV_SIG_ROLES);
+  initSignatureSection("receiving","receiving",o.__draft?"":o.id,"sig-section-rcv",o.signatures||[],function(updated){if(activeRcv&&updated)activeRcv.signatures=updated.signatures;},RCV_SIG_ROLES);
   // FIX 2 — flag any linked NCR / OOS / Transfer whose target was deleted.
   rcvVerifyLinks();
 }
@@ -11555,19 +11688,26 @@ function rcvToLocalInput(iso){
 // ── Editor section builders (shared across the three record types) ──────────
 function rcvTypeSelectorHTML(o){
   const completed=o.status&&o.status!=="Open";
+  // The manual selector offers only Receiving and Shipping. An Internal Transfer
+  // record (created via the Transfer Document QR) is never manually selectable, so
+  // when the active record IS an Internal Transfer we show just that type, locked,
+  // as an indicator. Otherwise we show the two manual choices.
+  const isManualType=!o.recordType||RCV_MANUAL_TYPES.some(r=>r.key===o.recordType);
+  const types=isManualType?RCV_MANUAL_TYPES:RCV_RECORD_TYPES.filter(r=>r.key===o.recordType);
   // Type is editable only inside the new-inspection window (before the first
-  // save); afterwards — and for any reopened record — it is locked so the ID
-  // prefix can never drift from the record's type.
-  const locked=completed||!rcvDraftUncommitted;
+  // save) and only for the manual types; afterwards — and for any QR / reopened
+  // record — it is locked so the ID prefix can never drift from the record's type.
+  const locked=completed||!rcvDraftUncommitted||!isManualType;
   const meta=RCV_RECORD_TYPES.find(r=>r.key===o.recordType);
   const topColor=meta?meta.color:"#9aa5b1";
   const note=completed?` <span style="color:#4a5568;font-weight:400">(locked — record completed)</span>`
+            :(!isManualType?` <span style="color:#4a5568;font-weight:400">(QR transfer — type locked)</span>`
             :(locked?` <span style="color:#4a5568;font-weight:400">(locked — type set)</span>`
-            :(o.recordType?"":` <span style="color:#4a5568;font-weight:400">— choose one to generate the ID</span>`));
+            :(o.recordType?"":` <span style="color:#4a5568;font-weight:400">— choose one to generate the ID</span>`)));
   return `<div class="rcv-block" style="border-top:3px solid ${topColor}">
     <div class="rcv-block-title">Record Type${note}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${RCV_RECORD_TYPES.map(rt=>{const on=o.recordType===rt.key;return `<button type="button" ${locked?"disabled":`onclick="rcvSetRecordType('${rt.key}')"`} style="flex:1;min-width:150px;padding:14px;border-radius:10px;border:2px solid ${on?rt.color:"var(--border2)"};background:${on?rt.bg:"#fff"};color:${on?rt.color:"#4a5568"};font-weight:700;font-size:13px;cursor:${locked?"default":"pointer"};opacity:${locked&&!on?"0.5":"1"}">${rt.icon} ${rt.label}</button>`;}).join("")}
+      ${types.map(rt=>{const on=o.recordType===rt.key;return `<button type="button" ${locked?"disabled":`onclick="rcvSetRecordType('${rt.key}')"`} style="flex:1;min-width:150px;padding:14px;border-radius:10px;border:2px solid ${on?rt.color:"var(--border2)"};background:${on?rt.bg:"#fff"};color:${on?rt.color:"#4a5568"};font-weight:700;font-size:13px;cursor:${locked?"default":"pointer"};opacity:${locked&&!on?"0.5":"1"}">${rt.icon} ${rt.label}</button>`;}).join("")}
     </div>
   </div>`;
 }
@@ -11578,9 +11718,9 @@ function rcvDraftIdHintHTML(){
   return `<div class="rcv-block">
     <div class="rcv-block-title">Inspection ID</div>
     <div class="crisis-input" style="display:flex;align-items:center;gap:8px;opacity:0.7;font-family:'DM Mono',monospace" title="The ID is issued once you choose a record type">
-      <span>&#128275;</span><span>ID will generate on type selection</span>
+      <span>&#128275;</span><span>Select type above</span>
     </div>
-    <div style="margin-top:8px;font-size:11px;color:#4a5568">Pick a record type above to generate and lock this record's ID — Receiving issues <b>RCV-</b>, Shipping issues <b>SHP-</b>, Internal Transfer issues <b>IXFR-</b>.</div>
+    <div style="margin-top:8px;font-size:11px;color:#4a5568">Pick a record type above to generate and lock this record's ID — Receiving issues <b>RCV-</b> and Shipping issues <b>SHP-</b>.</div>
   </div>`;
 }
 
@@ -11762,6 +11902,7 @@ function rcvSignaturesBlockHTML(){
 // Transfer, show who received it, when, and at which site.
 function rcvReceivedBlockHTML(o){
   if(o.recordType!=="Shipping"||!o.receivedAt)return "";
+  const receiptLink=o.linkedTransferId?`<div style="margin-top:10px;font-size:12px;color:#375623">&#128279; Internal Transfer receipt: <a href="#" class="rcv-link-anchor" data-rcv-link-field="receiptTransferId" data-rcv-link-id="${cesc(o.linkedTransferId)}" onclick="rcvGotoReceipt('${cesc(o.linkedTransferId)}');return false;" style="color:#375623;text-decoration:underline;font-family:'DM Mono',monospace">${cesc(o.linkedTransferId)}</a> <span style="color:#4a5568">— open the receiving-side record</span></div>`:"";
   return `<div class="rcv-block" style="border:1px solid #548235;background:#F2F8EE">
     <div class="rcv-block-title" style="color:#375623;border-color:#cfe3c0">&#10003; Received — Chain of Custody Closed</div>
     <div class="rcv-grid">
@@ -11769,6 +11910,7 @@ function rcvReceivedBlockHTML(o){
       <div><label class="form-label">Received At</label><input class="crisis-input" value="${cesc(rcvFmtDate(o.receivedAt))}" disabled style="opacity:0.85"></div>
       <div><label class="form-label">Arrival Site</label><input class="crisis-input" value="${cesc(o.arrivalSite)||"—"}" disabled style="opacity:0.85"></div>
     </div>
+    ${receiptLink}
   </div>`;
 }
 
@@ -11780,30 +11922,47 @@ function rcvFooterBarHTML(isShip){
   </div>`;
 }
 
-// Switch record type during the new-inspection window. Each type owns its own ID
-// prefix (RCV / SHP / IXFR) and an independent per-site/per-year counter, so a
-// change discards the current draft (releasing its ID) and creates a fresh record
-// of the new type — the backend then issues a correctly-prefixed ID. Once the
-// record has been saved (rcvDraftUncommitted false) the type is locked.
-async function rcvSetRecordType(t){
-  if(!activeRcv||!RCV_RECORD_TYPES.some(r=>r.key===t))return;
-  if(activeRcv.recordType===t&&activeRcv.id)return;
+// Switch record type during the new-inspection window. This is a PURE client-side
+// state change: it updates the form's record type and regenerates + locks the id
+// (RCV / SHP) entirely in the browser. It issues NO API call, performs NO database
+// write and creates NO record — the backing record is created only when the user
+// explicitly Saves or Completes (or attaches a photo / signs). Only the two manual
+// types are selectable here; Internal Transfer is QR-only. Once the record has been
+// persisted (rcvDraftUncommitted false) the type and id are locked.
+function rcvSetRecordType(t){
+  if(!activeRcv||!RCV_MANUAL_TYPES.some(r=>r.key===t))return;
+  if(activeRcv.recordType===t)return;
   if(!rcvDraftUncommitted||(activeRcv.status&&activeRcv.status!=="Open")){
     toast("This record is saved — its type and ID are locked.","red");return;
   }
-  // Discard the already-issued draft (if any) so its prefixed ID is released and
-  // its counter slot freed before the new type's ID is generated.
-  if(activeRcv.id){
-    const hasData=(activeRcv.lineItems&&activeRcv.lineItems.length)||(activeRcv.attachments&&activeRcv.attachments.length);
-    if(hasData&&!confirm("Changing the record type discards this draft — including any materials or photos added — and issues a new ID. Continue?"))return;
-    try{
-      const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=discard",{method:"DELETE"});
-      if(!res.ok&&res.status!==404){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
-    }catch(e){toast("Could not change type: "+e.message,"red");return;}
-  }
-  // Carry the site / cold-chain choice into the fresh draft, then generate.
-  activeRcv={__draft:true,id:"",recordType:"",site:activeRcv.site||currentSite,coldShipment:activeRcv.coldShipment||"No",status:"Open"};
-  await rcvCreateRecord(t);
+  // Update form state only and (re)generate the locked id for the chosen type.
+  // Any materials already entered on the draft are kept across the change.
+  activeRcv.recordType=t;
+  activeRcv.id=rcvGenerateDraftId(t,activeRcv.site||currentSite);
+  renderReceivingEditor();
+}
+
+// Create the backing record on demand the first time a draft needs to be
+// persisted (explicit Save / Complete, a photo upload or a signature). Sends the
+// locked client id, the current header and any client-held materials in a single
+// POST. A no-op (returns true) once the record already exists. Returns false on
+// failure so callers can abort. Drafts before this point exist only in the browser.
+async function rcvEnsurePersisted(){
+  const o=activeRcv;if(!o)return false;
+  if(!o.__draft)return true;
+  if(!o.recordType){toast("Select a record type first.","red");return false;}
+  const body=rcvCollectHeader();
+  body.id=o.id;
+  body.site=o.site||currentSite;
+  body.coldShipment=o.coldShipment||"No";
+  body.lineItems=(o.lineItems||[]).map(li=>({materialName:li.materialName||"",supplier:li.supplier||"",lotNumber:li.lotNumber||"",quantity:li.quantity||"",quantityUnit:li.quantityUnit||"",coaReceived:li.coaReceived||"",coaReference:li.coaReference||"",internalBatchLot:li.internalBatchLot||"",originSite:li.originSite||""}));
+  try{
+    const res=await fetch(RECEIVING_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    activeRcv=await res.json();
+    rcvDraftUncommitted=false;
+    return true;
+  }catch(e){toast("Could not start inspection: "+e.message,"red");return false;}
 }
 
 // ── Internal Transfer — link to an outbound shipment & auto-populate ────────
@@ -12003,6 +12162,16 @@ async function rcvUploadLineItemFile(liId,input){
   if(!activeRcv)return;
   const files=Array.from(input.files||[]);
   if(!files.length)return;
+  input.value="";
+  // A document attachment needs a saved record (Blobs are keyed by record id).
+  // Persist the draft first, then ask the user to re-attach — the line-item ids
+  // are reissued by the server on save, so the original liId is no longer valid.
+  if(activeRcv.__draft){
+    if(!(await rcvEnsurePersisted()))return;
+    renderReceivingEditor();
+    toast("Inspection saved — please attach the CoA / receiving doc again.","yellow");
+    return;
+  }
   let ok=0;
   for(const f of files){
     try{
@@ -12032,6 +12201,15 @@ async function rcvRemoveLineItemFile(liId,key){
 
 async function rcvAddMaterial(){
   if(!activeRcv)return;
+  // Draft (not yet persisted): hold the material in browser state — it is flushed
+  // to the database with the rest of the form on the first Save / Complete.
+  if(activeRcv.__draft){
+    activeRcv.lineItems=activeRcv.lineItems||[];
+    activeRcv._draftLiSeq=(activeRcv._draftLiSeq||0)+1;
+    activeRcv.lineItems.push({id:"RLI-draft-"+activeRcv._draftLiSeq,materialName:"",supplier:"",lotNumber:"",quantity:"",quantityUnit:"",coaReceived:"",coaReference:"",internalBatchLot:"",originSite:"",attachments:[]});
+    renderRcvLineItems();
+    return;
+  }
   try{
     const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=save-line-item",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -12042,6 +12220,13 @@ async function rcvAddMaterial(){
 
 async function rcvSaveLineItemRow(liId){
   if(!activeRcv)return;
+  // Draft: update the in-browser material object only (no API call).
+  if(activeRcv.__draft){
+    const li=(activeRcv.lineItems||[]).find(x=>x.id===liId);if(!li)return;
+    const g=f=>{const el=document.getElementById("rli-"+liId+"-"+f);return el?el.value:(li[f]!==undefined?li[f]:"");};
+    li.materialName=g("materialName");li.supplier=g("supplier");li.lotNumber=g("lotNumber");li.quantity=g("quantity");li.quantityUnit=g("quantityUnit");li.coaReceived=g("coaReceived");li.coaReference=g("coaReference");li.internalBatchLot=g("internalBatchLot");li.originSite=g("originSite");
+    return;
+  }
   // Fall back to the cached value for any field not in the current DOM (the
   // transfer / receiving layouts render different field sets) so switching type
   // never wipes a stored value.
@@ -12059,6 +12244,12 @@ async function rcvSaveLineItemRow(liId){
 async function rcvRemoveLineItem(liId){
   if(!activeRcv)return;
   if(!confirm("Remove this material from the inspection?"))return;
+  // Draft: drop it from browser state only.
+  if(activeRcv.__draft){
+    activeRcv.lineItems=(activeRcv.lineItems||[]).filter(x=>x.id!==liId);
+    renderRcvLineItems();
+    return;
+  }
   try{
     const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(activeRcv.id)+"&action=delete-line-item",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({lineItemId:liId})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
@@ -12086,6 +12277,11 @@ async function rcvUpload(input){
   const desc=document.getElementById("rcv-photo-desc").value;
   const files=Array.from(input.files||[]);
   if(!files.length)return;
+  input.value="";
+  // Photos are stored in Blobs keyed by the record id, so the draft must be
+  // persisted first. This creates the record (flushing the header + materials).
+  let wasDraft=false;
+  if(activeRcv.__draft){wasDraft=true;if(!(await rcvEnsurePersisted()))return;}
   let ok=0;
   for(const f of files){
     try{
@@ -12097,8 +12293,7 @@ async function rcvUpload(input){
       ok++;
     }catch(e){toast("Upload failed for "+f.name+": "+e.message,"red");}
   }
-  input.value="";
-  renderRcvAttachments();
+  if(wasDraft)renderReceivingEditor();else renderRcvAttachments();
   if(ok)toast(ok+" photo(s) attached.","green");
 }
 
@@ -12194,6 +12389,12 @@ function rcvCollectHeader(){
 
 async function saveReceiving(){
   const o=activeRcv;if(!o)return;
+  // First save of a new-inspection draft: create the record (this is the only
+  // point at which a manually-started inspection is written to the database).
+  if(o.__draft){
+    if(await rcvEnsurePersisted()){renderReceivingEditor();toast("Inspection "+activeRcv.id+" saved.","green");}
+    return;
+  }
   const header=rcvCollectHeader();
   header.expected_modified_at=o.modifiedAt||o.modified_at||null;
   const doPut=(exp)=>{const b=Object.assign({},header);if(exp!==undefined)b.expected_modified_at=exp;return fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});};
@@ -12220,14 +12421,17 @@ async function rcvComplete(){
   const o=activeRcv;if(!o)return;
   const result=(document.getElementById("rcv-overallResult")||{}).value||"";
   if(!result){toast("Choose an Overall Result before completing.","red");return;}
+  // A draft must be created before it can be completed.
+  if(o.__draft){if(!(await rcvEnsurePersisted()))return;}
+  const rec=activeRcv;
   // Persist all current edits first so the completed record is consistent.
   try{
-    await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(rcvCollectHeader())});
+    await fetch(RECEIVING_API+"?id="+encodeURIComponent(rec.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(rcvCollectHeader())});
   }catch(e){}
   // Step-up re-authentication before locking the disposition.
-  if(!(await requireReauth({actionLabel:"Complete inspection "+o.id+" — "+result,recordId:o.id})))return;
+  if(!(await requireReauth({actionLabel:"Complete inspection "+rec.id+" — "+result,recordId:rec.id})))return;
   try{
-    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(o.id)+"&action=complete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({overallResult:result})});
+    const res=await fetch(RECEIVING_API+"?id="+encodeURIComponent(rec.id)+"&action=complete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({overallResult:result})});
     if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
     activeRcv=await res.json();
     rcvDraftUncommitted=false;
