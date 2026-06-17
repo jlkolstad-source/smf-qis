@@ -173,6 +173,14 @@ main{padding:24px 32px 80px;}
 .badge-audit{background:#FFF2CC;color:#7F6000;border:1px solid #7F6000;}
 .badge-major,.badge-critical{background:#FFE0E0;color:#C00000;border:1px solid #C00000;}
 .badge-minor{background:#F2F2F2;color:#4a5568;border:1px solid #d0d6de;}
+/* Reusable clickable linked-record navigation (CAPA <-> NCR/Audit/OOS/Crisis/Recall). */
+.qis-link{cursor:pointer;color:#1F6F6B;text-decoration:underline;text-underline-offset:2px;font-weight:600;}
+.qis-link:hover{filter:brightness(0.8);text-decoration:underline;}
+.qis-link-mono{font-family:'DM Mono',monospace;font-size:11px;color:#1F3864;}
+a.badge.qis-link{text-decoration:none;font-weight:500;}
+a.badge.qis-link:hover{text-decoration:underline;text-underline-offset:2px;filter:none;box-shadow:0 0 0 2px rgba(46,117,182,0.35);}
+.qis-link-dead{font-family:'DM Mono',monospace;font-size:11px;color:#8a94a6;cursor:default;}
+.qis-link-dead .qis-link-dead-note{font-style:italic;font-weight:400;color:#8a94a6;}
 .badge-open{background:#FFF2CC;color:#7F6000;border:1px solid #7F6000;}
 .badge-closed{background:#E2EFDA;color:#375623;border:1px solid #375623;}
 .badge-overdue{background:#FFE0E0;color:#C00000;border:1px solid #C00000;}
@@ -4880,6 +4888,105 @@ function resolveSourceRecord(type,id){
 }
 function findCapaRecord(id){return (records||[]).find(r=>r.id===id)||null;}
 
+// ── Reusable linked-record navigation (clickable, bidirectional, many-to-many) ─
+// One renderer + one navigator used everywhere a linked record id is shown, so
+// CAPA <-> NCR / Audit Finding / OOS / Crisis Exercise / Recall Exercise all
+// click through to the same detail views the same way. Mirrors the truck-
+// inspection back-link behaviour (rcvGoto*) already in the Receiving module.
+//
+// "Kind" maps any record.type or capa_links.source_type onto a module, telling
+// the navigator which detail view to open and the verifier which API resolves it.
+function qisRecordKind(type){
+  const t=(type||"").toString().trim();
+  if(t==="CAPA")return "CAPA";
+  if(t==="NCR")return "NCR";
+  if(t==="AUDIT"||t==="Audit Finding"||t==="Audit")return "AUDIT";
+  if(t==="OOS")return "OOS";
+  if(t==="Crisis Exercise"||t==="Crisis")return "Crisis Exercise";
+  if(t==="Recall Exercise"||t==="Recall")return "Recall Exercise";
+  return t;
+}
+// Open a linked record in its own module's detail view. NCR/Audit/CAPA all live
+// in the tracker modal (so a CAPA<->NCR hop just re-renders it); OOS/Crisis/
+// Recall are full-page editors, so the tracker modal is closed first.
+async function qisGotoLinked(type,id){
+  if(!id)return;
+  const kind=qisRecordKind(type);
+  try{
+    if(kind==="CAPA"||kind==="NCR"||kind==="AUDIT"){
+      rcvShowSection("tracker");
+      await aiReloadRecords();
+      if(typeof renderTable==="function")renderTable();
+      // The tracker list is site-scoped; a linked record at another site won't
+      // be in it. Pull the full set once so the target can still be opened.
+      if(!(records||[]).find(r=>r.id===id)){
+        try{const res=await fetch(API);if(res.ok){const all=await res.json();const hit=all.find(r=>r.id===id);if(hit)records.push(hit);}}catch(e){}
+      }
+      if((records||[]).find(r=>r.id===id))editRecord(id);
+      else toast("Record "+id+" no longer exists.","red");
+    }else if(kind==="OOS"){
+      closeModal();rcvShowSection("oos");await openOOS(id);
+    }else if(kind==="Crisis Exercise"){
+      closeModal();rcvShowSection("crisis");await openCrisisExercise(id);
+    }else if(kind==="Recall Exercise"){
+      closeModal();rcvShowSection("recall");await openRecallExercise(id);
+    }else{
+      toast("Cannot open "+(type||"record")+" "+id+" — unknown record type.","yellow");
+    }
+  }catch(e){toast("Could not open "+id+": "+(e.message||e),"red");}
+}
+// Render a single linked record id as a clickable navigation element. opts.badge
+// renders it as a coloured badge anchor; opts.mono renders monospace inline text.
+// Existence is confirmed asynchronously (qisVerifyLinkedAnchors), so a dead
+// reference is downgraded to plain text there rather than guessed at here.
+function qisLinkedRecordLink(type,id,opts){
+  opts=opts||{};
+  const kind=qisRecordKind(type),safe=cesc(id||"");
+  let cls="qis-link";
+  if(opts.badge)cls="badge "+opts.badge+" qis-link";
+  else if(opts.mono)cls="qis-link qis-link-mono";
+  return `<a href="#" class="${cls}" data-qis-link-kind="${cesc(kind)}" data-qis-link-id="${safe}" title="Open ${cesc(type||"record")} ${safe}" onclick="qisGotoLinked('${cesc(kind)}','${cesc(id||"")}');return false;">${safe}</a>`;
+}
+// Render a list of linked records ([{type,id,badge?,mono?}]) as clickable links.
+function qisLinkedRecordLinks(items,opts){
+  opts=opts||{};
+  return (items||[]).map(it=>qisLinkedRecordLink(it.type,it.id,{badge:it.badge||opts.badge,mono:it.mono||opts.mono})).join(opts.sep||" ");
+}
+// After a render, confirm each linked anchor's target still exists; downgrade any
+// that don't to plain "(unavailable)" text. Optimistic on network errors and on
+// records (verified by membership in the full /api/records set) so cross-site
+// links are never wrongly flagged. Run id guards against an out-of-order render.
+let _qisVerifyRun=0;
+async function qisVerifyLinkedAnchors(scopeSel){
+  const run=++_qisVerifyRun;
+  const root=scopeSel?document.querySelector(scopeSel):document;
+  if(!root)return;
+  const anchors=[...root.querySelectorAll("a.qis-link[data-qis-link-id]")];
+  if(!anchors.length)return;
+  let allRecordIds=null;
+  for(const a of anchors){
+    if(run!==_qisVerifyRun)return; // superseded by a newer render
+    const kind=a.getAttribute("data-qis-link-kind"),id=a.getAttribute("data-qis-link-id");
+    if(!id)continue;
+    let exists=true;
+    try{
+      if(kind==="CAPA"||kind==="NCR"||kind==="AUDIT"){
+        if(allRecordIds===null){const r=await fetch(API);allRecordIds=r.ok?(await r.json()).map(x=>x.id):false;}
+        exists=allRecordIds===false?true:allRecordIds.indexOf(id)>=0;
+      }else if(kind==="OOS"){const r=await fetch(OOS_API+"?id="+encodeURIComponent(id));exists=r.ok;}
+      else if(kind==="Crisis Exercise"){const r=await fetch(CRISIS_API+"?id="+encodeURIComponent(id));exists=r.ok;}
+      else if(kind==="Recall Exercise"){const r=await fetch(RECALL_API+"?id="+encodeURIComponent(id));exists=r.ok;}
+    }catch(e){exists=true;} // network hiccup — leave the link intact
+    if(!exists&&run===_qisVerifyRun&&a.isConnected){
+      const note=document.createElement("span");
+      note.className="qis-link-dead";
+      note.title="This linked record no longer exists.";
+      note.innerHTML=cesc(id)+' <span class="qis-link-dead-note">(unavailable)</span>';
+      a.replaceWith(note);
+    }
+  }
+}
+
 // <option> list of QIS registered users (signed-in user + everyone recorded as a
 // signatory / attendee / auditor / initiator across loaded data).
 function capaUserOptions(selected){
@@ -5033,6 +5140,7 @@ async function renderLinkedCapas(hostId,sourceType,sourceId){
   const links=await capaLinksGet("source_id="+encodeURIComponent(sourceId));
   _linkageState={sourceType,sourceId,links,hostId};
   host.innerHTML=linkedCapasHTML(hostId,sourceType,sourceId,links);
+  qisVerifyLinkedAnchors("#"+hostId);
 }
 function linkedCapasHTML(hostId,sourceType,sourceId,links){
   const rows=links.length?links.map(l=>{
@@ -5041,7 +5149,7 @@ function linkedCapasHTML(hostId,sourceType,sourceId,links){
     const owner=capa?capa.owner:"";
     const due=capa?capa.due:"";
     return `<div class="link-row">
-      <span class="badge badge-capa">${cesc(l.capaId)}</span>
+      ${qisLinkedRecordLink("CAPA",l.capaId,{badge:"badge-capa"})}
       ${anyStatusBadge(status)}
       <span style="font-size:12px;color:#1a1a2e">${cesc(owner||"—")}</span>
       <span style="font-family:'DM Mono',monospace;font-size:10px;color:#4a5568;margin-left:auto">${due?("due "+cesc(due)):"no due date"}</span>
@@ -5140,6 +5248,7 @@ async function renderCapaSourceRecords(r){
   _capaSrcState={capaId:r.id,links,tab:_capaSrcState.tab||"NCR"};
   _linkageState.links=links;
   host.innerHTML=capaSourceRecordsHTML();
+  qisVerifyLinkedAnchors("#capa-linkage-section");
 }
 function capaSourceRecordsHTML(){
   const links=_capaSrcState.links||[];
@@ -5147,7 +5256,7 @@ function capaSourceRecordsHTML(){
     const sr=resolveSourceRecord(l.sourceType,l.sourceId);
     return `<div class="link-row">
       ${sourceTypeBadge(l.sourceType)}
-      <span style="font-family:'DM Mono',monospace;font-size:11px;color:#1F3864">${cesc(l.sourceId)}</span>
+      ${qisLinkedRecordLink(l.sourceType,l.sourceId,{mono:true})}
       <span style="font-size:12px;color:#1a1a2e;flex:1;min-width:0">${cesc((sr.desc||"").slice(0,80))}${(sr.desc||"").length>80?"…":""}</span>
       ${anyStatusBadge(sr.status)}
       <button class="btn-ghost" style="color:#C00000;padding:3px 9px;font-size:11px" onclick="doUnlinkSourceRecord('${cesc(l.id)}')">Unlink</button>
