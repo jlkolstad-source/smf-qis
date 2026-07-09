@@ -21,9 +21,9 @@
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, inArray, or } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { auditSessions, records, auditLog } from "../../db/schema.js";
+import { auditSessions, records, auditLog, capaLinks, actionLog } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -167,15 +167,18 @@ function toRow(r: any) {
 
 export default async (req: Request) => {
   const url = new URL(req.url);
+  // Captured inside the try as soon as the identity resolves, so the outer catch
+  // can attribute any thrown error to the calling user in the logs.
+  let callerEmail = "";
 
   try {
     const auth = await getAuth();
     if (!auth) return json(401, { error: "Sign in required." });
+    callerEmail = auth.email;
     const user = auth.user;
     const actor = actorString(user);
     const canClose = roleAtLeast(auth.role, "Quality Manager");
     const canEdit = roleAtLeast(auth.role, "Member");
-    const admin = roleAtLeast(auth.role, "Admin");
 
     // Dock is read-only on audit sessions: allow GET (incl. file-download GET),
     // refuse every mutating verb.
@@ -356,7 +359,7 @@ export default async (req: Request) => {
 
       // ── Delete a session (only while still Scheduled) ─────────────────────
       if (action === "delete") {
-        return deleteSession((id || body.id || "").toString(), actor);
+        return deleteSession(auth, (id || body.id || "").toString(), actor);
       }
 
       // ── Electronic sign-off on a signature row, by role ───────────────────
@@ -533,48 +536,250 @@ export default async (req: Request) => {
         await logChange(id, "attachment", `Removed attachment "${found.meta.filename || fileKey}" from clause ${found.clauseId}`, actor);
         return json(200, { ok: true });
       }
-      return deleteSession(id, actor);
+      return deleteSession(auth, id, actor);
     }
 
     return json(405, { error: "Method not allowed" });
   } catch (err: any) {
+    console.error("[audits] Unhandled handler error", {
+      error: err,
+      message: err?.message,
+      stack: err?.stack,
+      method: req.method,
+      recordId: url.searchParams.get("id") || "",
+      action: url.searchParams.get("action") || "",
+      email: callerEmail,
+    });
     return json(500, { error: err?.message || "Server error" });
   }
 
-  // A session may only be deleted while it is still Scheduled; once it is In
-  // Progress or Closed it is part of the audit record and must be retained.
-  async function deleteSession(sid: string, who: string) {
-    if (!sid) return json(400, { error: "Missing audit session id." });
-    if (!admin) {
-      await logAction({
-        email: auth.email,
-        role: auth.role,
-        action: "permission_denied",
-        recordType: "Audit Session",
+  // Delete an audit session and everything that depends on it. Admin-only per
+  // the Run 1 permission matrix.
+  //
+  // The auth context is passed in explicitly rather than closed over: the
+  // previous version referenced an `admin`/`auth` binding that lived inside the
+  // handler's `try` block and was therefore NOT in this function's lexical
+  // scope, so any call threw `ReferenceError: admin is not defined`.
+  //
+  // Dependents are removed in explicit dependency order with SEQUENTIAL deletes,
+  // NOT a database transaction. This deployment's database driver (Netlify DB /
+  // Neon serverless) does not give us a dependable multi-statement transaction,
+  // so a `db.transaction(...)` block silently mis-behaved and surfaced only as a
+  // generic caught 500. Each step below has its own try/catch and a distinct
+  // error message naming the step, so a failure identifies itself without needing
+  // log access. Every step is idempotent (delete-by-key / onConflictDoNothing),
+  // so a partial failure can be safely retried until it completes.
+  async function deleteSession(
+    auth: NonNullable<Awaited<ReturnType<typeof getAuth>>>,
+    sid: string,
+    who: string,
+  ) {
+    // Small helper: uniform per-step 500 that names the failing step and carries
+    // the raw database error text (never a generic message).
+    const stepFail = (step: number, label: string, e: any) => {
+      const raw = e?.message || String(e);
+      console.error(`[audits] deleteSession failed at step ${step} (${label})`, {
+        error: e,
+        step,
+        label,
         recordId: sid,
-        detail: { attempted: "delete" },
+        email: auth?.email,
       });
-      return json(403, { error: "Only an administrator can delete audit sessions." });
-    }
-    const [existing] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
-    if (!existing) return json(404, { error: "Audit session not found." });
-    if (existing.status !== "Scheduled") {
-      return json(409, {
-        error: `Only a Scheduled audit session can be deleted; this session is ${existing.status}.`,
-        status: existing.status,
+      return json(500, {
+        error: `Delete failed at step ${step} (${label}): ${raw}`,
+        step,
+        stepLabel: label,
+        detail: raw,
+      });
+    };
+
+    try {
+      if (!sid) return json(400, { error: "Missing audit session id." });
+
+      // Role gate — Admin only. Return a 403 naming the required role; never throw.
+      if (!roleAtLeast(auth.role, "Admin")) {
+        await logAction({
+          email: auth.email,
+          role: auth.role,
+          action: "permission_denied",
+          recordType: "Audit Session",
+          recordId: sid,
+          detail: { attempted: "delete" },
+        });
+        return json(403, {
+          error: `Deleting an audit session requires the Admin role. Your role is ${auth.role}.`,
+          requiredRole: "Admin",
+          yourRole: auth.role,
+        });
+      }
+
+      const [existing] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
+      if (!existing) return json(404, { error: "Audit session not found." });
+
+      // Findings raised against this session (records.audit_id === sid).
+      const findings = await db.select().from(records).where(eq(records.auditId, sid));
+      const findingIds = findings.map((f) => f.id);
+
+      // ── BLOCK RATHER THAN CASCADE where it matters ──────────────────────────
+      // Before deleting anything, refuse the delete if any of the session's
+      // findings is — or is linked to — a CAPA or NCR that is still open. Only an
+      // all-closed dependency graph may be cleaned up.
+      const linkRows = findingIds.length
+        ? await db
+            .select()
+            .from(capaLinks)
+            .where(or(inArray(capaLinks.sourceId, findingIds), inArray(capaLinks.capaId, findingIds)))
+        : [];
+
+      // Every record id related to this session: the findings themselves plus any
+      // CAPA / NCR they point at (records.capa_id) or are joined to (capa_links).
+      const relatedIds = new Set<string>(findingIds);
+      for (const f of findings) if (f.capaId) relatedIds.add(f.capaId);
+      for (const l of linkRows) {
+        if (l.capaId) relatedIds.add(l.capaId);
+        if (l.sourceId) relatedIds.add(l.sourceId);
+      }
+
+      const relatedRecords = relatedIds.size
+        ? await db.select().from(records).where(inArray(records.id, [...relatedIds]))
+        : [];
+      const openLinked = relatedRecords
+        .filter((r) => (r.type === "CAPA" || r.type === "NCR") && r.status !== "Closed")
+        .map((r) => ({ id: r.id, type: r.type, status: r.status }));
+
+      if (openLinked.length > 0) {
+        const openIds = new Set(openLinked.map((r) => r.id));
+        const blockingFindingIds = findings
+          .filter(
+            (f) =>
+              openIds.has(f.id) ||
+              (f.capaId && openIds.has(f.capaId)) ||
+              linkRows.some((l) => l.sourceId === f.id && openIds.has(l.capaId)) ||
+              linkRows.some((l) => l.capaId === f.id && openIds.has(l.sourceId)),
+          )
+          .map((f) => f.id);
+        return json(409, {
+          error: `Cannot delete this audit session: ${openLinked.length} linked CAPA/NCR record(s) are still open. Resolve or close them before deleting.`,
+          blocked: true,
+          blockingFindingIds,
+          findings: findings.map((f) => ({ id: f.id, type: f.type, status: f.status })),
+          linkedCapaIds: openLinked.filter((r) => r.type === "CAPA").map((r) => r.id),
+          linkedNcrIds: openLinked.filter((r) => r.type === "NCR").map((r) => r.id),
+          openLinkedRecords: openLinked,
+        });
+      }
+
+      // Gather the session's evidence-attachment blob keys (held in exec_state)
+      // so step 3 can purge them from Blobs.
+      const evidenceKeys: string[] = [];
+      const execState = (existing.execState && typeof existing.execState === "object"
+        ? existing.execState
+        : {}) as Record<string, any>;
+      for (const entry of Object.values(execState)) {
+        if (entry && typeof entry === "object") {
+          for (const a of arr((entry as any).attachments)) {
+            if (a && a.key) evidenceKeys.push(a.key);
+          }
+        }
+      }
+
+      // Ids whose action_log / audit_log / link rows we clean up: the session and
+      // each of its findings.
+      const scopeIds = [sid, ...findingIds];
+
+      // ── Step 1: action_log rows referencing the session and its findings ────
+      try {
+        await db.delete(actionLog).where(inArray(actionLog.recordId, scopeIds));
+      } catch (e) {
+        return stepFail(1, "action_log", e);
+      }
+
+      // ── Step 2: link rows joining the findings to any CAPAs or NCRs ─────────
+      try {
+        if (scopeIds.length) {
+          await db
+            .delete(capaLinks)
+            .where(or(inArray(capaLinks.sourceId, scopeIds), inArray(capaLinks.capaId, scopeIds)));
+        }
+      } catch (e) {
+        return stepFail(2, "capa/ncr link rows", e);
+      }
+
+      // ── Step 3: evidence attachments (including blob storage references) ────
+      // Session evidence lives as blobs keyed from exec_state; finding evidence is
+      // embedded in the record row itself and is removed with the finding in step
+      // 4. Per-key blob deletes are best-effort (already-gone keys are fine, which
+      // keeps the step idempotent); a hard store failure reports as step 3.
+      try {
+        if (evidenceKeys.length) {
+          const store = await blobStore(ATTACH_STORE);
+          for (const key of evidenceKeys) await store.delete(key).catch(() => {});
+        }
+      } catch (e) {
+        return stepFail(3, "evidence attachments", e);
+      }
+
+      // ── Step 4: the audit findings belonging to the session ─────────────────
+      const findingsRemoved = findingIds.length;
+      try {
+        if (findingIds.length) {
+          await db.delete(records).where(inArray(records.id, findingIds));
+        }
+      } catch (e) {
+        return stepFail(4, "audit findings", e);
+      }
+
+      // ── Step 5: the audit session itself ────────────────────────────────────
+      try {
+        await db.delete(auditSessions).where(eq(auditSessions.id, sid));
+      } catch (e) {
+        return stepFail(5, "audit session", e);
+      }
+
+      // ── Step 6: record_deleted entry AFTER the session is gone ──────────────
+      // Idempotent: a stable id + onConflictDoNothing means a retried delete does
+      // not double-log.
+      try {
+        const now = new Date();
+        await db
+          .insert(actionLog)
+          .values({
+            id: `AL-audit-del-${sid}`,
+            timestamp: now,
+            userEmail: (auth.email || "").toLowerCase(),
+            userRole: auth.role,
+            action: "record_deleted",
+            recordType: "Audit Session",
+            recordId: sid,
+            site: existing.site || "",
+            detail: { status: existing.status, by: who, findingsRemoved, evidenceRemoved: evidenceKeys.length },
+          })
+          .onConflictDoNothing();
+      } catch (e) {
+        return stepFail(6, "record_deleted log", e);
+      }
+
+      return json(200, {
+        ok: true,
+        id: sid,
+        findingsRemoved,
+        evidenceRemoved: evidenceKeys.length,
+      });
+    } catch (err: any) {
+      // Safety net for anything not attributable to a specific step (e.g. the
+      // initial lookups). Never let an exception escape as a 502.
+      console.error("[audits] deleteSession unexpected failure", {
+        error: err,
+        message: err?.message,
+        stack: err?.stack,
+        recordId: sid,
+        email: auth?.email,
+      });
+      return json(500, {
+        error: `Delete failed before completing: ${err?.message || String(err)}`,
+        detail: err?.message || String(err),
       });
     }
-    await db.delete(auditSessions).where(eq(auditSessions.id, sid));
-    await logChange(sid, "delete", `Deleted audit session ${sid}`, who);
-    await logAction({
-      email: auth.email,
-      role: auth.role,
-      action: "record_deleted",
-      recordType: "Audit Session",
-      recordId: sid,
-      site: existing.site,
-    });
-    return json(200, { ok: true });
   }
 };
 

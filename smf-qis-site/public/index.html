@@ -1052,7 +1052,22 @@ nav::-webkit-scrollbar{display:none;}
       <button class="btn-ghost" onclick="closeConflictModal()">Cancel</button>
       <button class="btn" id="conflict-review-btn" style="background:#7a6000" onclick="conflictReviewDifferences()">Review Differences</button>
       <button class="btn" id="conflict-reload-btn" style="background:#1F6F6B" onclick="conflictReloadTheirVersion()">Reload Their Version</button>
-      <button class="btn" id="conflict-savemine-btn" style="display:none;background:#C00000" onclick="conflictSaveAgainstLatest()">Keep My Values &amp; Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUDIT DELETE BLOCKED MODAL -->
+<!-- Shown when the server refuses an audit-session delete (HTTP 409) because it -->
+<!-- still has dependent findings. Names exactly what is blocking and renders the -->
+<!-- blocking record ids as clickable links via the shared linked-record navigator -->
+<!-- (qisLinkedRecordLink), so the user can jump straight to each blocker. -->
+<div class="modal-overlay" id="audit-delete-blocked-modal">
+  <div class="modal" style="border-top:3px solid #C00000;max-width:640px">
+    <div class="modal-title" style="color:#7a0000">Cannot delete audit session</div>
+    <div id="audit-delete-blocked-msg" style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#7a0000">—</div>
+    <div id="audit-delete-blocked-body" style="max-height:340px;overflow:auto;margin-bottom:14px;font-size:12px"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeAuditDeleteBlocked()">Close</button>
     </div>
   </div>
 </div>
@@ -5959,15 +5974,58 @@ async function completeAudit(id){
 }
 
 async function deleteAudit(id){
-  if(!confirm("Delete scheduled audit "+id+"? This cannot be undone."))return;
+  if(!confirm("Delete audit "+id+" and its findings? This cannot be undone."))return;
   if(!(await requireReauth({actionLabel:"Delete audit session "+id,recordId:id})))return;
   try{
     const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=delete",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
-    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    const data=await res.json().catch(()=>({}));
+    // Server refuses the delete because findings are linked to still-open CAPA/NCR
+    // records. Surface exactly what is blocking, with clickable links to each.
+    if(res.status===409&&data.blocked){
+      showAuditDeleteBlocked(id,data);
+      return;
+    }
+    if(!res.ok)throw new Error(data.error||("HTTP "+res.status));
     await loadAuditSessions();renderAuditList();renderDashCharts();
     toast("Audit "+id+" deleted.","green");
   }catch(e){toast("Could not delete audit: "+e.message,"red");}
 }
+
+// Populate and open the "cannot delete" dialog. The blocking finding ids and the
+// still-open CAPA / NCR ids are rendered through qisLinkedRecordLink so each is a
+// clickable jump to its detail view via the shared linked-record navigator.
+function showAuditDeleteBlocked(id,data){
+  const findings=(data.findings||[]);
+  const blockingIds=(data.blockingFindingIds||[]);
+  const blocking=findings.filter(f=>blockingIds.indexOf(f.id)>=0);
+  const shownFindings=blocking.length?blocking:findings;
+  const capaIds=(data.linkedCapaIds||[]);
+  const ncrIds=(data.linkedNcrIds||[]);
+  const msg=document.getElementById("audit-delete-blocked-msg");
+  if(msg)msg.textContent=data.error||("Audit "+id+" is linked to open records and cannot be deleted.");
+  let html="";
+  if(shownFindings.length){
+    html+=`<div style="margin-bottom:10px"><strong>Blocking finding(s):</strong><div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">`+
+      shownFindings.map(f=>qisLinkedRecordLink(f.type,f.id,{mono:true})+`<span style="color:#4a5568;font-size:11px">(${cesc(f.type||"")}${f.status?" · "+cesc(f.status):""})</span>`).join(" ")+
+      `</div></div>`;
+  }
+  if(capaIds.length){
+    html+=`<div style="margin-bottom:10px"><strong>Open CAPA(s):</strong><div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">`+
+      qisLinkedRecordLinks(capaIds.map(x=>({type:"CAPA",id:x,mono:true})))+`</div></div>`;
+  }
+  if(ncrIds.length){
+    html+=`<div style="margin-bottom:10px"><strong>Open NCR(s):</strong><div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">`+
+      qisLinkedRecordLinks(ncrIds.map(x=>({type:"NCR",id:x,mono:true})))+`</div></div>`;
+  }
+  html+=`<div style="color:#4a5568;font-size:11px;margin-top:6px">Close or unlink the open record(s) above, then delete the audit session again.</div>`;
+  const body=document.getElementById("audit-delete-blocked-body");
+  if(body)body.innerHTML=html;
+  const modal=document.getElementById("audit-delete-blocked-modal");
+  if(modal)modal.classList.add("open");
+  // Confirm each linked anchor still exists (downgrades dead links to plain text).
+  if(typeof qisVerifyLinkedAnchors==="function")qisVerifyLinkedAnchors("#audit-delete-blocked-body");
+}
+function closeAuditDeleteBlocked(){const m=document.getElementById("audit-delete-blocked-modal");if(m)m.classList.remove("open");}
 
 function loadAuditExec(auditId){
   activeAuditId=auditId;
