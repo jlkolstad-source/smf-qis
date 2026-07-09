@@ -5,8 +5,42 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>QIS · Quality Intelligence System · Somafina UST</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Tailwind CSS (Play CDN). Preflight is disabled so Tailwind layers cleanly on top of the
+     existing QIS design system without resetting any of its base styles. The theme mirrors the
+     QIS tokens so utility classes stay on-brand. -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    corePlugins: { preflight: false },
+    theme: {
+      extend: {
+        colors: {
+          navy:   { DEFAULT: '#1F4E79', deep: '#1F3864', ink: '#182C54' },
+          accent: '#2E75B6',
+          sky:    '#BDD7EE',
+          teal:   '#1F6F6B',
+          ink:    '#1a1a2e',
+          muted:  '#4a5568',
+          line:   '#d0d6de',
+          danger: '#C00000',
+          warn:   '#7F6000',
+        },
+        fontFamily: {
+          display: ['"Bebas Neue"', 'sans-serif'],
+          sans:    ['"DM Sans"', 'sans-serif'],
+          mono:    ['"DM Mono"', 'monospace'],
+        },
+        borderRadius: { xl: '14px', '2xl': '18px' },
+        boxShadow: {
+          card: '0 1px 2px rgba(31,56,100,.05),0 2px 6px -1px rgba(31,56,100,.10)',
+          lift: '0 8px 20px -6px rgba(31,56,100,.16),0 3px 8px -3px rgba(31,56,100,.10)',
+        },
+      },
+    },
+  };
+</script>
 <style>
-:root{--bg:#f0f2f5;--surface:#ffffff;--surface2:#f4f6f8;--surface3:#e8ecf0;--border:#d0d6de;--border2:#c0c8d2;--accent:#1F4E79;--accent2:#2E75B6;--accent3:#1F3864;--warn:#7F6000;--danger:#C00000;--purple:#375623;--text:#1a1a2e;--muted:#4a5568;--muted2:#2d3748;}
+:root{--bg:#eef1f6;--surface:#ffffff;--surface2:#f4f6f8;--surface3:#e8ecf0;--border:#d0d6de;--border2:#c0c8d2;--accent:#1F4E79;--accent2:#2E75B6;--accent3:#1F3864;--warn:#7F6000;--danger:#C00000;--purple:#375623;--text:#1a1a2e;--muted:#4a5568;--muted2:#2d3748;--radius:10px;--radius-sm:7px;--radius-lg:14px;--shadow-sm:0 1px 2px rgba(31,56,100,0.05),0 2px 6px -1px rgba(31,56,100,0.10);--shadow-md:0 8px 20px -6px rgba(31,56,100,0.16),0 3px 8px -3px rgba(31,56,100,0.10);--shadow-lg:0 30px 60px -18px rgba(15,30,60,0.40);--ring:0 0 0 3px rgba(46,117,182,0.20);--ease:cubic-bezier(0.4,0,0.2,1);}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:#1a1a2e;font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
 body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(31,78,121,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(31,78,121,0.06) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
@@ -395,8 +429,94 @@ a.badge.qis-link:hover{text-decoration:underline;text-underline-offset:2px;filte
 @keyframes toastOut{from{opacity:1;}to{opacity:0;pointer-events:none;}}
 .save-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(31,56,100,0.97);border-top:1px solid #1F3864;padding:5px 20px;display:flex;align-items:center;justify-content:space-between;font-size:10px;font-family:'DM Mono',monospace;color:#4a5568;z-index:50;}
 .save-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:6px;}
-@media(max-width:900px){.kpi-grid{grid-template-columns:repeat(3,1fr);}.charts-row{grid-template-columns:1fr;}}
-@media(max-width:600px){.kpi-grid{grid-template-columns:1fr 1fr;}main{padding:14px 16px 80px;}header{padding:12px 16px;}}
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREMIUM REFINEMENT LAYER — declared last so it refines the base design system.
+   Elevates typography, spacing, depth and interaction to modern SaaS standards
+   without altering any component markup. Purely additive and fully reversible.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html{-webkit-text-size-adjust:100%;}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-size:14px;line-height:1.5;letter-spacing:0.01em;background:radial-gradient(1100px 520px at 82% -8%,rgba(46,117,182,0.10),transparent 62%),var(--bg);}
+/* Softer, vignetted grid texture — atmosphere without visual noise. */
+body::before{background-image:linear-gradient(rgba(31,78,121,0.045) 1px,transparent 1px),linear-gradient(90deg,rgba(31,78,121,0.045) 1px,transparent 1px);background-size:46px 46px;-webkit-mask-image:radial-gradient(circle at 50% -10%,#000,rgba(0,0,0,0.35) 65%,transparent 100%);mask-image:radial-gradient(circle at 50% -10%,#000,rgba(0,0,0,0.35) 65%,transparent 100%);}
+::selection{background:rgba(46,117,182,0.22);}
+
+/* — App shell — */
+header{border-bottom:1px solid rgba(255,255,255,0.08);background:linear-gradient(180deg,rgba(24,44,84,0.98),rgba(31,56,100,0.96));backdrop-filter:blur(14px) saturate(1.15);box-shadow:0 10px 30px -20px rgba(0,0,0,0.75);}
+.logo{letter-spacing:3.5px;}
+nav{background:rgba(27,49,92,0.94);backdrop-filter:blur(14px);box-shadow:inset 0 -1px 0 rgba(255,255,255,0.06);gap:2px;scrollbar-width:none;}
+nav::-webkit-scrollbar{display:none;}
+.tab{border-radius:8px 8px 0 0;transition:color .18s var(--ease),background .18s var(--ease),border-color .18s var(--ease);}
+.tab:hover{background:rgba(255,255,255,0.06);}
+.tab.active{background:rgba(189,215,238,0.08);}
+
+/* — Cards & surfaces: consistent radius, soft layered depth, tactile hover — */
+.kpi-card,.chart-card,.dk-card,.dcs-wrap,.cul-gauge-card,.rpt-section,.link-card,.eff-card,.crisis-block,.rcv-block,.recall-block,.rpt-toolbar{border-radius:var(--radius);}
+.kpi-card,.chart-card,.dk-card,.dcs-wrap,.cul-gauge-card{box-shadow:var(--shadow-sm);transition:transform .2s var(--ease),box-shadow .2s var(--ease);}
+.kpi-card{overflow:hidden;}
+.kpi-card:hover,.dk-card:hover,.chart-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);}
+.audit-card,.crisis-card,.recall-card{border-radius:var(--radius);transition:transform .18s var(--ease),background .18s var(--ease),border-color .18s var(--ease),box-shadow .18s var(--ease);}
+.audit-card:hover,.crisis-card:hover,.recall-card:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm);}
+
+/* — Buttons: subtle elevation and press feedback — */
+.btn{border-radius:8px;box-shadow:0 1px 2px rgba(15,30,60,0.25);transition:transform .15s var(--ease),box-shadow .15s var(--ease),opacity .15s var(--ease);}
+.btn:hover{opacity:1;transform:translateY(-1px);box-shadow:0 8px 18px -8px rgba(31,78,121,0.65);}
+.btn:active{transform:translateY(0);box-shadow:0 1px 2px rgba(15,30,60,0.25);}
+.btn-ghost{border-radius:8px;transition:transform .15s var(--ease),background .15s var(--ease),border-color .15s var(--ease),color .15s var(--ease);}
+.btn-ghost:hover{transform:translateY(-1px);}
+.filter-chip{transition:transform .15s var(--ease),background .15s,border-color .15s,color .15s;}
+.filter-chip:hover{transform:translateY(-1px);}
+.btn:focus-visible,.btn-ghost:focus-visible,.btn-danger:focus-visible,.filter-chip:focus-visible,.tab:focus-visible{outline:none;box-shadow:var(--ring);}
+
+/* — Inputs: cleaner fields with a clear focus ring — */
+.form-input,.form-select,.form-textarea{border-radius:8px;background:#fff;border-color:var(--border);}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent2);box-shadow:var(--ring);}
+
+/* — Modal: lighter frame, generous radius, deep soft shadow — */
+.modal-overlay{background:rgba(13,24,50,0.55);backdrop-filter:blur(8px) saturate(1.1);}
+.modal{border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);padding:28px 30px;}
+
+/* — Tables presented as rounded, elevated cards — */
+.scroll-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:auto;background:#fff;box-shadow:var(--shadow-sm);}
+.data-table th{background:linear-gradient(180deg,#24588a,#1F4E79);}
+.data-table tr{transition:background .12s var(--ease);}
+.data-table tr:last-child td{border-bottom:none;}
+
+/* — Headings: a touch more presence — */
+.section-title,.dash-h-title{letter-spacing:2.5px;}
+
+/* ── Responsive breakpoints ─────────────────────────────────────────────────
+   Layout gracefully collapses from wide multi-column dashboards down to a
+   single, comfortably tappable column on phones. App-shell padding is handled
+   by Tailwind utilities on <header>/<nav>/<main>; component grids collapse here. */
+@media(max-width:1100px){
+  .charts-row{grid-template-columns:1fr;}
+}
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(3,1fr);}
+}
+@media(max-width:760px){
+  .kpi-grid{grid-template-columns:1fr 1fr;}
+  .form-grid{grid-template-columns:1fr;}
+  .cul-top{grid-template-columns:1fr;}
+  .cs-subnav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;}
+  .modal{padding:20px;border-radius:14px;}
+  .data-table th,.data-table td{padding-left:9px;padding-right:9px;}
+  .kpi-value{font-size:38px;}
+  .dash-h-title{font-size:21px;}
+}
+@media(max-width:600px){
+  .tab{padding:11px 13px;font-size:11px;}
+  .kpi-value{font-size:34px;}
+  .score-big{font-size:60px;}
+  .modal-actions{flex-direction:column-reverse;}
+  .modal-actions .btn,.modal-actions .btn-ghost{width:100%;}
+  /* 16px inputs stop iOS from auto-zooming on focus. */
+  .form-input,.form-select,.form-textarea,.crisis-input,.recall-input{font-size:16px;}
+}
+@media(max-width:440px){
+  .kpi-grid{grid-template-columns:1fr;}
+  .logo{font-size:22px;}
+}
 </style>
 </head>
 <body class="qis-locked">
@@ -404,17 +524,17 @@ a.badge.qis-link:hover{text-decoration:underline;text-underline-offset:2px;filte
 .qis-locked header,.qis-locked nav,.qis-locked main{display:none !important;}
 .auth-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#1F3864 0%,#1F4E79 60%,#2E75B6 100%);}
 .auth-overlay::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.05) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
-.auth-card{position:relative;width:100%;max-width:380px;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,0.35);padding:34px 32px 30px;}
+.auth-card{position:relative;width:100%;max-width:380px;background:#fff;border-radius:20px;box-shadow:0 30px 70px -20px rgba(10,20,50,0.55);padding:34px 32px 30px;}
 .auth-logo{font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:4px;color:#1F4E79;line-height:1;text-align:center;}
 .auth-logo span{display:block;color:#2E75B6;font-size:11px;font-family:'DM Mono',monospace;letter-spacing:2px;margin-top:2px;}
 .auth-form{margin-top:26px;display:flex;flex-direction:column;}
 .auth-form h2{font-family:'DM Sans',sans-serif;font-size:19px;color:#1a1a2e;margin:0 0 4px;}
 .auth-sub{font-size:12.5px;color:#4a5568;margin:0 0 18px;line-height:1.5;}
 .auth-label{font-size:11px;font-family:'DM Mono',monospace;color:#2d3748;letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px;}
-.auth-input{width:100%;box-sizing:border-box;border:1px solid #d0d6de;border-radius:8px;padding:11px 12px;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a1a2e;margin-bottom:15px;outline:none;transition:border-color .15s;}
+.auth-input{width:100%;box-sizing:border-box;border:1px solid #d0d6de;border-radius:10px;padding:11px 12px;font-size:14px;font-family:'DM Sans',sans-serif;color:#1a1a2e;margin-bottom:15px;outline:none;transition:border-color .15s,box-shadow .15s;}
 .auth-input:focus{border-color:#2E75B6;box-shadow:0 0 0 3px rgba(46,117,182,0.15);}
-.auth-btn{width:100%;background:#1F4E79;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .15s;}
-.auth-btn:hover{background:#1F3864;}
+.auth-btn{width:100%;background:#1F4E79;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .15s,transform .15s,box-shadow .15s;box-shadow:0 6px 16px -8px rgba(31,78,121,0.8);}
+.auth-btn:hover{background:#1F3864;transform:translateY(-1px);}
 .auth-btn:disabled{opacity:.6;cursor:default;}
 .auth-link{background:none;border:none;color:#2E75B6;font-size:12.5px;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:14px;padding:0;text-align:center;}
 .auth-link:hover{text-decoration:underline;}
@@ -463,7 +583,7 @@ a.badge.qis-link:hover{text-decoration:underline;text-underline-offset:2px;filte
   </div>
 </div>
 <div class="app">
-<header>
+<header class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8 md:py-4">
   <div><div class="logo">QIS<span>QUALITY INTELLIGENCE SYSTEM · SOMAFINA UST</span></div></div>
   <div class="header-right">
     <div class="site-switcher" id="site-switcher">
@@ -489,7 +609,7 @@ a.badge.qis-link:hover{text-decoration:underline;text-underline-offset:2px;filte
     </div>
   </div>
 </header>
-<nav>
+<nav class="flex overflow-x-auto px-4 md:px-8">
   <div class="tab active" onclick="switchTab('dashboard',this)">Dashboard</div>
   <div class="tab" onclick="switchTab('tracker',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F4B942" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>CAPA / NCR / Audit</div>
   <div class="tab" onclick="switchTab('audit-program',this)">&#9998; Audit Program</div>
@@ -501,11 +621,11 @@ a.badge.qis-link:hover{text-decoration:underline;text-underline-offset:2px;filte
   <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
   <div class="tab" id="tab-settings" data-tab="settings" onclick="switchTab('settings',this)" style="display:none">&#9881; Settings</div>
 </nav>
-<main>
+<main class="px-4 md:px-8 pt-6 pb-24">
 
 <!-- DASHBOARD -->
 <div class="section active" id="dashboard">
-  <div class="dash-head">
+  <div class="dash-head flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
     <div>
       <div class="dash-h-title">Quality Health Dashboard</div>
       <div class="dash-h-sub">QIS · <span id="dash-site-name">Lindon</span> · live across all modules</div>
