@@ -223,10 +223,14 @@ function safeName(name: string): string {
 
 export default async (req: Request) => {
   const url = new URL(req.url);
+  // Captured inside the try as soon as the identity resolves, so the outer catch
+  // can attribute any thrown error to the calling user in the logs.
+  let callerEmail = "";
 
   try {
     const auth = await getAuth();
     if (!auth) return json(401, { error: "Sign in required." });
+    callerEmail = auth.email;
     const user = auth.user;
     const actor = auth.actor;
     const admin = roleAtLeast(auth.role, "Admin");
@@ -510,6 +514,15 @@ export default async (req: Request) => {
 
     return json(405, { error: "Method not allowed" });
   } catch (err: any) {
+    console.error("[oos] Unhandled handler error", {
+      error: err,
+      message: err?.message,
+      stack: err?.stack,
+      method: req.method,
+      recordId: url.searchParams.get("id") || "",
+      action: url.searchParams.get("action") || "",
+      email: callerEmail,
+    });
     return json(500, { error: err?.message || "Server error" });
   }
 };
