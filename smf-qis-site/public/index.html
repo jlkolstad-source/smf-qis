@@ -618,6 +618,7 @@ nav::-webkit-scrollbar{display:none;}
   <div class="tab" onclick="switchTab('recall',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F6F6B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Recall</div>
   <div class="tab" onclick="switchTab('oos',this)">&#129514; OOS</div>
   <div class="tab" onclick="switchTab('receiving',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#E53E3E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Truck Inspections</div>
+  <div class="tab" onclick="switchTab('mmr',this)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1F4E79" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8M8 9h2"/></svg>MMR / Formulas</div>
   <div class="tab" onclick="switchTab('ai-report',this)">&#129302; AI Report</div>
   <div class="tab" id="tab-settings" data-tab="settings" onclick="switchTab('settings',this)" style="display:none">&#9881; Settings</div>
 </nav>
@@ -839,6 +840,19 @@ nav::-webkit-scrollbar{display:none;}
     </div>
   </div>
   <div id="rcv-content"></div>
+</div>
+
+<!-- MMR / MASTER MANUFACTURING RECORDS -->
+<div class="section" id="mmr">
+  <div class="table-header">
+    <div class="section-title">Master Manufacturing Records · Formulas &amp; Ingredient Bills</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-ghost" id="mmr-back-btn" onclick="showMMRList()" style="display:none">&#8592; All Records</button>
+      <button class="btn-ghost" onclick="openIngredientManager()">&#9776; Ingredient Master</button>
+      <button class="btn" onclick="createMMR()" style="background:#1F4E79">+ New MMR</button>
+    </div>
+  </div>
+  <div id="mmr-content"></div>
 </div>
 
 <!-- AI REPORT -->
@@ -9609,6 +9623,625 @@ function importJSON(event){
 // "Refresh" simply re-pulls the latest shared data from the database.
 async function resetData(){await refresh();toast("Reloaded latest data from the database.","yellow");}
 
+// ══════════════════════════════════════════════════════════════════════════════
+// MMR · MASTER MANUFACTURING RECORDS MODULE
+// A controlled, versioned formula (MMR) with a per-unit ingredient bill. The server
+// (/api/mmrs) enforces the versioning state machine — Draft edits freely, Approved
+// is immutable, revisions deep-copy, one Approved per product code. This UI mirrors
+// those rules for display and re-reads the server on every change.
+// ══════════════════════════════════════════════════════════════════════════════
+const MMR_API="/api/mmrs";
+const INGREDIENTS_API="/api/ingredients";
+let mmrList=[], activeMMR=null, mmrStatusFilter="", mmrProductFilter="";
+let mmrBatchSize=180000, mmrComputeTimer=null;
+// Weigh-out preview state (batch-time, never persisted on the MMR template):
+// per-line clean floor targets keyed by line id, an optional round-up increment,
+// and an optional bottle count (capsules per bottle) for the batch-output figures.
+let mmrWeighouts={}, mmrIncrement="", mmrBottleCount="";
+let _mmrPick=null; // { mode:'add'|'update', lineId }
+
+// Status → badge (Draft grey, Under Review amber, Approved green, Superseded muted).
+function mmrStatusBadge(s){
+  if(s==="Approved")return `<span class="badge badge-closed">Approved</span>`;
+  if(s==="Under Review")return `<span class="badge badge-amber">Under Review</span>`;
+  if(s==="Superseded")return `<span class="badge" style="background:#ECECEC;color:#9098A3;border:1px solid #C7CDD6">Superseded</span>`;
+  return `<span class="badge badge-minor">Draft</span>`;
+}
+function mmrLocked(o){return o&&(o.status==="Approved"||o.status==="Superseded");}
+function mmrFmtDate(t){if(!t)return "—";try{return new Date(t).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch(e){return t;}}
+
+// Dynamic modal helper (reuses the shared .modal-overlay / .modal styles).
+function mmrOpenModal(inner,width){
+  let host=document.getElementById("mmr-dyn-modal");
+  if(!host){host=document.createElement("div");host.id="mmr-dyn-modal";host.className="modal-overlay";document.body.appendChild(host);}
+  host.innerHTML='<div class="modal" style="border-top:3px solid #1F4E79;max-width:'+(width||640)+'px">'+inner+'</div>';
+  host.classList.add("open");
+  return host;
+}
+function mmrCloseModal(){const h=document.getElementById("mmr-dyn-modal");if(h){h.classList.remove("open");h.innerHTML="";}}
+
+// ── LIST VIEW ────────────────────────────────────────────────────────────────
+async function showMMRList(){
+  activeMMR=null;
+  const b=document.getElementById("mmr-back-btn");if(b)b.style.display="none";
+  await loadMMR();
+  renderMMRList();
+}
+async function loadMMR(){
+  try{
+    const r=await fetch(MMR_API);
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    mmrList=await r.json();
+  }catch(e){toast("Could not load MMRs: "+(e.message||e),"red");mmrList=[];}
+}
+function renderMMRList(){
+  const c=document.getElementById("mmr-content");if(!c)return;
+  const codes=[...new Set(mmrList.map(m=>m.productCode).filter(Boolean))].sort();
+  const filtered=mmrList.filter(m=>(!mmrStatusFilter||m.status===mmrStatusFilter)&&(!mmrProductFilter||m.productCode===mmrProductFilter));
+  const rows=filtered.map(m=>`<tr style="cursor:pointer" onclick="openMMR('${cesc(m.id)}')">
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:#1F4E79;white-space:nowrap">${cesc(m.id)}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${cesc(m.productCode)}</td>
+    <td>${cesc(m.productName)}</td>
+    <td style="text-align:center">${cesc(String(m.revision))}</td>
+    <td>${mmrStatusBadge(m.status)}</td>
+    <td style="font-size:11px">${cesc(m.approvedBy||"—")}</td>
+    <td style="font-size:11px;white-space:nowrap">${m.approvedAt?mmrFmtDate(m.approvedAt):"—"}</td>
+    <td style="text-align:center"><button class="btn-ghost" onclick="event.stopPropagation();openMMR('${cesc(m.id)}')">Open</button></td>
+  </tr>`).join("");
+  c.innerHTML=`
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:12px">
+      <div class="form-group"><label class="form-label">Product Code</label>
+        <select class="form-select" id="mmr-filter-code" onchange="mmrProductFilter=this.value;renderMMRList()">
+          <option value="">All products</option>
+          ${codes.map(c2=>`<option value="${cesc(c2)}" ${c2===mmrProductFilter?"selected":""}>${cesc(c2)}</option>`).join("")}
+        </select></div>
+      <div class="form-group"><label class="form-label">Status</label>
+        <select class="form-select" id="mmr-filter-status" onchange="mmrStatusFilter=this.value;renderMMRList()">
+          ${["","Draft","Under Review","Approved","Superseded"].map(s=>`<option value="${s}" ${s===mmrStatusFilter?"selected":""}>${s||"All statuses"}</option>`).join("")}
+        </select></div>
+    </div>
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th>MMR ID</th><th>Product</th><th>Name</th><th style="text-align:center">Rev</th><th>Status</th><th>Approved By</th><th>Approved</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="8" style="text-align:center;color:#4a5568;padding:26px">No Master Manufacturing Records yet. Click <strong>+ New MMR</strong> to create a formula.</td></tr>`}</tbody>
+    </table></div>`;
+}
+
+// ── DETAIL / EDITOR VIEW ───────────────────────────────────────────────────────
+async function openMMR(id){
+  try{
+    const r=await fetch(MMR_API+"?id="+encodeURIComponent(id));
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    activeMMR=await r.json();
+    mmrWeighouts={};mmrIncrement="";mmrBottleCount=""; // reset weigh-out preview for the newly opened MMR
+    const b=document.getElementById("mmr-back-btn");if(b)b.style.display="";
+    renderMMREditor();
+    recomputeMMRYield();
+  }catch(e){toast("Could not open MMR: "+(e.message||e),"red");}
+}
+async function openMMRSilent(id){
+  try{const r=await fetch(MMR_API+"?id="+encodeURIComponent(id));if(r.ok)activeMMR=await r.json();}catch(e){}
+}
+function renderMMREditor(){
+  const o=activeMMR;if(!o)return;
+  const c=document.getElementById("mmr-content");if(!c)return;
+  const locked=mmrLocked(o);
+  const dis=locked?"disabled":"";
+  const canEdit=roleCanEdit()&&!locked;
+  const g=(id,v)=>`<input class="form-input" id="${id}" value="${cesc(v==null?"":v)}" ${dis}>`;
+  // Locked / status banner.
+  let banner="";
+  if(o.status==="Approved"){
+    banner=`<div style="background:#E2EFDA;border:1px solid #375623;border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="font-size:12px;color:#274016">&#128274; <strong>This record is Approved and locked.</strong> Approved MMRs are immutable. To make changes, create a new revision.${o.approvedBy?` &middot; Approved by ${cesc(o.approvedBy)} on ${mmrFmtDate(o.approvedAt)}`:""}</div>
+      ${roleCanEdit()?`<button class="btn" onclick="createMMRRevision()" style="background:#1F4E79;white-space:nowrap">+ Create Revision</button>`:""}
+    </div>`;
+  }else if(o.status==="Superseded"){
+    banner=`<div style="background:#ECECEC;border:1px solid #C7CDD6;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:12px;color:#5A6472">&#128260; <strong>This revision has been superseded${o.supersededBy?` by <a href="#" onclick="openMMR('${cesc(o.supersededBy)}');return false;">${cesc(o.supersededBy)}</a>`:""}.</strong> It is retained read-only as part of the controlled record history.</div>`;
+  }
+  // Header spec block. Entered INPUTS are editable; every quantity below the
+  // divider is DERIVED by the server formula engine and shown read-only.
+  const der=o.derived||{};
+  const dv=(label,val,unit)=>`<div class="form-group"><label class="form-label" style="color:#7a5b16">${label} <span style="font-size:8px;background:#FFF2CC;color:#7F6000;border:1px solid #BF9000;border-radius:3px;padding:0 3px;letter-spacing:0.5px">DERIVED</span></label><div style="font-family:'DM Mono',monospace;font-size:13px;background:#FBF7E9;border:1px solid #E4D8A8;border-radius:4px;padding:9px 12px;color:#3d3316">${val==null||val===""?"—":cesc(val)+(unit?(" "+unit):"")}</div></div>`;
+  const header=`<div class="rcv-block">
+    <div class="rcv-block-title">${cesc(o.id)} &middot; ${mmrStatusBadge(o.status)} &middot; Rev ${cesc(String(o.revision))}</div>
+    <div class="rcv-grid">
+      <div class="form-group"><label class="form-label">Product Code</label><input class="form-input" value="${cesc(o.productCode)}" disabled></div>
+      <div class="form-group"><label class="form-label">Product Name</label>${g("mmr-h-name",o.productName)}</div>
+      <div class="form-group"><label class="form-label">Capsule / Dosage Spec</label>${g("mmr-h-capsule",o.capsuleSpec)}</div>
+      <div class="form-group"><label class="form-label">Capsule RM #</label>${g("mmr-h-capsulerm",o.capsuleRmNumber)}</div>
+      <div class="form-group"><label class="form-label">Label Revision</label>${g("mmr-h-label",o.labelRevision)}</div>
+    </div>
+    <div style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#1F6F6B;margin:14px 0 6px">Dose &amp; Capsule (inputs)</div>
+    <div class="rcv-grid">
+      <div class="form-group"><label class="form-label">Capsules / Dose</label><input class="form-input" id="mmr-h-cpd" type="number" min="1" step="1" value="${cesc(o.capsulesPerDose==null?1:o.capsulesPerDose)}" ${dis}></div>
+      <div class="form-group"><label class="form-label">Capsule Weight (mg)</label>${g("mmr-h-capwt",o.capsuleWeightMg)}</div>
+      <div class="form-group"><label class="form-label">Capsule Component ID <span style="font-size:8px;color:#94a3b8">(reserved)</span></label>${g("mmr-h-capcomp",o.capsuleComponentId)}</div>
+    </div>
+    <div style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#1F6F6B;margin:14px 0 6px">Gross Weight Tolerance (inputs) &middot; decimals, e.g. 0.05 = 5% &middot; overrides win if set</div>
+    <div class="rcv-grid">
+      <div class="form-group"><label class="form-label">Tolerance Low (−)</label>${g("mmr-h-tollow",o.grossWeightToleranceLowPct)}</div>
+      <div class="form-group"><label class="form-label">Tolerance High (+)</label>${g("mmr-h-tolhigh",o.grossWeightToleranceHighPct)}</div>
+      <div class="form-group"><label class="form-label">Low Override (mg)</label>${g("mmr-h-lowovr",o.grossWeightLowMgOverride)}</div>
+      <div class="form-group"><label class="form-label">High Override (mg)</label>${g("mmr-h-highovr",o.grossWeightHighMgOverride)}</div>
+    </div>
+    <div style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#7a5b16;margin:16px 0 6px;border-top:1px solid #eee;padding-top:12px">Derived values (read-only, from the formula engine)</div>
+    <div class="rcv-grid">
+      ${dv("Total mg / Dose",der.totalMgPerDoseAll,"mg")}
+      ${dv("mg / Capsule",der.mgPerCapsuleAll,"mg")}
+      ${dv("Gross Weight Low",der.grossWeightLowMg,"mg")}
+      ${dv("Gross Weight Target",der.grossWeightTargetMg,"mg")}
+      ${dv("Gross Weight High",der.grossWeightHighMg,"mg")}
+    </div>
+    <div style="font-size:10px;font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;color:#1F6F6B;margin:14px 0 6px">Stage Yield Windows (%)</div>
+    <div class="rcv-grid">
+      <div class="form-group"><label class="form-label">Blend Min</label>${g("mmr-h-bymin",o.blendYieldMinPct)}</div>
+      <div class="form-group"><label class="form-label">Blend Max</label>${g("mmr-h-bymax",o.blendYieldMaxPct)}</div>
+      <div class="form-group"><label class="form-label">Encap Min</label>${g("mmr-h-eymin",o.encapYieldMinPct)}</div>
+      <div class="form-group"><label class="form-label">Encap Max</label>${g("mmr-h-eymax",o.encapYieldMaxPct)}</div>
+      <div class="form-group"><label class="form-label">Bottling Min</label>${g("mmr-h-btmin",o.bottlingYieldMinPct)}</div>
+      <div class="form-group"><label class="form-label">Bottling Max</label>${g("mmr-h-btmax",o.bottlingYieldMaxPct)}</div>
+    </div>
+  </div>`;
+  c.innerHTML=banner+header+mmrBillBlock(o,canEdit)+mmrRevisionBlock(o)+mmrFooter(o,locked);
+}
+
+// Ingredient bill: stored INPUTS (label claim / potency / formula overage) are
+// editable; total mg/dose and mg/capsule are DERIVED read-only. The batch preview
+// adds the weigh-out model: per line the formula-exact minimum, an editable clean
+// weigh-out target, and the manufacturing-overage delta. Charged weight = Σ weigh-
+// out; the formula minimum sum is shown underneath. A weigh-out below its formula
+// minimum is flagged as an ERROR (never-short guardrail, enforced server-side).
+function mmrBillBlock(o,canEdit){
+  const lines=o.ingredients||[];
+  const derCell="font-family:'DM Mono',monospace;font-size:11px;text-align:right;background:#FBF7E9;color:#3d3316";
+  const rows=lines.map((l,i)=>{
+    const dis=canEdit?"":"disabled";
+    const woVal=mmrWeighouts[l.id]!=null?mmrWeighouts[l.id]:"";
+    return `<tr id="mmr-row-${cesc(l.id)}">
+      <td style="text-align:center;color:#718096">${i+1}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${cesc(l.itemNumber||"—")}</td>
+      <td>${cesc(l.ingredientName)}${canEdit?` <button class="btn-ghost" style="padding:1px 6px;font-size:10px" onclick="mmrOpenIngredientPicker('update','${cesc(l.id)}')">change</button>`:""}</td>
+      <td><input class="crisis-input" style="width:95px" id="mmi-${cesc(l.id)}-claim" value="${cesc(l.labelClaimMg)}" ${dis} onchange="mmrSaveLine('${cesc(l.id)}')"></td>
+      <td><input class="crisis-input" style="width:75px" id="mmi-${cesc(l.id)}-pot" value="${cesc(l.potency==null?"1":l.potency)}" ${dis} onchange="mmrSaveLine('${cesc(l.id)}')"></td>
+      <td><input class="crisis-input" style="width:75px" id="mmi-${cesc(l.id)}-ov" value="${cesc(l.overagePct==null?"0":l.overagePct)}" ${dis} onchange="mmrSaveLine('${cesc(l.id)}')"></td>
+      <td style="${derCell}">${cesc(l.totalMgPerDose==null?"—":l.totalMgPerDose)}</td>
+      <td style="${derCell}">${cesc(l.mgPerCapsule==null?"—":l.mgPerCapsule)}</td>
+      <td id="mmr-fq-${cesc(l.id)}" style="font-family:'DM Mono',monospace;font-size:11px;text-align:right;color:#1F4E79">—</td>
+      <td><input class="crisis-input" style="width:90px;text-align:right" id="mmr-wo-${cesc(l.id)}" placeholder="auto" value="${cesc(woVal)}" oninput="mmrOnWeighoutInput('${cesc(l.id)}')"></td>
+      <td id="mmr-delta-${cesc(l.id)}" style="font-family:'DM Mono',monospace;font-size:11px;text-align:right;color:#1F6F6B">—</td>
+      ${canEdit?`<td style="white-space:nowrap;text-align:center">
+        <button class="btn-ghost" style="padding:2px 6px" title="Move up" onclick="mmrMoveLine('${cesc(l.id)}',-1)">&#9650;</button>
+        <button class="btn-ghost" style="padding:2px 6px" title="Move down" onclick="mmrMoveLine('${cesc(l.id)}',1)">&#9660;</button>
+        <button class="btn-danger" style="padding:2px 6px" onclick="mmrRemoveLine('${cesc(l.id)}')">&#10005;</button>
+      </td>`:`<td></td>`}
+    </tr>`;
+  }).join("");
+  return `<div class="rcv-block">
+    <div class="rcv-block-title" style="border-color:#c9d2dc;color:#1F4E79">Ingredient Bill &amp; Weigh-out
+      <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:#4a5568">${lines.length} line${lines.length===1?"":"s"} &middot; label claim / potency / formula overage are inputs &middot; formula batch qty is the sacred minimum &middot; weigh-out is what goes to the floor</span></div>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px;background:#EEF3F8;border:1px solid #d0d6de;border-radius:8px;padding:10px 14px">
+      <div class="form-group" style="flex-direction:row;align-items:center;gap:8px">
+        <label class="form-label" style="margin:0">Batch size (capsules)</label>
+        <input class="form-input" style="width:120px" type="number" min="1" step="1" id="mmr-batch-size" value="${mmrBatchSize}" oninput="recomputeMMRYield()">
+      </div>
+      <div class="form-group" style="flex-direction:row;align-items:center;gap:8px">
+        <label class="form-label" style="margin:0">Round weigh-out up to (kg)</label>
+        <input class="form-input" style="width:90px" type="text" inputmode="decimal" id="mmr-weighout-increment" placeholder="e.g. 25" value="${cesc(mmrIncrement)}" oninput="mmrOnIncrementInput()">
+        <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="mmrClearWeighouts()">Reset weigh-outs</button>
+      </div>
+      <div class="form-group" style="flex-direction:row;align-items:center;gap:8px">
+        <label class="form-label" style="margin:0">Bottle count (caps/bottle)</label>
+        <input class="form-input" style="width:80px" type="number" min="1" step="1" id="mmr-bottle-count" placeholder="e.g. 60" value="${cesc(mmrBottleCount)}" oninput="mmrOnBottleCountInput()">
+      </div>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:10px;padding:10px 14px;background:#F4F8F4;border:1px solid #cfe6cf;border-radius:8px">
+      <div style="font-size:13px">Charged weight (weigh-out sum): <strong id="mmr-charged-weight" style="font-family:'DM Mono',monospace;color:#274016;font-size:15px">—</strong>
+        <div style="font-size:11px;color:#5a6472">Formula minimum (proven satisfied): <span id="mmr-formula-min" style="font-family:'DM Mono',monospace">—</span> — this is the floor, never the charged weight or yield basis.</div>
+      </div>
+    </div>
+    <div id="mmr-weighout-errors" style="display:none;margin-bottom:10px;padding:10px 14px;background:#FDECEC;border:1px solid #E53E3E;border-radius:8px;font-size:12px;color:#8A1C1C"></div>
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th style="text-align:center">#</th><th>Item #</th><th>Ingredient</th><th>Label Claim (mg)</th><th>Potency</th><th>Formula Overage</th><th style="text-align:right;background:#7a5b16">Total mg / Dose</th><th style="text-align:right;background:#7a5b16">mg / Capsule</th><th style="text-align:right">Formula Batch Qty (kg)</th><th style="text-align:right">Weigh-out Target (kg)</th><th style="text-align:right">Δ Mfg Overage</th><th></th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="12" style="text-align:center;color:#4a5568;padding:20px">No ingredient lines yet.</td></tr>`}</tbody>
+    </table></div>
+    <div style="font-size:10.5px;color:#718096;margin-top:6px">Weigh-out targets are batch-time values (not saved on the MMR). Leave a cell blank to auto-fill from the round-up increment. Every weigh-out must stay ≥ its formula batch qty; a shortfall is flagged in red and rejected server-side.</div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      ${canEdit?`<button class="btn" onclick="mmrOpenIngredientPicker('add')" style="background:#1F6F6B">+ Add Ingredient Line</button>`:""}
+      <button class="btn" onclick="generateFormulaCard()" style="background:#1B3A5F">&#128196; Generate Formula Card</button>
+      <span style="font-size:10.5px;color:#718096">Server-side PDF at the batch size above, from the formula engine &amp; stored MMR data.</span>
+    </div>
+  </div>`;
+}
+
+// Revision history for the product code.
+function mmrRevisionBlock(o){
+  const revs=o.revisions||[];
+  const rows=revs.map(r=>`<tr ${r.id===o.id?'style="background:#EEF3F8"':""}>
+    <td style="text-align:center">${cesc(String(r.revision))}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${r.id===o.id?`<strong>${cesc(r.id)}</strong>`:`<a href="#" onclick="openMMR('${cesc(r.id)}');return false;">${cesc(r.id)}</a>`}</td>
+    <td>${mmrStatusBadge(r.status)}</td>
+    <td style="font-size:11px">${cesc(r.approvedBy||"—")}</td>
+    <td style="font-size:11px;white-space:nowrap">${r.approvedAt?mmrFmtDate(r.approvedAt):"—"}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${r.supersededBy?cesc(r.supersededBy):"—"}</td>
+  </tr>`).join("");
+  return `<div class="rcv-block">
+    <div class="rcv-block-title" style="border-color:#c9d2dc;color:#1F4E79">Revision History</div>
+    <div style="overflow-x:auto"><table class="data-table">
+      <thead><tr><th style="text-align:center">Rev</th><th>MMR ID</th><th>Status</th><th>Approved By</th><th>Approved</th><th>Superseded By</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// Footer action bar — role-gated transitions.
+function mmrFooter(o,locked){
+  const canEdit=roleCanEdit();
+  const canManage=roleCanManage();
+  const canDelete=roleCanDelete();
+  const btns=[];
+  if(!locked&&canEdit){
+    btns.push(`<button class="btn" onclick="saveMMR()" style="background:#1F4E79">Save Header</button>`);
+    if(o.status==="Draft")btns.push(`<button class="btn-ghost" onclick="mmrSetStatus('Under Review')">Submit for Review</button>`);
+    if(o.status==="Under Review")btns.push(`<button class="btn-ghost" onclick="mmrSetStatus('Draft')">Return to Draft</button>`);
+  }
+  if(!locked&&(o.status==="Draft"||o.status==="Under Review")){
+    btns.push(`<button class="btn" onclick="approveMMR()" style="background:#375623" ${canManage?"":"disabled title=\""+cesc(roleReq("Quality Manager"))+"\""}>&#10003; Approve</button>`);
+  }
+  if(o.status==="Approved"&&canEdit)btns.push(`<button class="btn" onclick="createMMRRevision()" style="background:#1F4E79">+ Create Revision</button>`);
+  if(o.status==="Draft"&&canDelete)btns.push(`<button class="btn-danger" onclick="deleteMMR()">Delete Draft</button>`);
+  return `<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:8px">${btns.join("")}</div>`;
+}
+
+// ── LIVE WEIGH-OUT + BATCH PREVIEW (debounced, server-side exact decimal) ─────
+// Sends the batch size, the round-up increment, and any explicit per-line weigh-out
+// targets to the compute-yield endpoint; renders formula qty, weigh-out target,
+// the manufacturing-overage delta, charged weight vs formula minimum, and flags any
+// line whose weigh-out falls below its formula minimum (never-short guardrail).
+function recomputeMMRYield(){
+  if(!activeMMR||!activeMMR.id)return;
+  clearTimeout(mmrComputeTimer);
+  mmrComputeTimer=setTimeout(async()=>{
+    const el=document.getElementById("mmr-batch-size");
+    const bs=parseInt((el&&el.value)||mmrBatchSize,10);
+    if(!Number.isFinite(bs)||bs<=0)return;
+    mmrBatchSize=bs;
+    // Collect explicit per-line weigh-out targets (blank cells are omitted → the
+    // server auto-fills them from the increment or the formula minimum).
+    const weighouts={};
+    Object.keys(mmrWeighouts).forEach(k=>{const v=mmrWeighouts[k];if(v!=null&&String(v).trim()!=="")weighouts[k]=String(v).trim();});
+    const bodyReq={batchSize:bs,weighoutIncrementKg:mmrIncrement||"",weighouts};
+    if(mmrBottleCount&&String(mmrBottleCount).trim()!=="")bodyReq.bottleCount=String(mmrBottleCount).trim();
+    try{
+      const r=await fetch(MMR_API+"?id="+encodeURIComponent(activeMMR.id)+"&action=compute-yield",
+        {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(bodyReq)});
+      if(!r.ok)return;
+      const d=await r.json();
+      (d.lines||[]).forEach(l=>{
+        const fq=document.getElementById("mmr-fq-"+l.lineId);if(fq)fq.textContent=(l.formulaBatchQtyKg||"—")+" kg";
+        // Auto-fill blank weigh-out cells with the computed target (from increment/formula).
+        const wi=document.getElementById("mmr-wo-"+l.lineId);
+        if(wi&&String(wi.value).trim()===""&&l.weighoutTargetKg!=null){wi.value=l.weighoutTargetKg;}
+        const dl=document.getElementById("mmr-delta-"+l.lineId);
+        if(dl){
+          if(l.weighoutShort){dl.textContent="SHORT "+l.weighoutShortfallKg+" kg";dl.style.color="#C00000";dl.style.fontWeight="700";}
+          else{dl.textContent="+"+l.manufacturingOverageKg+" kg / "+l.manufacturingOveragePct+"%";dl.style.color="#1F6F6B";dl.style.fontWeight="400";}
+        }
+        const row=document.getElementById("mmr-row-"+l.lineId);
+        if(row)row.style.background=l.weighoutShort?"#FDECEC":"";
+      });
+      const cw=document.getElementById("mmr-charged-weight");if(cw)cw.textContent=(d.chargedWeightKg||"—")+" kg";
+      const fm=document.getElementById("mmr-formula-min");if(fm)fm.textContent=(d.formulaMinimumSumKg||"—")+" kg";
+      const errBox=document.getElementById("mmr-weighout-errors");
+      if(errBox){
+        if(d.weighoutValid===false&&Array.isArray(d.weighoutErrors)&&d.weighoutErrors.length){
+          errBox.style.display="";
+          errBox.innerHTML="<strong>&#9888; Weigh-out below formula minimum — under-delivers label claim:</strong><ul style='margin:6px 0 0 18px'>"+d.weighoutErrors.map(e=>"<li>"+cesc(e)+"</li>").join("")+"</ul>";
+        }else{errBox.style.display="none";errBox.innerHTML="";}
+      }
+    }catch(e){}
+  },250);
+}
+function mmrOnWeighoutInput(lineId){
+  const el=document.getElementById("mmr-wo-"+lineId);
+  mmrWeighouts[lineId]=el?el.value:"";
+  recomputeMMRYield();
+}
+function mmrOnIncrementInput(){
+  const el=document.getElementById("mmr-weighout-increment");
+  mmrIncrement=el?el.value:"";
+  // Changing the increment re-derives the auto-filled weigh-outs: clear blanks so
+  // the server can repopulate them, but keep any target the user typed explicitly.
+  recomputeMMRYield();
+}
+function mmrClearWeighouts(){
+  mmrWeighouts={};mmrIncrement="";mmrBottleCount="";
+  renderMMREditor();recomputeMMRYield();
+}
+function mmrOnBottleCountInput(){
+  const el=document.getElementById("mmr-bottle-count");
+  mmrBottleCount=el?el.value:"";
+  recomputeMMRYield();
+}
+
+// Generate the server-side Formula Card PDF for the current MMR at the batch size,
+// weigh-out targets, increment and bottle count currently shown. The PDF is
+// produced entirely server-side from the formula engine + stored MMR data, so it
+// always agrees with this view. A weigh-out below the formula minimum is rejected
+// by the guardrail and surfaced as an error (no card is produced).
+async function generateFormulaCard(){
+  if(!activeMMR||!activeMMR.id)return;
+  const el=document.getElementById("mmr-batch-size");
+  const bs=parseInt((el&&el.value)||mmrBatchSize,10);
+  if(!Number.isFinite(bs)||bs<=0){toast("Enter a valid batch size (capsules) first.","yellow");return;}
+  const weighouts={};
+  Object.keys(mmrWeighouts).forEach(k=>{const v=mmrWeighouts[k];if(v!=null&&String(v).trim()!=="")weighouts[k]=String(v).trim();});
+  const bodyReq={batchSize:bs,weighoutIncrementKg:mmrIncrement||"",weighouts};
+  if(mmrBottleCount&&String(mmrBottleCount).trim()!=="")bodyReq.bottleCount=String(mmrBottleCount).trim();
+  toast("Generating Formula Card…","green");
+  try{
+    const r=await fetch(MMR_API+"?id="+encodeURIComponent(activeMMR.id)+"&action=formula-card",
+      {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(bodyReq)});
+    const ct=(r.headers.get("Content-Type")||"");
+    if(!r.ok||ct.indexOf("application/pdf")<0){
+      let msg="Could not generate the Formula Card.";
+      try{const e=await r.json();msg=e.error||msg;if(Array.isArray(e.weighoutErrors)&&e.weighoutErrors.length)msg+=" "+e.weighoutErrors.join(" ");}catch(_){}
+      toast(msg,"red");return;
+    }
+    const blob=await r.blob();
+    const objUrl=URL.createObjectURL(blob);
+    // Open in a new tab; fall back to a download if popups are blocked.
+    const w=window.open(objUrl,"_blank");
+    if(!w){const a=document.createElement("a");a.href=objUrl;a.download="Formula-Card-"+activeMMR.id+".pdf";document.body.appendChild(a);a.click();a.remove();}
+    setTimeout(()=>URL.revokeObjectURL(objUrl),60000);
+    toast("Formula Card generated.","green");
+  }catch(e){toast("Could not generate the Formula Card: "+(e.message||e),"red");}
+}
+
+// ── CREATE / SAVE / TRANSITIONS ────────────────────────────────────────────────
+function createMMR(){
+  if(!roleCanEdit()){toast(roleReq("Member"),"yellow");return;}
+  mmrOpenModal(`
+    <div class="modal-title">New Master Manufacturing Record</div>
+    <div class="form-group" style="margin-bottom:10px"><label class="form-label">Product Code *</label><input class="form-input" id="mmrf-code" placeholder="e.g. PN-1106"></div>
+    <div class="form-group" style="margin-bottom:10px"><label class="form-label">Product Name *</label><input class="form-input" id="mmrf-name" placeholder="e.g. Nitric Oxide"></div>
+    <div class="form-group" style="margin-bottom:10px"><label class="form-label">Capsule / Dosage-Form Spec</label><input class="form-input" id="mmrf-capsule" placeholder='e.g. "00" Vegetarian Capsule'></div>
+    <div class="rcv-grid" style="margin-bottom:10px">
+      <div class="form-group"><label class="form-label">Capsules / Dose *</label><input class="form-input" id="mmrf-cpd" type="number" min="1" step="1" value="1"></div>
+      <div class="form-group"><label class="form-label">Capsule Weight (mg) *</label><input class="form-input" id="mmrf-capwt" placeholder="e.g. 123"></div>
+    </div>
+    <div style="font-size:11px;color:#718096">The new record starts as <strong>Draft</strong> (revision 1). Its id will be <code>MMR-{code}-Rev01</code>. All quantities are derived from the inputs you enter.</div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="mmrCloseModal()">Cancel</button><button class="btn" onclick="submitCreateMMR()">Create Draft</button></div>`);
+}
+async function submitCreateMMR(){
+  const code=(document.getElementById("mmrf-code").value||"").trim();
+  const name=(document.getElementById("mmrf-name").value||"").trim();
+  const capsule=(document.getElementById("mmrf-capsule").value||"").trim();
+  const cpd=(document.getElementById("mmrf-cpd").value||"1").trim();
+  const capwt=(document.getElementById("mmrf-capwt").value||"").trim();
+  if(!code||!name){toast("Product code and name are required.","red");return;}
+  try{
+    const r=await fetch(MMR_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productCode:code,productName:name,capsuleSpec:capsule,capsulesPerDose:cpd,capsuleWeightMg:capwt})});
+    const d=await r.json();if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    mmrCloseModal();activeMMR=d;
+    const b=document.getElementById("mmr-back-btn");if(b)b.style.display="";
+    renderMMREditor();recomputeMMRYield();
+    toast("MMR "+d.id+" created.","green");
+  }catch(e){toast("Could not create: "+(e.message||e),"red");}
+}
+function mmrCollectHeader(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:"";};
+  return {productName:g("mmr-h-name"),capsuleSpec:g("mmr-h-capsule"),capsuleRmNumber:g("mmr-h-capsulerm"),labelRevision:g("mmr-h-label"),
+    capsulesPerDose:g("mmr-h-cpd"),capsuleWeightMg:g("mmr-h-capwt"),capsuleComponentId:g("mmr-h-capcomp"),
+    grossWeightToleranceLowPct:g("mmr-h-tollow"),grossWeightToleranceHighPct:g("mmr-h-tolhigh"),
+    grossWeightLowMgOverride:g("mmr-h-lowovr"),grossWeightHighMgOverride:g("mmr-h-highovr"),
+    blendYieldMinPct:g("mmr-h-bymin"),blendYieldMaxPct:g("mmr-h-bymax"),encapYieldMinPct:g("mmr-h-eymin"),encapYieldMaxPct:g("mmr-h-eymax"),
+    bottlingYieldMinPct:g("mmr-h-btmin"),bottlingYieldMaxPct:g("mmr-h-btmax")};
+}
+async function mmrPut(extra){
+  const o=activeMMR;
+  const header=Object.assign(mmrCollectHeader(),extra||{});
+  const doPut=(exp)=>{const b=Object.assign({},header);b.expected_modified_at=exp!==undefined?exp:(o.modifiedAt||null);return fetch(MMR_API+"?id="+encodeURIComponent(o.id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});};
+  const ctx={expected:o.modifiedAt||null,localValues:header,
+    reload:async(srv)=>{if(srv)activeMMR=srv;else await openMMRSilent(o.id);renderMMREditor();recomputeMMRYield();},
+    retry:async(latest)=>{const r=await doPut(latest);const d=await r.json().catch(()=>({}));if(r.status===409){_conflictCtx.server=d;showConflictModal(d);return;}if(!r.ok)throw new Error(d.error||("HTTP "+r.status));activeMMR=d;renderMMREditor();recomputeMMRYield();toast("Saved over the latest version.","green");}};
+  const {conflict,response}=await saveWithConcurrency(doPut,ctx);
+  if(conflict)return null;
+  const d=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(d.error||("HTTP "+response.status));
+  activeMMR=d;return d;
+}
+async function saveMMR(){
+  if(!activeMMR)return;
+  try{const d=await mmrPut();if(d){renderMMREditor();recomputeMMRYield();toast("MMR header saved.","green");}}
+  catch(e){toast("Could not save: "+(e.message||e),"red");}
+}
+async function mmrSetStatus(target){
+  if(!activeMMR)return;
+  try{const d=await mmrPut({status:target});if(d){renderMMREditor();recomputeMMRYield();toast("Status set to "+target+".","green");}}
+  catch(e){toast("Could not change status: "+(e.message||e),"red");}
+}
+async function approveMMR(){
+  if(!roleCanManage()){toast(roleReq("Quality Manager"),"yellow");return;}
+  if(!confirm("Approve this MMR?\n\nOnce approved it becomes IMMUTABLE. Any currently Approved revision of this product will be automatically superseded."))return;
+  try{
+    const r=await fetch(MMR_API+"?id="+encodeURIComponent(activeMMR.id)+"&action=approve",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const d=await r.json();if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    activeMMR=d;renderMMREditor();recomputeMMRYield();toast("MMR approved and locked.","green");
+  }catch(e){toast("Could not approve: "+(e.message||e),"red");}
+}
+async function createMMRRevision(){
+  if(!roleCanEdit()){toast(roleReq("Member"),"yellow");return;}
+  try{
+    const r=await fetch(MMR_API+"?id="+encodeURIComponent(activeMMR.id)+"&action=create-revision",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const d=await r.json();if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    activeMMR=d;renderMMREditor();recomputeMMRYield();toast("Created "+d.id+" as a new Draft revision.","green");
+  }catch(e){toast("Could not create revision: "+(e.message||e),"red");}
+}
+async function deleteMMR(){
+  if(!roleCanDelete()){toast(roleReq("Admin"),"yellow");return;}
+  if(!confirm("Permanently delete this Draft MMR and its ingredient lines?"))return;
+  try{
+    const r=await fetch(MMR_API+"?id="+encodeURIComponent(activeMMR.id),{method:"DELETE"});
+    const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    toast("MMR deleted.","green");showMMRList();
+  }catch(e){toast("Could not delete: "+(e.message||e),"red");}
+}
+
+// ── INGREDIENT LINE OPS ─────────────────────────────────────────────────────
+async function mmrLineAction(action,payload){
+  const r=await fetch(MMR_API+"?id="+encodeURIComponent(activeMMR.id)+"&action="+action,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload||{})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+  activeMMR=d;return d;
+}
+async function mmrSaveLine(lineId){
+  const g=f=>{const el=document.getElementById("mmi-"+lineId+"-"+f);return el?el.value:"";};
+  try{
+    // The server returns the full payload with recomputed derived values; re-render
+    // so the derived columns and header derived panel update, then refresh batch kg.
+    await mmrLineAction("update-line",{lineId,labelClaimMg:g("claim"),potency:g("pot"),overagePct:g("ov")});
+    renderMMREditor();recomputeMMRYield();
+  }catch(e){toast("Could not save line: "+(e.message||e),"red");}
+}
+async function mmrRemoveLine(lineId){
+  if(!confirm("Remove this ingredient line?"))return;
+  try{await mmrLineAction("remove-line",{lineId});renderMMREditor();recomputeMMRYield();}
+  catch(e){toast("Could not remove line: "+(e.message||e),"red");}
+}
+async function mmrMoveLine(lineId,dir){
+  const lines=(activeMMR.ingredients||[]).slice();
+  const idx=lines.findIndex(l=>l.id===lineId);if(idx<0)return;
+  const swap=idx+dir;if(swap<0||swap>=lines.length)return;
+  const order=lines.map(l=>l.id);const t=order[idx];order[idx]=order[swap];order[swap]=t;
+  try{await mmrLineAction("reorder-lines",{order});renderMMREditor();recomputeMMRYield();}
+  catch(e){toast("Could not reorder: "+(e.message||e),"red");}
+}
+
+// ── INGREDIENT PICKER (with inline create) ─────────────────────────────────────
+function mmrOpenIngredientPicker(mode,lineId){
+  _mmrPick={mode,lineId:lineId||null};
+  mmrOpenModal(`
+    <div class="modal-title">${mode==="update"?"Change Ingredient":"Add Ingredient Line"}</div>
+    <div class="form-group" style="margin-bottom:8px"><label class="form-label">Search ingredient master</label>
+      <input class="form-input" id="ingpick-q" oninput="mmrIngredientSearch()" placeholder="Type a name or item number…" autofocus></div>
+    <div id="ingpick-results" style="max-height:240px;overflow:auto;border:1px solid #e2e8f0;border-radius:6px;padding:4px"></div>
+    <div style="margin-top:12px;border-top:1px dashed #cbd5e0;padding-top:12px">
+      <div style="font-size:11px;color:#4a5568;margin-bottom:6px">Not in the list? Create it now — you won't lose your place in the formula.</div>
+      <button class="btn-ghost" onclick="mmrToggleCreateIngredient()">+ Create new ingredient</button>
+      <div id="ingpick-create" style="display:none;margin-top:10px">
+        <div class="rcv-grid">
+          <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="ingnew-name"></div>
+          <div class="form-group"><label class="form-label">Item # (PNL)</label><input class="form-input" id="ingnew-item"></div>
+          <div class="form-group"><label class="form-label">Default Unit</label><select class="form-select" id="ingnew-unit"><option>mg</option><option>g</option><option>kg</option><option>each</option></select></div>
+        </div>
+        <div style="text-align:right;margin-top:8px"><button class="btn" onclick="mmrCreateIngredientInline()">Create &amp; Use</button></div>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="mmrCloseModal()">Cancel</button></div>`);
+  mmrIngredientSearch();
+}
+let _ingSearchTimer=null;
+function mmrIngredientSearch(){
+  clearTimeout(_ingSearchTimer);
+  _ingSearchTimer=setTimeout(async()=>{
+    const q=(document.getElementById("ingpick-q")||{}).value||"";
+    const host=document.getElementById("ingpick-results");if(!host)return;
+    try{
+      const url=q.trim()?INGREDIENTS_API+"?action=search&q="+encodeURIComponent(q.trim()):INGREDIENTS_API;
+      const r=await fetch(url);const rows=r.ok?await r.json():[];
+      if(!rows.length){host.innerHTML='<div style="padding:10px;font-size:12px;color:#718096">No matching ingredients.</div>';return;}
+      host.innerHTML=rows.slice(0,50).map(ing=>`<div style="padding:7px 10px;border-bottom:1px solid #eef1f5;cursor:pointer;font-size:12px" onclick="mmrPickIngredient('${cesc(ing.id)}')"
+        onmouseover="this.style.background='#DEEAF1'" onmouseout="this.style.background=''">
+        <strong>${cesc(ing.name)}</strong> <span style="color:#718096;font-family:'DM Mono',monospace;font-size:11px">${cesc(ing.itemNumber||ing.id)} · ${cesc(ing.defaultUnit||"")}</span></div>`).join("");
+    }catch(e){host.innerHTML='<div style="padding:10px;font-size:12px;color:#E53E3E">Search failed.</div>';}
+  },200);
+}
+function mmrToggleCreateIngredient(){const el=document.getElementById("ingpick-create");if(el)el.style.display=el.style.display==="none"?"":"none";}
+async function mmrCreateIngredientInline(){
+  const name=(document.getElementById("ingnew-name").value||"").trim();
+  if(!name){toast("Ingredient name is required.","red");return;}
+  const item=(document.getElementById("ingnew-item").value||"").trim();
+  const unit=(document.getElementById("ingnew-unit").value||"mg");
+  try{
+    const r=await fetch(INGREDIENTS_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,itemNumber:item,defaultUnit:unit})});
+    const d=await r.json();if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    toast("Ingredient "+d.name+" created.","green");
+    await mmrPickIngredient(d.id);
+  }catch(e){toast("Could not create ingredient: "+(e.message||e),"red");}
+}
+async function mmrPickIngredient(ingredientId){
+  const pick=_mmrPick||{mode:"add"};
+  try{
+    if(pick.mode==="update"&&pick.lineId){await mmrLineAction("update-line",{lineId:pick.lineId,ingredientId});}
+    else{await mmrLineAction("add-line",{ingredientId});}
+    mmrCloseModal();renderMMREditor();recomputeMMRYield();
+  }catch(e){toast("Could not update line: "+(e.message||e),"red");}
+}
+
+// ── INGREDIENT MASTER MANAGER ──────────────────────────────────────────────────
+async function openIngredientManager(){
+  mmrOpenModal(`<div class="modal-title">Ingredient Master</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <input class="form-input" id="ingmgr-q" style="max-width:280px" oninput="renderIngredientManager()" placeholder="Filter by name / item #…">
+      ${roleCanEdit()?`<button class="btn" onclick="ingMgrNew()" style="background:#1F6F6B">+ New Ingredient</button>`:""}
+    </div>
+    <div id="ingmgr-body" style="max-height:52vh;overflow:auto"></div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="mmrCloseModal();if(activeMMR){renderMMREditor();recomputeMMRYield();}">Close</button></div>`,760);
+  await loadIngredientMaster();
+  renderIngredientManager();
+}
+let _ingMaster=[];
+async function loadIngredientMaster(){try{const r=await fetch(INGREDIENTS_API);_ingMaster=r.ok?await r.json():[];}catch(e){_ingMaster=[];}}
+function renderIngredientManager(){
+  const host=document.getElementById("ingmgr-body");if(!host)return;
+  const q=((document.getElementById("ingmgr-q")||{}).value||"").trim().toLowerCase();
+  const rows=_ingMaster.filter(i=>!q||(i.name||"").toLowerCase().includes(q)||(i.itemNumber||"").toLowerCase().includes(q));
+  const canEdit=roleCanEdit(),canDelete=roleCanDelete();
+  host.innerHTML=`<table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Item #</th><th>Unit</th><th></th></tr></thead><tbody>${
+    rows.map(i=>`<tr>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${cesc(i.id)}</td>
+      <td>${cesc(i.name)}</td><td>${cesc(i.itemNumber||"—")}</td><td>${cesc(i.defaultUnit||"")}</td>
+      <td style="text-align:right;white-space:nowrap">
+        ${canEdit?`<button class="btn-ghost" style="padding:2px 8px;font-size:11px" onclick="ingMgrEdit('${cesc(i.id)}')">Edit</button>`:""}
+        ${canDelete?`<button class="btn-danger" style="padding:2px 8px;font-size:11px" onclick="ingMgrDelete('${cesc(i.id)}')">Delete</button>`:""}
+      </td></tr>`).join("")||`<tr><td colspan="5" style="text-align:center;color:#718096;padding:18px">No ingredients.</td></tr>`
+  }</tbody></table>`;
+}
+function ingMgrNew(){ingMgrForm(null);}
+function ingMgrEdit(id){ingMgrForm(_ingMaster.find(i=>i.id===id)||null);}
+function ingMgrForm(ing){
+  const e=ing||{};
+  mmrOpenModal(`<div class="modal-title">${ing?"Edit":"New"} Ingredient</div>
+    <div class="rcv-grid">
+      <div class="form-group"><label class="form-label">Name *</label><input class="form-input" id="ingform-name" value="${cesc(e.name||"")}"></div>
+      <div class="form-group"><label class="form-label">Item # (PNL)</label><input class="form-input" id="ingform-item" value="${cesc(e.itemNumber||"")}"></div>
+      <div class="form-group"><label class="form-label">Default Unit</label><select class="form-select" id="ingform-unit">${["mg","g","kg","each"].map(u=>`<option ${u===(e.defaultUnit||"g")?"selected":""}>${u}</option>`).join("")}</select></div>
+    </div>
+    <div class="form-group" style="margin-top:10px"><label class="form-label">Notes</label><textarea class="form-textarea" id="ingform-notes">${cesc(e.notes||"")}</textarea></div>
+    <div class="modal-actions"><button class="btn-ghost" onclick="openIngredientManager()">Back</button><button class="btn" onclick="ingMgrSave('${ing?cesc(ing.id):""}','${ing?cesc(ing.modifiedAt||""):""}')">Save</button></div>`);
+}
+async function ingMgrSave(id,expected){
+  const name=(document.getElementById("ingform-name").value||"").trim();
+  if(!name){toast("Name is required.","red");return;}
+  const body={name,itemNumber:(document.getElementById("ingform-item").value||"").trim(),defaultUnit:document.getElementById("ingform-unit").value,notes:(document.getElementById("ingform-notes").value||"").trim()};
+  try{
+    let r;
+    if(id){body.expected_modified_at=expected||null;r=await fetch(INGREDIENTS_API+"?id="+encodeURIComponent(id),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});}
+    else{r=await fetch(INGREDIENTS_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});}
+    const d=await r.json();if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    toast("Ingredient saved.","green");openIngredientManager();
+  }catch(e){toast("Could not save: "+(e.message||e),"red");}
+}
+async function ingMgrDelete(id){
+  if(!confirm("Delete this ingredient? This is blocked if any MMR formula still references it."))return;
+  try{
+    const r=await fetch(INGREDIENTS_API+"?id="+encodeURIComponent(id),{method:"DELETE"});
+    const d=await r.json().catch(()=>({}));
+    if(r.status===409&&d.blockedByMmrIds){toast("Blocked: referenced by "+d.blockedByMmrIds.join(", "),"red");return;}
+    if(!r.ok)throw new Error(d.error||("HTTP "+r.status));
+    toast("Ingredient deleted.","green");await loadIngredientMaster();renderIngredientManager();
+  }catch(e){toast("Could not delete: "+(e.message||e),"red");}
+}
+
 function switchTab(id,el){
   // Dock users may only open the Truck Inspections module.
   if(isDockRole()&&id!=="receiving"){toast("Your role only has access to Truck Inspections.","yellow");return;}
@@ -9622,6 +10255,7 @@ function switchTab(id,el){
   if(id==="dashboard")refreshDashboard();
   if(id==="oos")showOOSList();
   if(id==="receiving")showReceivingList();
+  if(id==="mmr")showMMRList();
   if(id==="crisis"){stopCrisisPoll();showCrisisList();}else{stopCrisisPoll();}
   if(id==="recall")showRecallList();
   if(id==="ai-report")onReportTypeChange();

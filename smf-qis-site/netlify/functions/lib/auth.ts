@@ -166,7 +166,12 @@ export type ActionType =
   | "link_added"
   | "link_removed"
   | "concurrency_conflict_rejected"
-  | "permission_denied";
+  | "permission_denied"
+  // MMR revision-control state transitions (batch-record system).
+  | "record_updated"
+  | "mmr_approved"
+  | "mmr_superseded"
+  | "mmr_revision_created";
 
 let logSeq = 0;
 
