@@ -50,3 +50,13 @@
   from = "/api/user-roles"
   to = "/.netlify/functions/user-roles"
   status = 200
+
+[[redirects]]
+  from = "/api/ingredients"
+  to = "/.netlify/functions/ingredients"
+  status = 200
+
+[[redirects]]
+  from = "/api/mmrs"
+  to = "/.netlify/functions/mmrs"
+  status = 200
