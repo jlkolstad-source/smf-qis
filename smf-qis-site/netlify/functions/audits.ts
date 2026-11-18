@@ -11,7 +11,9 @@
 //   POST   /api/audits?action=create          → create a session (Scheduled)
 //   POST   /api/audits?id=...&action=start     → mark In Progress (stamps start_time/by)
 //   POST   /api/audits?id=...&action=complete  → close, if no linked findings remain open
-//   POST   /api/audits?id=...&action=delete    → delete (only while Scheduled)
+//   GET    /api/audits?action=next-id&prefix=LIN → next audit number (never reuses a deleted one)
+//   GET    /api/audits?id=...&action=delete-preview → what a delete would remove (Admin)
+//   POST   /api/audits?id=...&action=delete    → permanent delete, any status (Admin)
 //   POST   /api/audits?id=...&action=sign      → record an electronic sign-off by role
 //   PUT    /api/audits?id=...                  → save header fields / section progress
 //
@@ -21,9 +23,9 @@
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
 import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
-import { eq, asc, inArray, or } from "drizzle-orm";
+import { eq, asc, inArray, or, and, like, sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { auditSessions, records, auditLog, capaLinks, actionLog } from "../../db/schema.js";
+import { auditSessions, records, auditLog, actionLog } from "../../db/schema.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -136,20 +138,6 @@ function toClient(r: typeof auditSessions.$inferSelect) {
   };
 }
 
-// Fallback "AUDIT-YYYY-NNN" id, sequential within the year. Used only when the
-// caller does not supply its own (the front-end normally provides the id).
-async function nextAuditId() {
-  const rows = await db.select({ id: auditSessions.id }).from(auditSessions);
-  const year = String(new Date().getFullYear());
-  let max = 0;
-  const re = new RegExp("^AUDIT-" + year + "-(\\d+)$");
-  for (const { id } of rows) {
-    const m = re.exec(id);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
-  }
-  return "AUDIT-" + year + "-" + String(max + 1).padStart(3, "0");
-}
-
 // Editable header / progress fields. Lifecycle columns (status, start_time,
 // started_by) and signatures are managed by their dedicated actions, never here.
 function toRow(r: any) {
@@ -212,6 +200,31 @@ export default async (req: Request) => {
             "Content-Disposition": `inline; filename="${safeName(found.meta.filename || "attachment")}"`,
             "Cache-Control": "private, max-age=300",
           },
+        });
+      }
+
+      const getAction = (url.searchParams.get("action") || "").toString();
+
+      // ── Next audit number (continues from the highest ever issued) ────────
+      if (getAction === "next-id") {
+        return json(200, { id: await nextAuditId(url.searchParams.get("prefix") || "") });
+      }
+
+      // ── Delete preview: counts + linked records, Admin only ───────────────
+      if (id && getAction === "delete-preview") {
+        if (!roleAtLeast(auth.role, "Admin")) {
+          return json(403, { error: `Deleting an audit requires the Admin role. Your role is ${auth.role}.` });
+        }
+        const [rec] = await db.select().from(auditSessions).where(eq(auditSessions.id, id));
+        if (!rec) return json(404, { error: "Audit session not found." });
+        const impact = await deleteImpact(rec);
+        return json(200, {
+          audit: toClient(rec),
+          clauseRecords: impact.clauseRecords,
+          attachments: impact.attachmentKeys.length,
+          appendixB: impact.appendixB,
+          linked: impact.linked,
+          relatedCapas: impact.relatedCapas,
         });
       }
 
@@ -357,9 +370,9 @@ export default async (req: Request) => {
         return json(200, toClient(updated));
       }
 
-      // ── Delete a session (only while still Scheduled) ─────────────────────
+      // ── Permanently delete a session (Admin only, any status) ─────────────
       if (action === "delete") {
-        return deleteSession(auth, (id || body.id || "").toString(), actor);
+        return deleteSession(auth, (id || body.id || "").toString(), actor, body);
       }
 
       // ── Electronic sign-off on a signature row, by role ───────────────────
@@ -451,6 +464,14 @@ export default async (req: Request) => {
 
       // ── Create a new (Scheduled) session ──────────────────────────────────
       const providedId = (body.id || "").toString().trim();
+      // A deleted audit's number is retired for good — refuse to issue it again.
+      if (providedId && (await wasDeletedAuditId(providedId))) {
+        return json(409, {
+          error: `Audit number ${providedId} was previously issued and deleted; it cannot be reused. Use the next available number.`,
+          retired: true,
+          nextId: await nextAuditId((/^AUDIT-([A-Z]+)-\d{4}-/.exec(providedId) || [])[1] || ""),
+        });
+      }
       const newId = providedId || (await nextAuditId());
       const now = new Date();
       const row = toRow(body);
@@ -514,7 +535,7 @@ export default async (req: Request) => {
     }
 
     // The DELETE verb removes a single clause-row attachment when a file key is
-    // given, otherwise it maps to the same Scheduled-only session delete.
+    // given, otherwise it maps to the same Admin-only permanent session delete.
     if (req.method === "DELETE") {
       const id = (url.searchParams.get("id") || "").toString();
       const fileKey = url.searchParams.get("file");
@@ -536,7 +557,8 @@ export default async (req: Request) => {
         await logChange(id, "attachment", `Removed attachment "${found.meta.filename || fileKey}" from clause ${found.clauseId}`, actor);
         return json(200, { ok: true });
       }
-      return deleteSession(auth, id, actor);
+      const delBody = await req.json().catch(() => ({}));
+      return deleteSession(auth, id, actor, delBody);
     }
 
     return json(405, { error: "Method not allowed" });
@@ -553,235 +575,296 @@ export default async (req: Request) => {
     return json(500, { error: err?.message || "Server error" });
   }
 
-  // Delete an audit session and everything that depends on it. Admin-only per
-  // the Run 1 permission matrix.
+  // ── Permanent audit delete (Admin only) ─────────────────────────────────────
   //
-  // The auth context is passed in explicitly rather than closed over: the
-  // previous version referenced an `admin`/`auth` binding that lived inside the
-  // handler's `try` block and was therefore NOT in this function's lexical
-  // scope, so any call threw `ReferenceError: admin is not defined`.
+  // Removes an audit session of ANY status together with everything that is
+  // owned by it:
+  //   • the audit_sessions row itself, which carries every clause record
+  //     (exec_state[clauseId] + the sections array) and the Appendix B entry
+  //     (exec_state._appb) — Appendix B is a view derived from the session row;
+  //   • its clause-row evidence attachments in Netlify Blobs.
   //
-  // Dependents are removed in explicit dependency order with SEQUENTIAL deletes,
-  // NOT a database transaction. This deployment's database driver (Netlify DB /
-  // Neon serverless) does not give us a dependable multi-statement transaction,
-  // so a `db.transaction(...)` block silently mis-behaved and surfaced only as a
-  // generic caught 500. Each step below has its own try/catch and a distinct
-  // error message naming the step, so a failure identifies itself without needing
-  // log access. Every step is idempotent (delete-by-key / onConflictDoNothing),
-  // so a partial failure can be safely retried until it completes.
+  // Records that merely REFERENCE the audit (NCRs, CAPAs, Audit Findings with
+  // records.audit_id = sid) are quality records in their own right and are NEVER
+  // deleted — only their link to this audit is cleared.
+  //
+  // All database writes (concurrency guard, unlink, history rows, the
+  // AUDIT_DELETED action-log entry and the session delete) run as ONE atomic
+  // transaction via db.batch(), which the Netlify DB driver sends as a single
+  // HTTP transaction — no WebSocket session required. If any statement fails the
+  // whole batch rolls back and nothing is left half-deleted. Blob attachments
+  // are purged only after the transaction has committed.
   async function deleteSession(
     auth: NonNullable<Awaited<ReturnType<typeof getAuth>>>,
     sid: string,
     who: string,
+    body: any,
   ) {
-    // Small helper: uniform per-step 500 that names the failing step and carries
-    // the raw database error text (never a generic message).
-    const stepFail = (step: number, label: string, e: any) => {
-      const raw = e?.message || String(e);
-      console.error(`[audits] deleteSession failed at step ${step} (${label})`, {
-        error: e,
-        step,
-        label,
+    if (!sid) return json(400, { error: "Missing audit session id." });
+
+    // Role gate — Admin only, enforced server-side.
+    if (!roleAtLeast(auth.role, "Admin")) {
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "permission_denied",
+        recordType: "Audit Session",
         recordId: sid,
-        email: auth?.email,
+        detail: { attempted: "delete" },
       });
-      return json(500, {
-        error: `Delete failed at step ${step} (${label}): ${raw}`,
-        step,
-        stepLabel: label,
-        detail: raw,
-      });
-    };
-
-    try {
-      if (!sid) return json(400, { error: "Missing audit session id." });
-
-      // Role gate — Admin only. Return a 403 naming the required role; never throw.
-      if (!roleAtLeast(auth.role, "Admin")) {
-        await logAction({
-          email: auth.email,
-          role: auth.role,
-          action: "permission_denied",
-          recordType: "Audit Session",
-          recordId: sid,
-          detail: { attempted: "delete" },
-        });
-        return json(403, {
-          error: `Deleting an audit session requires the Admin role. Your role is ${auth.role}.`,
-          requiredRole: "Admin",
-          yourRole: auth.role,
-        });
-      }
-
-      const [existing] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
-      if (!existing) return json(404, { error: "Audit session not found." });
-
-      // Findings raised against this session (records.audit_id === sid).
-      const findings = await db.select().from(records).where(eq(records.auditId, sid));
-      const findingIds = findings.map((f) => f.id);
-
-      // ── BLOCK RATHER THAN CASCADE where it matters ──────────────────────────
-      // Before deleting anything, refuse the delete if any of the session's
-      // findings is — or is linked to — a CAPA or NCR that is still open. Only an
-      // all-closed dependency graph may be cleaned up.
-      const linkRows = findingIds.length
-        ? await db
-            .select()
-            .from(capaLinks)
-            .where(or(inArray(capaLinks.sourceId, findingIds), inArray(capaLinks.capaId, findingIds)))
-        : [];
-
-      // Every record id related to this session: the findings themselves plus any
-      // CAPA / NCR they point at (records.capa_id) or are joined to (capa_links).
-      const relatedIds = new Set<string>(findingIds);
-      for (const f of findings) if (f.capaId) relatedIds.add(f.capaId);
-      for (const l of linkRows) {
-        if (l.capaId) relatedIds.add(l.capaId);
-        if (l.sourceId) relatedIds.add(l.sourceId);
-      }
-
-      const relatedRecords = relatedIds.size
-        ? await db.select().from(records).where(inArray(records.id, [...relatedIds]))
-        : [];
-      const openLinked = relatedRecords
-        .filter((r) => (r.type === "CAPA" || r.type === "NCR") && r.status !== "Closed")
-        .map((r) => ({ id: r.id, type: r.type, status: r.status }));
-
-      if (openLinked.length > 0) {
-        const openIds = new Set(openLinked.map((r) => r.id));
-        const blockingFindingIds = findings
-          .filter(
-            (f) =>
-              openIds.has(f.id) ||
-              (f.capaId && openIds.has(f.capaId)) ||
-              linkRows.some((l) => l.sourceId === f.id && openIds.has(l.capaId)) ||
-              linkRows.some((l) => l.capaId === f.id && openIds.has(l.sourceId)),
-          )
-          .map((f) => f.id);
-        return json(409, {
-          error: `Cannot delete this audit session: ${openLinked.length} linked CAPA/NCR record(s) are still open. Resolve or close them before deleting.`,
-          blocked: true,
-          blockingFindingIds,
-          findings: findings.map((f) => ({ id: f.id, type: f.type, status: f.status })),
-          linkedCapaIds: openLinked.filter((r) => r.type === "CAPA").map((r) => r.id),
-          linkedNcrIds: openLinked.filter((r) => r.type === "NCR").map((r) => r.id),
-          openLinkedRecords: openLinked,
-        });
-      }
-
-      // Gather the session's evidence-attachment blob keys (held in exec_state)
-      // so step 3 can purge them from Blobs.
-      const evidenceKeys: string[] = [];
-      const execState = (existing.execState && typeof existing.execState === "object"
-        ? existing.execState
-        : {}) as Record<string, any>;
-      for (const entry of Object.values(execState)) {
-        if (entry && typeof entry === "object") {
-          for (const a of arr((entry as any).attachments)) {
-            if (a && a.key) evidenceKeys.push(a.key);
-          }
-        }
-      }
-
-      // Ids whose action_log / audit_log / link rows we clean up: the session and
-      // each of its findings.
-      const scopeIds = [sid, ...findingIds];
-
-      // ── Step 1: action_log rows referencing the session and its findings ────
-      try {
-        await db.delete(actionLog).where(inArray(actionLog.recordId, scopeIds));
-      } catch (e) {
-        return stepFail(1, "action_log", e);
-      }
-
-      // ── Step 2: link rows joining the findings to any CAPAs or NCRs ─────────
-      try {
-        if (scopeIds.length) {
-          await db
-            .delete(capaLinks)
-            .where(or(inArray(capaLinks.sourceId, scopeIds), inArray(capaLinks.capaId, scopeIds)));
-        }
-      } catch (e) {
-        return stepFail(2, "capa/ncr link rows", e);
-      }
-
-      // ── Step 3: evidence attachments (including blob storage references) ────
-      // Session evidence lives as blobs keyed from exec_state; finding evidence is
-      // embedded in the record row itself and is removed with the finding in step
-      // 4. Per-key blob deletes are best-effort (already-gone keys are fine, which
-      // keeps the step idempotent); a hard store failure reports as step 3.
-      try {
-        if (evidenceKeys.length) {
-          const store = await blobStore(ATTACH_STORE);
-          for (const key of evidenceKeys) await store.delete(key).catch(() => {});
-        }
-      } catch (e) {
-        return stepFail(3, "evidence attachments", e);
-      }
-
-      // ── Step 4: the audit findings belonging to the session ─────────────────
-      const findingsRemoved = findingIds.length;
-      try {
-        if (findingIds.length) {
-          await db.delete(records).where(inArray(records.id, findingIds));
-        }
-      } catch (e) {
-        return stepFail(4, "audit findings", e);
-      }
-
-      // ── Step 5: the audit session itself ────────────────────────────────────
-      try {
-        await db.delete(auditSessions).where(eq(auditSessions.id, sid));
-      } catch (e) {
-        return stepFail(5, "audit session", e);
-      }
-
-      // ── Step 6: record_deleted entry AFTER the session is gone ──────────────
-      // Idempotent: a stable id + onConflictDoNothing means a retried delete does
-      // not double-log.
-      try {
-        const now = new Date();
-        await db
-          .insert(actionLog)
-          .values({
-            id: `AL-audit-del-${sid}`,
-            timestamp: now,
-            userEmail: (auth.email || "").toLowerCase(),
-            userRole: auth.role,
-            action: "record_deleted",
-            recordType: "Audit Session",
-            recordId: sid,
-            site: existing.site || "",
-            detail: { status: existing.status, by: who, findingsRemoved, evidenceRemoved: evidenceKeys.length },
-          })
-          .onConflictDoNothing();
-      } catch (e) {
-        return stepFail(6, "record_deleted log", e);
-      }
-
-      return json(200, {
-        ok: true,
-        id: sid,
-        findingsRemoved,
-        evidenceRemoved: evidenceKeys.length,
-      });
-    } catch (err: any) {
-      // Safety net for anything not attributable to a specific step (e.g. the
-      // initial lookups). Never let an exception escape as a 502.
-      console.error("[audits] deleteSession unexpected failure", {
-        error: err,
-        message: err?.message,
-        stack: err?.stack,
-        recordId: sid,
-        email: auth?.email,
-      });
-      return json(500, {
-        error: `Delete failed before completing: ${err?.message || String(err)}`,
-        detail: err?.message || String(err),
+      return json(403, {
+        error: `Deleting an audit requires the Admin role. Your role is ${auth.role}.`,
+        requiredRole: "Admin",
+        yourRole: auth.role,
       });
     }
+
+    const reason = (body?.reason || "").toString().trim();
+    if (reason.length < 10) {
+      return json(400, { error: "A reason of at least 10 characters is required to delete an audit." });
+    }
+    const confirmId = (body?.confirmId || "").toString().trim();
+    if (confirmId !== sid) {
+      return json(400, { error: "The typed audit number does not match." });
+    }
+
+    const [existing] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
+    if (!existing) return json(404, { error: "Audit session not found. It may already have been deleted." });
+
+    // Optimistic concurrency — same contract as every other audit save.
+    const expectedModifiedAt = body?.expected_modified_at ?? body?.expectedModifiedAt;
+    if (!expectedModifiedAt) {
+      return json(400, { error: "Missing expected_modified_at for the delete concurrency check." });
+    }
+    if (!concurrencyMatches(expectedModifiedAt, existing.modifiedAt)) {
+      await logAction({
+        email: auth.email,
+        role: auth.role,
+        action: "concurrency_conflict_rejected",
+        recordType: "Audit Session",
+        recordId: sid,
+        site: existing.site,
+        detail: { attempted: "delete", expected: expectedModifiedAt, actual: existing.modifiedAt },
+      });
+      return conflictResponse({
+        currentRecord: toClient(existing),
+        lastModifiedBy: existing.modifiedBy || "",
+        lastModifiedAt: existing.modifiedAt,
+        attemptedChanges: { action: "delete" },
+      });
+    }
+
+    const impact = await deleteImpact(existing);
+    const expectedIso = new Date(expectedModifiedAt).toISOString();
+    const now = new Date();
+    const userName = (auth.user.name || "").trim();
+
+    const statements: any[] = [
+      // Race guard: if the row changed (or vanished) between the check above and
+      // this transaction, 1/0 raises and the whole batch rolls back.
+      db.execute(sql`SELECT 1 / (SELECT count(*)::int FROM audit_sessions
+        WHERE id = ${sid} AND date_trunc('milliseconds', modified_at) = ${expectedIso}::timestamptz) AS guard`),
+    ];
+    if (impact.linked.length) {
+      statements.push(
+        db
+          .update(records)
+          .set({ auditId: "", modifiedBy: who, modifiedAt: now })
+          .where(eq(records.auditId, sid)),
+      );
+      for (const r of impact.linked) {
+        statements.push(
+          db.insert(auditLog).values({
+            recordId: r.id,
+            action: "update",
+            detail: `Link to audit ${sid} removed — audit permanently deleted (record retained)`,
+            changedBy: who,
+          }),
+        );
+      }
+    }
+    statements.push(
+      db.insert(auditLog).values({
+        recordId: sid,
+        action: "delete",
+        detail: `Audit permanently deleted (status ${existing.status}; ${impact.clauseRecords} clause record(s), ${impact.attachmentKeys.length} attachment(s)). Reason: ${reason}`,
+        changedBy: who,
+      }),
+      db.insert(actionLog).values({
+        id: `AL-${now.getTime()}-del-${sid}`.slice(0, 200),
+        timestamp: now,
+        userEmail: (auth.email || "").toLowerCase(),
+        userRole: auth.role,
+        action: "AUDIT_DELETED",
+        recordType: "Audit Session",
+        recordId: sid,
+        site: existing.site || "",
+        detail: {
+          auditNumber: sid,
+          sections: arr(existing.sections),
+          clausesLabel: existing.clausesLabel || "",
+          facility: existing.facilityName || existing.site || "",
+          building: existing.building || "",
+          scheduledDate: existing.scheduledDate || "",
+          statusAtDeletion: existing.status,
+          clauseRecordCount: impact.clauseRecords,
+          attachmentCount: impact.attachmentKeys.length,
+          unlinkedRecords: impact.linked.map((r) => r.id),
+          appendixB: impact.appendixB,
+          userName: userName || who,
+          userEmail: auth.email,
+          reason,
+          deletedAt: now.toISOString(),
+        },
+      }),
+      db.delete(auditSessions).where(eq(auditSessions.id, sid)),
+    );
+
+    try {
+      await db.batch(statements as any);
+    } catch (e: any) {
+      const raw = e?.message || String(e);
+      console.error("[audits] delete transaction rolled back", { error: e, recordId: sid, email: auth.email });
+      // The guard's division by zero means the row changed mid-request.
+      if (/division by zero/i.test(raw)) {
+        const [latest] = await db.select().from(auditSessions).where(eq(auditSessions.id, sid));
+        if (!latest) return json(404, { error: "Audit session not found. It may already have been deleted." });
+        return conflictResponse({
+          currentRecord: toClient(latest),
+          lastModifiedBy: latest.modifiedBy || "",
+          lastModifiedAt: latest.modifiedAt,
+          attemptedChanges: { action: "delete" },
+        });
+      }
+      return json(500, { error: `Delete failed and was rolled back — no records were changed. ${raw}` });
+    }
+
+    // Post-commit: purge the attachment binaries. The DB is already consistent;
+    // a blob failure is reported but cannot (and need not) undo the delete.
+    let blobsDeleted = 0;
+    let blobsFailed = 0;
+    try {
+      const store = await blobStore(ATTACH_STORE);
+      const keys = new Set(impact.attachmentKeys);
+      // Also sweep anything stored under the audit's prefix (orphaned uploads).
+      try {
+        const { blobs } = await store.list({ prefix: `${sid}/` });
+        for (const b of blobs) keys.add(b.key);
+      } catch {
+        /* listing is best-effort */
+      }
+      for (const key of keys) {
+        try {
+          await store.delete(key);
+          blobsDeleted++;
+        } catch {
+          blobsFailed++;
+        }
+      }
+    } catch (e) {
+      blobsFailed = impact.attachmentKeys.length;
+      console.error("[audits] post-delete blob cleanup failed", { error: e, recordId: sid });
+    }
+
+    return json(200, {
+      ok: true,
+      id: sid,
+      clauseRecordsDeleted: impact.clauseRecords,
+      attachmentsDeleted: blobsDeleted,
+      attachmentsFailed: blobsFailed,
+      unlinkedRecords: impact.linked.map((r) => r.id),
+    });
   }
 };
+
+// Clause-record / attachment / linked-record counts for one audit session.
+// Shared by the delete preview and the delete itself so both agree.
+async function deleteImpact(existing: typeof auditSessions.$inferSelect) {
+  const execState = (existing.execState && typeof existing.execState === "object"
+    ? existing.execState
+    : {}) as Record<string, any>;
+  const clauseIds = new Set<string>();
+  const attachmentKeys: string[] = [];
+  for (const [k, entry] of Object.entries(execState)) {
+    if (k.startsWith("_") || !entry || typeof entry !== "object") continue;
+    clauseIds.add(k);
+    for (const a of arr((entry as any).attachments)) if (a && a.key) attachmentKeys.push(a.key);
+  }
+  for (const s of arr(existing.sections)) {
+    if (s && typeof s === "object" && (s as any).id) clauseIds.add(String((s as any).id));
+  }
+  const linked = await db.select().from(records).where(eq(records.auditId, existing.id));
+  // CAPAs the linked records point at (records.capa_id) — shown, never deleted.
+  const capaIds = [...new Set(linked.map((r) => r.capaId).filter(Boolean))].filter(
+    (id) => !linked.some((r) => r.id === id),
+  );
+  const capas = capaIds.length ? await db.select().from(records).where(inArray(records.id, capaIds)) : [];
+  return {
+    clauseRecords: clauseIds.size,
+    attachmentKeys,
+    appendixB: (execState._appb || "").toString(),
+    linked: linked.map((r) => ({ id: r.id, type: r.type, status: r.status })),
+    relatedCapas: capas.map((r) => ({ id: r.id, type: r.type, status: r.status })),
+  };
+}
+
+// Every AUDIT-… id ever issued: live sessions, plus ids that survive in the
+// append-only audit_log / action_log after a session is deleted.
+async function issuedAuditIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+  const live = await db.select({ id: auditSessions.id }).from(auditSessions);
+  for (const r of live) ids.add(r.id);
+  const hist = await db
+    .selectDistinct({ id: auditLog.recordId })
+    .from(auditLog)
+    .where(like(auditLog.recordId, "AUDIT-%"));
+  for (const r of hist) ids.add(r.id);
+  const acts = await db
+    .selectDistinct({ id: actionLog.recordId })
+    .from(actionLog)
+    .where(like(actionLog.recordId, "AUDIT-%"));
+  for (const r of acts) ids.add(r.id);
+  return ids;
+}
+
+// True when `id` was issued before but no longer exists (i.e. it was deleted).
+async function wasDeletedAuditId(id: string): Promise<boolean> {
+  const [live] = await db.select({ id: auditSessions.id }).from(auditSessions).where(eq(auditSessions.id, id));
+  if (live) return false;
+  const [del] = await db
+    .select({ id: actionLog.id })
+    .from(actionLog)
+    .where(
+      and(
+        eq(actionLog.recordId, id),
+        or(eq(actionLog.action, "AUDIT_DELETED"), and(eq(actionLog.action, "record_deleted"), eq(actionLog.recordType, "Audit Session"))),
+      ),
+    )
+    .limit(1);
+  if (del) return true;
+  const [created] = await db
+    .select({ id: auditLog.id })
+    .from(auditLog)
+    .where(and(eq(auditLog.recordId, id), eq(auditLog.action, "create")))
+    .limit(1);
+  return !!created;
+}
+
+// Next audit number, continuing from the highest sequence ever issued in the
+// year (across all site prefixes) so a deleted number is never reused.
+// With a prefix → "AUDIT-LIN-2026-004-S1"; without → "AUDIT-2026-004".
+async function nextAuditId(prefix?: string) {
+  const year = String(new Date().getFullYear());
+  const re = new RegExp("^AUDIT-(?:[A-Z]+-)?" + year + "-(\\d+)");
+  let max = 0;
+  for (const id of await issuedAuditIds()) {
+    const m = re.exec(id);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  const seq = String(max + 1).padStart(3, "0");
+  const p = (prefix || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 5);
+  return p ? `AUDIT-${p}-${year}-${seq}-S1` : `AUDIT-${year}-${seq}`;
+}
 
 export const config: Config = {
   path: "/api/audits",

@@ -167,6 +167,8 @@ export type ActionType =
   | "link_removed"
   | "concurrency_conflict_rejected"
   | "permission_denied"
+  // Permanent, Admin-only audit-session deletion (survives the deleted row).
+  | "AUDIT_DELETED"
   // MMR revision-control state transitions (batch-record system).
   | "record_updated"
   | "mmr_approved"
