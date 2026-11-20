@@ -891,6 +891,7 @@ nav::-webkit-scrollbar{display:none;}
             <option value="link_removed">link_removed</option>
             <option value="concurrency_conflict_rejected">concurrency_conflict_rejected</option>
             <option value="permission_denied">permission_denied</option>
+            <option value="AUDIT_DELETED">AUDIT_DELETED</option>
           </select>
           <button class="btn" style="padding:4px 10px;font-size:11px" onclick="loadActionLog(1)">Refresh</button>
         </div>
@@ -1070,18 +1071,32 @@ nav::-webkit-scrollbar{display:none;}
   </div>
 </div>
 
-<!-- AUDIT DELETE BLOCKED MODAL -->
-<!-- Shown when the server refuses an audit-session delete (HTTP 409) because it -->
-<!-- still has dependent findings. Names exactly what is blocking and renders the -->
-<!-- blocking record ids as clickable links via the shared linked-record navigator -->
-<!-- (qisLinkedRecordLink), so the user can jump straight to each blocker. -->
-<div class="modal-overlay" id="audit-delete-blocked-modal">
-  <div class="modal" style="border-top:3px solid #C00000;max-width:640px">
-    <div class="modal-title" style="color:#7a0000">Cannot delete audit session</div>
-    <div id="audit-delete-blocked-msg" style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#7a0000">—</div>
-    <div id="audit-delete-blocked-body" style="max-height:340px;overflow:auto;margin-bottom:14px;font-size:12px"></div>
+<!-- AUDIT DELETE MODAL (Admin only) -->
+<!-- In-page confirmation for permanently deleting an audit session. Shows what -->
+<!-- will be removed, lists linked NCR/CAPA records that are kept, and requires -->
+<!-- the typed audit number + a reason before handing off to requireReauth(). -->
+<div class="modal-overlay" id="audit-delete-modal">
+  <div class="modal" style="border-top:3px solid #C00000;max-width:620px">
+    <div class="modal-title" style="color:#7a0000">Permanently delete audit</div>
+    <div style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#7a0000">
+      This permanently deletes the audit, all of its clause records, its attachments and its Appendix B entry. This cannot be undone.
+      <div id="adel-closed-warn" style="display:none;margin-top:6px;font-weight:700">This audit is closed and may be cited in reports or Appendix B.</div>
+    </div>
+    <div id="adel-summary" style="font-size:12px;margin-bottom:12px">Loading…</div>
+    <div id="adel-linked" style="font-size:12px;margin-bottom:12px"></div>
+    <div class="form-group form-full">
+      <label class="form-label" for="adel-confirm">Type the audit number <span id="adel-id-hint" style="font-family:'DM Mono',monospace;font-weight:700"></span> to confirm</label>
+      <input class="form-input" id="adel-confirm" type="text" autocomplete="off" spellcheck="false" oninput="auditDeleteValidate()">
+    </div>
+    <div class="form-group form-full">
+      <label class="form-label" for="adel-reason">Reason for deletion (minimum 10 characters)</label>
+      <textarea class="form-input" id="adel-reason" rows="3" oninput="auditDeleteValidate()" placeholder="e.g. Duplicate session created in error"></textarea>
+      <div id="adel-reason-count" style="font-size:10px;color:#4a5568;margin-top:3px">0 / 10</div>
+    </div>
+    <div id="adel-msg" style="min-height:16px;color:#C00000;font-size:11px;margin-top:4px"></div>
     <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeAuditDeleteBlocked()">Close</button>
+      <button type="button" class="btn-ghost" onclick="closeAuditDeleteModal()">Cancel</button>
+      <button type="button" class="btn" id="adel-btn" style="background:#C00000" disabled onclick="confirmAuditDelete()">Delete Audit</button>
     </div>
   </div>
 </div>
@@ -5934,7 +5949,7 @@ function renderAuditList(){
     const sectionCount=(Array.isArray(a.sections)?a.sections.length:0);
     const canStart=(disp==="Scheduled"||disp==="Past Due");
     const canComplete=(disp==="In Progress")&&canManage();
-    const canDelete=(disp==="Scheduled"||disp==="Past Due");
+    const canDelete=roleCanDelete(); // Admin only, any status (server re-checks)
     const canEdit=(disp!=="Closed");
     const aid=a.id.replace(/'/g,"\\'");
     const openLinked=records.filter(r=>r.auditId===a.id&&(r.type==="NCR"||r.type==="CAPA")&&r.status!=="Closed").length;
@@ -5942,7 +5957,7 @@ function renderAuditList(){
     if(canStart)actions+=`<button class="btn" style="background:#1F4E79;padding:5px 10px;font-size:11px" onclick="event.stopPropagation();startAudit('${aid}')">▶ Start Audit</button>`;
     if(canComplete)actions+=`<button class="btn" style="background:#548235;padding:5px 10px;font-size:11px" title="${openLinked?(openLinked+' linked finding(s) still open — close them before completing'):'All linked findings clear — ready to close'}" onclick="event.stopPropagation();completeAudit('${aid}')">✓ Complete Audit${openLinked?(" ("+openLinked+" open)"):""}</button>`;
     if(canEdit)actions+=`<button class="btn-ghost" style="padding:5px 10px;font-size:11px;color:#1F4E79;border-color:#2E75B6" onclick="event.stopPropagation();openEditAuditModal('${aid}')">✎ Edit Audit Details</button>`;
-    if(canDelete)actions+=`<button class="btn-ghost" style="padding:5px 10px;font-size:11px;color:#C00000;border-color:#C00000" onclick="event.stopPropagation();deleteAudit('${aid}')">🗑 Delete</button>`;
+    if(canDelete)actions+=`<button class="btn-danger" onclick="event.stopPropagation();deleteAudit('${aid}')">🗑 Delete</button>`;
     return `
       <div class="audit-card ${disp==="In Progress"?"active-audit":""}" onclick="loadAuditExec('${aid}')">
         <div class="audit-card-id">${cesc(a.id)}</div>
@@ -5987,59 +6002,133 @@ async function completeAudit(id){
   }catch(e){toast("Could not complete audit: "+e.message,"red");}
 }
 
+// ── Permanent audit delete (Admin only) ──────────────────────────────────────
+// Opens the in-page delete modal, populated from the server's delete preview
+// (clause-record / attachment counts and linked NCR / CAPA records). The Delete
+// button stays disabled until the exact audit number is typed and a reason of at
+// least 10 characters is entered; it then requires password re-authentication
+// (the same requireReauth() step-up used by Complete Audit) before calling the
+// API. The server re-checks the Admin role, the modified_at concurrency token
+// and performs the whole delete in one transaction.
+let _auditDelCtx=null; // { id, modifiedAt, preview }
 async function deleteAudit(id){
-  if(!confirm("Delete audit "+id+" and its findings? This cannot be undone."))return;
-  if(!(await requireReauth({actionLabel:"Delete audit session "+id,recordId:id})))return;
+  if(!roleCanDelete()){toast("Only an Admin can delete audits.","red");return;}
+  const a=auditSessions.find(x=>x.id===id);
+  _auditDelCtx={id,modifiedAt:a?a.modifiedAt:null,preview:null};
+  document.getElementById("adel-id-hint").textContent=id;
+  document.getElementById("adel-confirm").value="";
+  document.getElementById("adel-reason").value="";
+  document.getElementById("adel-msg").textContent="";
+  document.getElementById("adel-closed-warn").style.display="none";
+  document.getElementById("adel-summary").innerHTML='<span style="color:#4a5568">Loading audit details…</span>';
+  document.getElementById("adel-linked").innerHTML="";
+  auditDeleteValidate();
+  document.getElementById("audit-delete-modal").classList.add("open");
+  setTimeout(()=>{const el=document.getElementById("adel-confirm");if(el)el.focus();},30);
   try{
-    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=delete",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=delete-preview");
     const data=await res.json().catch(()=>({}));
-    // Server refuses the delete because findings are linked to still-open CAPA/NCR
-    // records. Surface exactly what is blocking, with clickable links to each.
-    if(res.status===409&&data.blocked){
-      showAuditDeleteBlocked(id,data);
+    if(!res.ok)throw new Error(data.error||("HTTP "+res.status));
+    if(!_auditDelCtx||_auditDelCtx.id!==id)return;
+    _auditDelCtx.preview=data;
+    // Concurrency token = the version the admin is looking at in this dialog.
+    _auditDelCtx.modifiedAt=(data.audit&&data.audit.modifiedAt)||_auditDelCtx.modifiedAt;
+    renderAuditDeletePreview(data);
+  }catch(e){
+    document.getElementById("adel-summary").innerHTML='<span style="color:#C00000">Could not load audit details: '+cesc(e.message||e)+'</span>';
+  }
+  auditDeleteValidate();
+}
+function renderAuditDeletePreview(d){
+  const a=d.audit||{};
+  const sections=Array.isArray(a.sections)&&a.sections.length?a.sections.map(s=>typeof s==="string"?clauseSectionLabel(s):(s&&(s.title||s.id))||"").filter(Boolean).join(" · "):(a.clausesLabel||"—");
+  const fac=(a.facilityName||a.site||"—")+(a.building?(" · "+a.building):"");
+  const row=(k,v)=>`<tr><td style="padding:3px 10px 3px 0;color:#4a5568;white-space:nowrap;vertical-align:top">${k}</td><td style="padding:3px 0;font-weight:600">${v}</td></tr>`;
+  const linked=d.linked||[];
+  document.getElementById("adel-summary").innerHTML=
+    `<table style="border-collapse:collapse;width:100%">`+
+    row("Audit number",`<span style="font-family:'DM Mono',monospace">${cesc(a.id||"")}</span>`)+
+    row("Sections",cesc(sections))+
+    row("Facility",cesc(fac))+
+    row("Audit date",cesc(a.scheduledDate||"—"))+
+    row("Started by",cesc(a.startedBy||"Not started"))+
+    row("Status",cesc(a.status||"—"))+
+    `</table>`+
+    `<div style="margin-top:10px;padding:8px 10px;background:#f4f6f8;border:1px solid #c0c8d2;border-radius:4px">`+
+    `<strong>Will be deleted:</strong> ${d.clauseRecords||0} clause record(s) · ${d.attachments||0} attachment(s)`+
+    (d.appendixB?` · Appendix B entry (${cesc(d.appendixB)})`:"")+
+    `<br><strong>Links removed:</strong> ${linked.length} linked finding(s)/NCR(s)/CAPA(s) — the records themselves are kept`+
+    `</div>`;
+  document.getElementById("adel-closed-warn").style.display=(a.status==="Closed")?"block":"none";
+  const keep=linked.concat(d.relatedCapas||[]);
+  if(keep.length){
+    document.getElementById("adel-linked").innerHTML=
+      `<div style="padding:8px 10px;background:#FFF2CC;border:1px solid #BF9000;border-radius:4px;color:#5c4700">`+
+      `<strong>Linked records — these will NOT be deleted.</strong> Only their link to this audit is removed.`+
+      `<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">`+
+      keep.map(r=>(typeof qisLinkedRecordLink==="function"?qisLinkedRecordLink(r.type,r.id,{mono:true}):`<span style="font-family:'DM Mono',monospace">${cesc(r.id)}</span>`)+`<span style="font-size:11px">(${cesc(r.type||"")}${r.status?" · "+cesc(r.status):""})</span>`).join(" ")+
+      `</div></div>`;
+  }else{
+    document.getElementById("adel-linked").innerHTML="";
+  }
+}
+function auditDeleteValidate(){
+  const ctx=_auditDelCtx;
+  const typed=(document.getElementById("adel-confirm").value||"").trim();
+  const reason=(document.getElementById("adel-reason").value||"").trim();
+  const rc=document.getElementById("adel-reason-count");
+  if(rc){rc.textContent=reason.length+" / 10"+(reason.length>=10?" ✓":"");rc.style.color=reason.length>=10?"#375623":"#4a5568";}
+  const ok=!!(ctx&&ctx.preview&&typed===ctx.id&&reason.length>=10);
+  const btn=document.getElementById("adel-btn");
+  if(btn){btn.disabled=!ok;btn.style.opacity=ok?"1":"0.5";btn.style.cursor=ok?"pointer":"not-allowed";}
+  return ok;
+}
+function closeAuditDeleteModal(){
+  document.getElementById("audit-delete-modal").classList.remove("open");
+  _auditDelCtx=null;
+}
+async function confirmAuditDelete(){
+  if(!auditDeleteValidate())return;
+  const ctx=_auditDelCtx;const id=ctx.id;
+  const reason=document.getElementById("adel-reason").value.trim();
+  const btn=document.getElementById("adel-btn");
+  const msg=document.getElementById("adel-msg");msg.textContent="";
+  // Step-up re-authentication — same mechanism as Complete Audit. The delete
+  // dialog stays open underneath so a cancelled / failed password keeps the
+  // typed values.
+  const reauthLabel="Permanently delete audit session "+id;
+  if(!(await requireReauth({actionLabel:reauthLabel,recordId:id}))){msg.textContent="Password confirmation was not completed — audit not deleted.";return;}
+  logReauthSuccess({actionLabel:reauthLabel,recordId:id});
+  btn.disabled=true;btn.textContent="Deleting…";
+  try{
+    const res=await fetch(AUDITS_API+"?id="+encodeURIComponent(id)+"&action=delete",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({confirmId:id,reason,expected_modified_at:ctx.modifiedAt})});
+    const data=await res.json().catch(()=>({}));
+    if(res.status===409&&data.conflict){
+      closeAuditDeleteModal();
+      _conflictCtx={label:"Audit "+id,server:data,reload:async()=>{await loadAuditSessions();renderAuditList();}};
+      showConflictModal(data);
       return;
     }
     if(!res.ok)throw new Error(data.error||("HTTP "+res.status));
-    await loadAuditSessions();renderAuditList();renderDashCharts();
-    toast("Audit "+id+" deleted.","green");
-  }catch(e){toast("Could not delete audit: "+e.message,"red");}
+    closeAuditDeleteModal();
+    // Remove the card immediately, then clear the local links on kept records.
+    auditSessions=auditSessions.filter(x=>x.id!==id);
+    AUDITS=AUDITS.filter(x=>x.id!==id);
+    if(typeof records!=="undefined"&&Array.isArray(records))records.forEach(r=>{if(r.auditId===id)r.auditId="";});
+    if(activeAuditId===id)activeAuditId=null;
+    renderAuditList();
+    renderDashCharts();
+    if(typeof renderDashboardV2==="function")renderDashboardV2();
+    if(typeof updateKPIs==="function")updateKPIs();
+    toast("Audit "+id+" deleted."+(data.attachmentsFailed?(" "+data.attachmentsFailed+" attachment file(s) could not be removed from storage."):""),data.attachmentsFailed?"yellow":"green");
+  }catch(e){
+    msg.textContent="Delete failed: "+(e.message||e);
+    toast("Could not delete audit "+id+": "+(e.message||e),"red");
+  }finally{
+    btn.textContent="Delete Audit";auditDeleteValidate();
+  }
 }
-
-// Populate and open the "cannot delete" dialog. The blocking finding ids and the
-// still-open CAPA / NCR ids are rendered through qisLinkedRecordLink so each is a
-// clickable jump to its detail view via the shared linked-record navigator.
-function showAuditDeleteBlocked(id,data){
-  const findings=(data.findings||[]);
-  const blockingIds=(data.blockingFindingIds||[]);
-  const blocking=findings.filter(f=>blockingIds.indexOf(f.id)>=0);
-  const shownFindings=blocking.length?blocking:findings;
-  const capaIds=(data.linkedCapaIds||[]);
-  const ncrIds=(data.linkedNcrIds||[]);
-  const msg=document.getElementById("audit-delete-blocked-msg");
-  if(msg)msg.textContent=data.error||("Audit "+id+" is linked to open records and cannot be deleted.");
-  let html="";
-  if(shownFindings.length){
-    html+=`<div style="margin-bottom:10px"><strong>Blocking finding(s):</strong><div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">`+
-      shownFindings.map(f=>qisLinkedRecordLink(f.type,f.id,{mono:true})+`<span style="color:#4a5568;font-size:11px">(${cesc(f.type||"")}${f.status?" · "+cesc(f.status):""})</span>`).join(" ")+
-      `</div></div>`;
-  }
-  if(capaIds.length){
-    html+=`<div style="margin-bottom:10px"><strong>Open CAPA(s):</strong><div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">`+
-      qisLinkedRecordLinks(capaIds.map(x=>({type:"CAPA",id:x,mono:true})))+`</div></div>`;
-  }
-  if(ncrIds.length){
-    html+=`<div style="margin-bottom:10px"><strong>Open NCR(s):</strong><div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">`+
-      qisLinkedRecordLinks(ncrIds.map(x=>({type:"NCR",id:x,mono:true})))+`</div></div>`;
-  }
-  html+=`<div style="color:#4a5568;font-size:11px;margin-top:6px">Close or unlink the open record(s) above, then delete the audit session again.</div>`;
-  const body=document.getElementById("audit-delete-blocked-body");
-  if(body)body.innerHTML=html;
-  const modal=document.getElementById("audit-delete-blocked-modal");
-  if(modal)modal.classList.add("open");
-  // Confirm each linked anchor still exists (downgrades dead links to plain text).
-  if(typeof qisVerifyLinkedAnchors==="function")qisVerifyLinkedAnchors("#audit-delete-blocked-body");
-}
-function closeAuditDeleteBlocked(){const m=document.getElementById("audit-delete-blocked-modal");if(m)m.classList.remove("open");}
 
 function loadAuditExec(auditId){
   activeAuditId=auditId;
@@ -10315,6 +10404,13 @@ async function removeRole(email){
 let _alogPage=1,_alogHasMore=false,_alogTimer=null;
 function alogDebounced(){clearTimeout(_alogTimer);_alogTimer=setTimeout(()=>loadActionLog(1),350);}
 function alogPage(d){const n=_alogPage+d;if(n<1)return;if(d>0&&!_alogHasMore)return;loadActionLog(n);}
+// Extra context shown under the record id for AUDIT_DELETED entries.
+function alogDetailLine(e){
+  if(!e||e.action!=="AUDIT_DELETED")return "";
+  const d=e.detail||{};
+  const secs=Array.isArray(d.sections)&&d.sections.length?d.sections.join(", "):(d.clausesLabel||"—");
+  return `<div style="font-size:10px;color:#4a5568;margin-top:2px;line-height:1.4">Sections: ${cesc(secs)} · Facility: ${cesc(d.facility||"—")} · Status: ${cesc(d.statusAtDeletion||"—")} · Clause records: ${cesc(String(d.clauseRecordCount??0))}<br>By: ${cesc(d.userName||"—")} &lt;${cesc(d.userEmail||e.userEmail||"")}&gt; · Reason: ${cesc(d.reason||"—")}</div>`;
+}
 async function loadActionLog(page){
   _alogPage=page||1;
   const tb=document.getElementById("alog-tbody");if(!tb)return;
@@ -10331,7 +10427,7 @@ async function loadActionLog(page){
     else{
       tb.innerHTML=rows.map(e=>{
         const ts=e.timestamp?new Date(e.timestamp).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"—";
-        return `<tr><td style="padding:5px 8px;white-space:nowrap">${cesc(ts)}</td><td style="padding:5px 8px">${cesc(e.userEmail||"—")}</td><td style="padding:5px 8px">${cesc(e.userRole||"—")}</td><td style="padding:5px 8px"><span style="font-family:'DM Mono',monospace;font-size:10px">${cesc(e.action||"")}</span></td><td style="padding:5px 8px">${cesc(e.recordType||"—")}</td><td style="padding:5px 8px">${cesc(e.recordId||"—")}</td><td style="padding:5px 8px">${cesc(e.site||"—")}</td></tr>`;
+        return `<tr><td style="padding:5px 8px;white-space:nowrap">${cesc(ts)}</td><td style="padding:5px 8px">${cesc(e.userEmail||"—")}</td><td style="padding:5px 8px">${cesc(e.userRole||"—")}</td><td style="padding:5px 8px"><span style="font-family:'DM Mono',monospace;font-size:10px">${cesc(e.action||"")}</span></td><td style="padding:5px 8px">${cesc(e.recordType||"—")}</td><td style="padding:5px 8px">${cesc(e.recordId||"—")}${alogDetailLine(e)}</td><td style="padding:5px 8px">${cesc(e.site||"—")}</td></tr>`;
       }).join("");
     }
     const pi=document.getElementById("alog-pageinfo");if(pi)pi.textContent="Page "+_alogPage;
@@ -10504,10 +10600,19 @@ function openNewAuditModal() {
   const twoWeeks = new Date(); twoWeeks.setDate(twoWeeks.getDate()+14);
   document.getElementById('na-date').value = today;
   document.getElementById('na-report-due').value = twoWeeks.toISOString().split('T')[0];
-  // Auto-generate audit number scoped to the chosen site.
+  // Auto-generate audit number scoped to the chosen site. The server continues
+  // from the highest number EVER issued (deleted audits included), so a deleted
+  // audit's number is never handed out again. The local count is only a
+  // placeholder until that answer arrives.
   const prefix=siteCode(def.site);
   const count = auditSessions.length + 1;
-  document.getElementById('na-id').value = 'AUDIT-' + prefix + '-2026-' + String(count).padStart(3,'0') + '-S1';
+  const naIdEl=document.getElementById('na-id');
+  naIdEl.value = 'AUDIT-' + prefix + '-' + new Date().getFullYear() + '-' + String(count).padStart(3,'0') + '-S1';
+  const placeholderId=naIdEl.value;
+  fetch(AUDITS_API+'?action=next-id&prefix='+encodeURIComponent(prefix))
+    .then(r=>r.ok?r.json():null)
+    .then(d=>{if(d&&d.id&&naIdEl.value===placeholderId)naIdEl.value=d.id;})
+    .catch(()=>{});
   document.getElementById('na-appb').value = '';
   document.getElementById('na-notes').value = '';
   renderNaSectionPicker();
@@ -10544,7 +10649,12 @@ async function saveNewAudit() {
   };
   try{
     const res=await fetch(AUDITS_API+"?action=create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
+    if(!res.ok){
+      let d={};try{d=await res.json();}catch(_){}
+      // A deleted audit's number is retired — offer the next free number.
+      if(res.status===409&&d.retired&&d.nextId){document.getElementById('na-id').value=d.nextId;}
+      throw new Error(d.error||("HTTP "+res.status));
+    }
     closeNewAuditModal();
     await showAuditList();
     renderDashCharts();
