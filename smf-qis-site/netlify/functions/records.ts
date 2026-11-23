@@ -5,16 +5,17 @@
 //   GET    /api/records?log=QIS-0001   → audit-trail history for one record
 //   POST   /api/records                → create one record, or bulk-import { records: [...] }
 //   PUT    /api/records?id=QIS-0001     → update a record
-//   DELETE /api/records?id=QIS-0001     → delete a record
+//   DELETE /api/records?id=QIS-0001     → delete a record (cascades to CAPA links; optional reason)
+//   POST   /api/records/bulk-delete     → { ids, reason, dryRun? } Admin-only cascading bulk delete
 //
 // Every mutation writes a row to `audit_log`, and create/update also stamp the
 // record's created_by/at and modified_by/at columns, giving a full audit trail.
 import type { Config } from "@netlify/functions";
 import { getUser } from "@netlify/identity";
-import { eq, and, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, asc, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { records, auditLog, effectivenessChecks, capaLinks, oosRecords } from "../../db/schema.js";
-import { getAuth, roleAtLeast, logAction, concurrencyMatches, conflictResponse } from "./lib/auth.js";
+import { getAuth, roleAtLeast, logAction, actionLogInsert, concurrencyMatches, conflictResponse } from "./lib/auth.js";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -378,6 +379,259 @@ async function nextEffId() {
   return "EFF-" + String(max + 1).padStart(4, "0");
 }
 
+// ── CASCADING RECORD DELETE ─────────────────────────────────────────────────
+// Shared by DELETE /api/records?id= and POST /api/records/bulk-delete. Deleting
+// a record also removes every capa_links row that references it (as the source,
+// or as the CAPA it rolls up to) and clears records.capa_id on any record that
+// points at it, so no dangling CAPA linkage survives the delete.
+const BULK_DELETE_MAX = 100;
+
+
+interface DeletePlanItem {
+  record: typeof records.$inferSelect;
+  links: (typeof capaLinks.$inferSelect)[]; // rows removed with this record
+  referencing: string[]; // record ids whose capa_id points at this record
+}
+
+interface DeletePlan {
+  items: DeletePlanItem[];
+  skipped: { id: string; capaId: string; reason: string }[];
+  linksRemoved: number;
+  // Concurrency guards checked inside the delete batch: the expected number of
+  // capa_links rows touching the deleted ids, records referencing them, and —
+  // for the orphan rule — each surviving CAPA's current source count.
+  expectedLinkCount: number;
+  expectedRefCount: number;
+  capaSourceCounts: Map<string, number>;
+}
+
+// Work out what deleting `ids` would do, without changing anything. When
+// `guardOrphans` is true, any record whose removal would leave a CAPA with zero
+// remaining sources is skipped (reported with that CAPA's id).
+async function planRecordDeletion(ids: string[], guardOrphans: boolean): Promise<DeletePlan> {
+  const exec = db;
+  const skipped: DeletePlan["skipped"] = [];
+  const found = ids.length ? await exec.select().from(records).where(inArray(records.id, ids)) : [];
+  const byId = new Map<string, typeof records.$inferSelect>(found.map((r: any) => [r.id, r]));
+  for (const id of ids) {
+    if (!byId.has(id)) skipped.push({ id, capaId: "", reason: "Record not found." });
+  }
+  const foundIds = ids.filter((id) => byId.has(id));
+  if (!foundIds.length) return { items: [], skipped, linksRemoved: 0, expectedLinkCount: 0, expectedRefCount: 0, capaSourceCounts: new Map() };
+
+  // Links that point at the record as a source, or roll up to it as the CAPA.
+  const linkRows: (typeof capaLinks.$inferSelect)[] = await exec
+    .select()
+    .from(capaLinks)
+    .where(or(inArray(capaLinks.sourceId, foundIds), inArray(capaLinks.capaId, foundIds)));
+  const refRows: { id: string; capaId: string }[] = await exec
+    .select({ id: records.id, capaId: records.capaId })
+    .from(records)
+    .where(inArray(records.capaId, foundIds));
+
+  // CAPAs each record is a source of (via capa_links or its own capa_id).
+  const affected = new Map<string, Set<string>>();
+  for (const id of foundIds) {
+    const set = new Set<string>();
+    for (const l of linkRows) if (l.sourceId === id && l.capaId && l.capaId !== id) set.add(l.capaId);
+    const own = (byId.get(id)!.capaId || "").trim();
+    if (own && own !== id) set.add(own);
+    affected.set(id, set);
+  }
+
+  const orphanSkip = new Map<string, string>(); // record id → CAPA id
+  // Every source currently feeding each affected CAPA (filled when guarding).
+  const sources = new Map<string, Set<string>>();
+  if (guardOrphans) {
+    const capaIds = [...new Set([...affected.values()].flatMap((s) => [...s]))];
+    if (capaIds.length) {
+      const add = (c: string, src: string) => {
+        if (!src || src === c) return;
+        if (!sources.has(c)) sources.set(c, new Set());
+        sources.get(c)!.add(src);
+      };
+      const l2 = await exec.select({ capaId: capaLinks.capaId, sourceId: capaLinks.sourceId }).from(capaLinks).where(inArray(capaLinks.capaId, capaIds));
+      l2.forEach((l: any) => add(l.capaId, l.sourceId));
+      const r2 = await exec.select({ id: records.id, capaId: records.capaId }).from(records).where(inArray(records.capaId, capaIds));
+      r2.forEach((r: any) => add(r.capaId, r.id));
+      const o2 = await exec.select({ id: oosRecords.id, capaId: oosRecords.capaId }).from(oosRecords).where(inArray(oosRecords.capaId, capaIds));
+      o2.forEach((o: any) => add(o.capaId, o.id));
+    }
+    // Process in request order; a CAPA that is itself being deleted is exempt.
+    // Skipping a CAPA can un-exempt it, so repeat until the skip set is stable.
+    for (let pass = 0; pass <= foundIds.length; pass++) {
+      const before = orphanSkip.size;
+      const capaDeleting = new Set(foundIds.filter((id) => !orphanSkip.has(id)));
+      const committed = new Set<string>();
+      orphanSkip.clear();
+      for (const id of foundIds) {
+        let blocker = "";
+        for (const c of affected.get(id)!) {
+          if (capaDeleting.has(c)) continue;
+          const remaining = [...(sources.get(c) || [])].filter((src) => src !== id && !committed.has(src));
+          if (remaining.length === 0) { blocker = c; break; }
+        }
+        if (blocker) orphanSkip.set(id, blocker);
+        else committed.add(id);
+      }
+      if (orphanSkip.size === before && pass > 0) break;
+    }
+  }
+
+  const items: DeletePlanItem[] = [];
+  const claimed = new Set<string>(); // a link touching two deleted records is removed once
+  for (const id of foundIds) {
+    const capa = orphanSkip.get(id);
+    if (capa) {
+      skipped.push({ id, capaId: capa, reason: `Deleting would leave CAPA ${capa} with no remaining source.` });
+      continue;
+    }
+    const links = linkRows.filter((l) => (l.sourceId === id || l.capaId === id) && !claimed.has(l.id));
+    links.forEach((l) => claimed.add(l.id));
+    const referencing = refRows.filter((r) => r.capaId === id && r.id !== id).map((r) => r.id);
+    items.push({ record: byId.get(id)!, links, referencing });
+  }
+  // Surviving CAPAs that a deleted record currently feeds: their source count
+  // must be unchanged when the batch runs, or the skip decision is stale.
+  const capaSourceCounts = new Map<string, number>();
+  if (guardOrphans) {
+    const deleting = new Set(items.map((it) => it.record.id));
+    for (const it of items) {
+      for (const c of affected.get(it.record.id)!) {
+        if (!deleting.has(c)) capaSourceCounts.set(c, (sources.get(c) || new Set()).size);
+      }
+    }
+  }
+  const deletingIds = new Set(items.map((it) => it.record.id));
+  return {
+    items,
+    skipped,
+    linksRemoved: items.reduce((n, it) => n + it.links.length, 0),
+    expectedLinkCount: linkRows.filter((l) => deletingIds.has(l.sourceId) || deletingIds.has(l.capaId)).length,
+    expectedRefCount: refRows.filter((r) => deletingIds.has(r.capaId) && r.id !== r.capaId).length,
+    capaSourceCounts,
+  };
+}
+
+// Snapshot of a record for the deletion audit trail. Photo payloads (data URLs)
+// are reduced to their names so the action_log row stays small.
+function deletionSnapshot(item: DeletePlanItem) {
+  const r: any = { ...item.record };
+  r.photos = Array.isArray(r.photos) ? r.photos.map((p: any) => ({ name: p?.name || "", type: p?.type || "" })) : [];
+  return {
+    record: r,
+    removedLinks: item.links.map((l) => ({ id: l.id, capaId: l.capaId, sourceType: l.sourceType, sourceId: l.sourceId, linkedBy: l.linkedBy, linkedAt: l.linkedAt })),
+    clearedCapaReferences: item.referencing,
+  };
+}
+
+// Build the statements that carry out a plan, writing the same audit_log /
+// action_log entries as the capa-links unlink flow and the single-record
+// delete. Guard statements come first: each raises a division by zero (and so
+// rolls the whole batch back) if the data it was planned from has changed.
+function buildDeletionStatements(
+  plan: DeletePlan,
+  ctx: { email: string; role: any; actor: string; reason: string; bulk: boolean }
+): any[] {
+  const now = new Date();
+  const statements: any[] = [];
+  const ids = plan.items.map((it) => it.record.id);
+  const idList = sql.join(ids.map((id) => sql`${id}`), sql`, `);
+  // Links / references touching the deleted ids are exactly the ones read, so
+  // no link added mid-request is left pointing at a deleted record.
+  statements.push(
+    db.execute(sql`SELECT 1 / (CASE WHEN
+      (SELECT count(*)::int FROM capa_links WHERE source_id IN (${idList}) OR capa_id IN (${idList})) = ${plan.expectedLinkCount}
+      AND (SELECT count(*)::int FROM records WHERE capa_id IN (${idList}) AND id <> capa_id) = ${plan.expectedRefCount}
+      THEN 1 ELSE 0 END) AS guard`)
+  );
+  // Orphan rule: each surviving CAPA's source count must match what the skip
+  // decision was based on.
+  for (const [capaId, n] of plan.capaSourceCounts) {
+    statements.push(
+      db.execute(sql`SELECT 1 / (CASE WHEN (SELECT count(*)::int FROM (
+          SELECT source_id AS s FROM capa_links WHERE capa_id = ${capaId}
+          UNION SELECT id FROM records WHERE capa_id = ${capaId}
+          UNION SELECT id FROM oos_records WHERE capa_id = ${capaId}
+        ) u WHERE s <> ${capaId} AND s <> '') = ${n} THEN 1 ELSE 0 END) AS guard`)
+    );
+  }
+  for (const item of plan.items) {
+    const id = item.record.id;
+    for (const l of item.links) {
+      statements.push(
+        db.delete(capaLinks).where(eq(capaLinks.id, l.id)),
+        db.insert(auditLog).values({
+          recordId: l.capaId,
+          action: "unlink",
+          detail: `Removed link to ${l.sourceType} ${l.sourceId} from CAPA ${l.capaId}`,
+          changedBy: ctx.actor || "Unknown",
+        }),
+        actionLogInsert({ email: ctx.email, role: ctx.role, action: "link_removed", recordType: "capa_link", recordId: l.capaId, detail: { sourceType: l.sourceType, sourceId: l.sourceId } })
+      );
+    }
+    if (item.referencing.length) {
+      statements.push(db.update(records).set({ capaId: "", modifiedBy: ctx.actor, modifiedAt: now }).where(eq(records.capaId, id)));
+      for (const refId of item.referencing) {
+        statements.push(
+          db.insert(auditLog).values({
+            recordId: refId,
+            action: "update",
+            detail: `Cleared CAPA reference to deleted record ${id}`,
+            changedBy: ctx.actor || "Unknown",
+          })
+        );
+      }
+    }
+    const r = item.record;
+    statements.push(
+      db.delete(records).where(eq(records.id, id)),
+      db.insert(auditLog).values({
+        recordId: id,
+        action: "delete",
+        detail: `Deleted ${r.type} (${r.severity}) — ${r.clause || "no clause"}${ctx.reason ? ` — reason: ${ctx.reason}` : ""}`,
+        changedBy: ctx.actor || "Unknown",
+      }),
+      actionLogInsert({
+        email: ctx.email,
+        role: ctx.role,
+        action: "record_deleted",
+        recordType: r.type || "record",
+        recordId: id,
+        site: r.site,
+        detail: { severity: r.severity, clause: r.clause, reason: ctx.reason, bulk: ctx.bulk, snapshot: deletionSnapshot(item) },
+      })
+    );
+  }
+  return statements;
+}
+
+// Run a plan as ONE atomic db.batch() — the Netlify DB driver sends it as a
+// single HTTP transaction (no WebSocket session), and if any statement fails
+// the whole batch rolls back so nothing is partially deleted. Returns an error
+// Response on failure, or null on success.
+async function runDeletion(
+  plan: DeletePlan,
+  ctx: { email: string; role: any; actor: string; reason: string; bulk: boolean }
+): Promise<Response | null> {
+  if (!plan.items.length) return null;
+  try {
+    await db.batch(buildDeletionStatements(plan, ctx) as any);
+    return null;
+  } catch (e: any) {
+    const raw = e?.message || String(e);
+    console.error("[records] delete transaction rolled back", {
+      error: e,
+      recordIds: plan.items.map((it) => it.record.id),
+      email: ctx.email,
+    });
+    if (/division by zero/i.test(raw)) {
+      return json(409, { error: "These records or their CAPA links changed while you were deleting. Nothing was deleted — reload and try again." });
+    }
+    return json(500, { error: `Delete failed and was rolled back — no records were changed. ${raw}` });
+  }
+}
+
 export default async (req: Request) => {
   const url = new URL(req.url);
   // Captured inside the try as soon as the identity resolves, so the outer catch
@@ -405,6 +659,48 @@ export default async (req: Request) => {
     if (req.method !== "GET" && !canEdit) {
       await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "record", detail: { method: req.method } });
       return json(403, { error: "Your role does not have access to modify these records." });
+    }
+
+    // ── POST /api/records/bulk-delete { ids, reason, dryRun? } ──────────────
+    if (url.pathname.replace(/\/+$/, "").endsWith("/bulk-delete")) {
+      if (req.method !== "POST") return json(405, { error: "Method not allowed" });
+      if (!admin) {
+        await logAction({ email: auth.email, role: auth.role, action: "permission_denied", recordType: "record", detail: { attempted: "bulk_delete" } });
+        return json(403, { error: "Only an administrator can delete records." });
+      }
+      const body = await req.json().catch(() => ({}));
+      const rawIds = Array.isArray(body.ids) ? body.ids : null;
+      if (!rawIds || !rawIds.length) return json(400, { error: "Provide a non-empty ids array." });
+      const ids = [...new Set(rawIds.map((v: any) => (v == null ? "" : String(v)).trim()).filter(Boolean))] as string[];
+      if (!ids.length) return json(400, { error: "Provide a non-empty ids array." });
+      if (ids.length > BULK_DELETE_MAX) return json(400, { error: `A maximum of ${BULK_DELETE_MAX} records can be deleted at once.` });
+      const dryRun = body.dryRun === true || body.dry_run === true;
+      const reason = (body.reason == null ? "" : String(body.reason)).trim();
+
+      if (dryRun) {
+        const plan = await planRecordDeletion(ids, true);
+        // Links the single DELETE path would remove — it never skips orphaning
+        // records, so this counts every link of every found record.
+        const unguarded = await planRecordDeletion(ids, false);
+        return json(200, {
+          dryRun: true,
+          deleted: plan.items.map((it) => it.record.id),
+          linksRemoved: plan.linksRemoved,
+          linksRemovedUnguarded: unguarded.linksRemoved,
+          skipped: plan.skipped,
+        });
+      }
+
+      if (reason.length < 10) return json(400, { error: "A reason of at least 10 characters is required." });
+      // All reads first, then every write in one atomic db.batch().
+      const plan = await planRecordDeletion(ids, true);
+      const failed = await runDeletion(plan, { email: auth.email, role: auth.role, actor, reason, bulk: true });
+      if (failed) return failed;
+      return json(200, {
+        deleted: plan.items.map((it) => it.record.id),
+        linksRemoved: plan.linksRemoved,
+        skipped: plan.skipped,
+      });
     }
 
     if (req.method === "GET") {
@@ -951,12 +1247,19 @@ export default async (req: Request) => {
       }
       const id = (url.searchParams.get("id") || "").toString();
       if (!id) return json(400, { error: "Missing record id." });
-      const [existing] = await db.select().from(records).where(eq(records.id, id));
-      if (!existing) return json(404, { error: "Record not found." });
-      await db.delete(records).where(eq(records.id, id));
-      await logChange(id, "delete", `Deleted ${existing.type} (${existing.severity}) — ${existing.clause || "no clause"}`, actor);
-      await logAction({ email: auth.email, role: auth.role, action: "record_deleted", recordType: existing.type || "record", recordId: id, site: existing.site, detail: { severity: existing.severity, clause: existing.clause } });
-      return json(200, { ok: true });
+      // Optional reason — accepted as ?reason= or a JSON body { reason }.
+      let reason = (url.searchParams.get("reason") || "").toString().trim();
+      if (!reason) {
+        const body = await req.json().catch(() => ({}));
+        reason = (body && body.reason != null ? String(body.reason) : "").trim();
+      }
+      // Cascade: remove the record's capa_links rows and clear capa_id
+      // references to it, then delete — all in one atomic db.batch().
+      const plan = await planRecordDeletion([id], false);
+      if (!plan.items.length) return json(404, { error: "Record not found." });
+      const failed = await runDeletion(plan, { email: auth.email, role: auth.role, actor, reason, bulk: false });
+      if (failed) return failed;
+      return json(200, { ok: true, deleted: [id], linksRemoved: plan.linksRemoved });
     }
 
     return json(405, { error: "Method not allowed" });
@@ -975,5 +1278,5 @@ export default async (req: Request) => {
 };
 
 export const config: Config = {
-  path: "/api/records",
+  path: ["/api/records", "/api/records/bulk-delete"],
 };

@@ -260,6 +260,17 @@ a.badge.qis-link:hover{text-decoration:underline;text-underline-offset:2px;filte
 .modal-overlay.open{opacity:1;pointer-events:all;}
 .modal{background:#ffffff;border:2px solid #1F4E79;border-radius:6px;padding:26px;width:680px;max-width:96vw;max-height:92vh;overflow-y:auto;transform:translateY(10px);transition:transform 0.2s;}
 .modal-overlay.open .modal{transform:translateY(0);}
+/* All Records — bulk selection (Admin only) */
+.rec-sel-col{display:none;width:30px;text-align:center;}
+body.is-admin .rec-sel-col{display:table-cell;}
+.rec-sel-col input{accent-color:#1F4E79;cursor:pointer;width:14px;height:14px;vertical-align:middle;}
+.rec-bulk-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;margin:0 0 10px;border:1px solid #BDD7EE;background:#F2F7FC;border-radius:8px;font-size:12px;color:#1F3864;}
+.rec-bulk-bar .rec-bulk-count{font-family:'DM Mono',monospace;font-weight:700;}
+.rec-del-ids{display:flex;flex-wrap:wrap;gap:5px;max-height:140px;overflow-y:auto;padding:8px;border:1px solid var(--border2);border-radius:6px;background:#f8fafc;margin-bottom:12px;}
+.rec-del-ids span{font-family:'DM Mono',monospace;font-size:10px;padding:2px 7px;border-radius:10px;background:#fff;border:1px solid #c0c8d2;color:#1F3864;}
+.rec-del-skip{background:#FFF4E0;border:1px solid #C65911;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#7a3a00;}
+.rec-del-skip ul{margin:6px 0 0 18px;padding:0;}
+#rdel-btn:disabled,#rdel-btn:disabled:hover{opacity:0.45;cursor:not-allowed;background:#C00000;color:var(--bg);transform:none;box-shadow:none;}
 .modal-title{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;margin-bottom:18px;color:#1F3864;}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
 .form-full{grid-column:1/-1;}
@@ -674,9 +685,14 @@ nav::-webkit-scrollbar{display:none;}
     <div class="filter-chip" onclick="filterRecords('overdue',this)">Overdue</div>
     <div class="filter-chip" onclick="filterRecords('closed',this)">Closed</div>
   </div>
+  <div class="rec-bulk-bar" id="rec-bulk-bar" style="display:none">
+    <span class="rec-bulk-count" id="rec-bulk-count">0 selected</span>
+    <button type="button" class="btn-ghost" style="padding:4px 10px;font-size:11px" onclick="recSelClear()">Clear</button>
+    <button type="button" class="btn-danger" style="margin-left:auto" onclick="openBulkRecordDelete()">Delete selected</button>
+  </div>
   <div class="scroll-wrap">
     <table class="data-table">
-      <thead><tr><th>ID</th><th>Type</th><th>Sev</th><th style="cursor:pointer" onclick="toggleRiskSort()" title="Sort by risk score">Risk <span id="risk-sort-caret" style="font-size:9px;color:#4a5568"></span></th><th>Description</th><th>Clause</th><th>Owner</th><th>Due</th><th>Photos</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th class="rec-sel-col"><input type="checkbox" id="rec-sel-all" title="Select / clear every record in this view" aria-label="Select all records in this view" onchange="recSelAll(this.checked)"></th><th>ID</th><th>Type</th><th>Sev</th><th style="cursor:pointer" onclick="toggleRiskSort()" title="Sort by risk score">Risk <span id="risk-sort-caret" style="font-size:9px;color:#4a5568"></span></th><th>Description</th><th>Clause</th><th>Owner</th><th>Due</th><th>Photos</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody id="records-tbody"></tbody>
     </table>
   </div>
@@ -1097,6 +1113,32 @@ nav::-webkit-scrollbar{display:none;}
     <div class="modal-actions">
       <button type="button" class="btn-ghost" onclick="closeAuditDeleteModal()">Cancel</button>
       <button type="button" class="btn" id="adel-btn" style="background:#C00000" disabled onclick="confirmAuditDelete()">Delete Audit</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECORD DELETE MODAL (single × and bulk "Delete selected") -->
+<!-- Lists the ids, previews the CAPA-link cascade via a dry run and requires a -->
+<!-- typed reason. Driven by openRecordDeleteModal(). -->
+<div class="modal-overlay" id="rec-delete-modal">
+  <div class="modal" style="border-top:3px solid #C00000;max-width:620px">
+    <div class="modal-title" style="color:#7a0000" id="rdel-title">Delete records</div>
+    <div style="font-size:12px;margin-bottom:6px;color:#1F3864" id="rdel-count-line"></div>
+    <div class="rec-del-ids" id="rdel-ids"></div>
+    <div style="background:#FCE4E4;border:1px solid #C00000;border-radius:4px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#7a0000">
+      <div id="rdel-links">Checking CAPA links…</div>
+      <div style="margin-top:4px">Deleted records cannot be restored.</div>
+    </div>
+    <div id="rdel-skipped"></div>
+    <div class="form-group form-full">
+      <label class="form-label" for="rdel-reason">Reason for deletion (minimum 10 characters)</label>
+      <textarea class="form-input" id="rdel-reason" rows="3" oninput="recDeleteValidate()" placeholder="e.g. Duplicate record created in error"></textarea>
+      <div id="rdel-reason-count" style="font-size:10px;color:#4a5568;margin-top:3px">0 / 10</div>
+    </div>
+    <div id="rdel-msg" style="min-height:16px;color:#C00000;font-size:11px;margin-top:4px"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" onclick="closeRecordDeleteModal()">Cancel</button>
+      <button type="button" class="btn" id="rdel-btn" style="background:#C00000" disabled onclick="confirmRecordDelete()">Confirm</button>
     </div>
   </div>
 </div>
@@ -4954,8 +4996,9 @@ function renderTable(f){
   else if(currentRiskFilter)list=list.filter(r=>(r.riskLevel||"")===currentRiskFilter);
   // Sort by risk score when the Risk column header has been toggled.
   if(riskSortDir!==0)list.sort((a,b)=>riskSortDir*(((b.riskScore||0))-((a.riskScore||0))));
+  recSelSync(list);
   const tbody=document.getElementById("records-tbody");
-  if(!list.length){tbody.innerHTML=`<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">📋</div>No records match.</div></td></tr>`;return;}
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="${isAdminUser?12:11}"><div class="empty-state"><div class="empty-icon">📋</div>No records match.</div></td></tr>`;return;}
   tbody.innerHTML=list.map(r=>{
     const over=!/^Closed/.test(r.status||"")&&r.due&&new Date(r.due)<new Date();
     const dl=r.due?Math.ceil((new Date(r.due)-new Date())/(1000*60*60*24)):null;
@@ -4972,6 +5015,7 @@ function renderTable(f){
     else if(st==="In Progress")sb=`badge-inprogress">In Progress`;
     else sb=`badge-open">Open`;
     return `<tr>
+      ${isAdminUser?`<td class="rec-sel-col"><input type="checkbox" class="rec-sel" data-id="${cesc(r.id)}" aria-label="Select ${cesc(r.id)}" ${_recSel.has(r.id)?"checked":""} onchange="recSelToggle(this.dataset.id,this.checked)"></td>`:""}
       <td><span style="font-family:'DM Mono',monospace;font-size:10px;color:#4a5568">${r.id}</span></td>
       <td><span class="badge badge-${(r.type||"").toLowerCase()}">${r.type}</span></td>
       <td><span class="badge ${r.severity==="Major"||r.severity==="Critical"?"badge-major":"badge-minor"}">${r.severity}</span></td>
@@ -5885,16 +5929,164 @@ async function saveRecord(){
   }catch(e){toast("Save failed: "+e.message,"red");}
 }
 
-async function deleteRecord(id){
+// ── RECORD DELETION (single × and bulk) ────────────────────────────────────
+// Both paths go through the same in-app modal: it lists the ids, previews how
+// many CAPA links the cascade removes (dry run of /api/records/bulk-delete),
+// lists CAPAs that would be left with no source, and requires a typed reason.
+let _recSel=new Set();      // selected record ids in the All Records table
+let _recSelKey=null;        // filter signature the selection belongs to
+let _recVisibleIds=[];      // ids in the current filtered view
+let _recDelCtx=null;        // {mode:"single"|"bulk", ids, dry, loading}
+
+// Called by renderTable with the filtered list: clears the selection whenever
+// any filter changes, prunes ids no longer visible, and syncs the header
+// checkbox + action bar.
+function recSelSync(list){
+  const key=[currentFilter,currentSourceFilter,currentRiskFilter].join("|");
+  if(key!==_recSelKey){_recSel.clear();_recSelKey=key;}
+  _recVisibleIds=list.map(r=>r.id);
+  if(!isAdminUser)_recSel.clear();
+  const vis=new Set(_recVisibleIds);
+  [..._recSel].forEach(id=>{if(!vis.has(id))_recSel.delete(id);});
+  recSelUpdateUI();
+}
+function recSelUpdateUI(){
+  const n=_recSel.size,total=_recVisibleIds.length;
+  const all=document.getElementById("rec-sel-all");
+  if(all){all.checked=total>0&&n===total;all.indeterminate=n>0&&n<total;all.disabled=!total;}
+  const bar=document.getElementById("rec-bulk-bar");
+  if(bar)bar.style.display=(isAdminUser&&n>0)?"flex":"none";
+  const c=document.getElementById("rec-bulk-count");if(c)c.textContent=n+" selected";
+}
+function recSelToggle(id,on){
+  if(!isAdminUser)return;
+  if(on)_recSel.add(id);else _recSel.delete(id);
+  recSelUpdateUI();
+}
+function recSelAll(on){
+  if(!isAdminUser)return;
+  _recSel.clear();
+  if(on)_recVisibleIds.forEach(id=>_recSel.add(id));
+  document.querySelectorAll("#records-tbody input.rec-sel").forEach(cb=>{cb.checked=_recSel.has(cb.dataset.id);});
+  recSelUpdateUI();
+}
+function recSelClear(){recSelAll(false);}
+
+function deleteRecord(id){
   if(!isAdminUser){toast("Only an administrator can delete records.","red");return;}
-  if(!confirm("Delete?"))return;
-  if(!(await requireReauth({actionLabel:"Delete record "+id,recordId:id})))return;
+  openRecordDeleteModal([id],"single");
+}
+function openBulkRecordDelete(){
+  if(!isAdminUser){toast("Only an administrator can delete records.","red");return;}
+  const ids=_recVisibleIds.filter(id=>_recSel.has(id));
+  if(!ids.length){toast("Select at least one record.","yellow");return;}
+  if(ids.length>100){toast("You can delete at most 100 records at a time — "+ids.length+" are selected.","red");return;}
+  openRecordDeleteModal(ids,"bulk");
+}
+
+async function openRecordDeleteModal(ids,mode){
+  const ctx={mode,ids:[...ids],dry:null,loading:true,error:""};
+  _recDelCtx=ctx;
+  const n=ids.length;
+  document.getElementById("rdel-title").textContent=mode==="single"?"Delete record":"Delete "+n+" records";
+  document.getElementById("rdel-count-line").textContent=n===1?"The following record will be permanently deleted:":"The following "+n+" records will be permanently deleted:";
+  document.getElementById("rdel-ids").innerHTML=ids.map(id=>`<span>${cesc(id)}</span>`).join("");
+  document.getElementById("rdel-links").textContent="Checking CAPA links…";
+  document.getElementById("rdel-skipped").innerHTML="";
+  document.getElementById("rdel-reason").value="";
+  document.getElementById("rdel-msg").textContent="";
+  recDeleteValidate();
+  document.getElementById("rec-delete-modal").classList.add("open");
+  setTimeout(()=>{const t=document.getElementById("rdel-reason");if(t)t.focus();},50);
   try{
-    const res=await fetch(API+"?id="+encodeURIComponent(id),{method:"DELETE"});
-    if(!res.ok){let m="HTTP "+res.status;try{m=(await res.json()).error||m;}catch(_){}throw new Error(m);}
-    await refresh();
-    toast("Record deleted.","green");
-  }catch(e){toast("Delete failed: "+e.message,"red");}
+    const res=await fetch(API+"/bulk-delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids,dryRun:true})});
+    let d={};try{d=await res.json();}catch(_){}
+    if(!res.ok)throw new Error(d.error||("HTTP "+res.status));
+    if(_recDelCtx!==ctx)return;
+    ctx.dry=d;
+  }catch(e){
+    if(_recDelCtx!==ctx)return;
+    ctx.error=e.message||String(e);
+  }
+  ctx.loading=false;
+  renderRecordDeletePreview();
+  recDeleteValidate();
+}
+
+function renderRecordDeletePreview(){
+  const ctx=_recDelCtx;if(!ctx)return;
+  const linksEl=document.getElementById("rdel-links");
+  const skipEl=document.getElementById("rdel-skipped");
+  if(ctx.error){linksEl.textContent="Could not check CAPA links: "+ctx.error;skipEl.innerHTML="";return;}
+  const d=ctx.dry||{};
+  // Single delete never skips, so count every link it will actually remove;
+  // bulk delete leaves skipped records (and their links) untouched.
+  const m=Number(ctx.mode==="single"?d.linksRemovedUnguarded:d.linksRemoved)||0;
+  linksEl.textContent="This will also remove "+m+" CAPA link"+(m===1?"":"s")+".";
+  const skipped=Array.isArray(d.skipped)?d.skipped:[];
+  const orphan=skipped.filter(s=>s.capaId);
+  const missing=skipped.filter(s=>!s.capaId);
+  let html="";
+  if(orphan.length){
+    const head=ctx.mode==="single"
+      ?"Warning — deleting this record leaves the following CAPA with no source:"
+      :"These records will be skipped because deleting them would leave a CAPA with no source:";
+    html+=`<div class="rec-del-skip"><b>${head}</b><ul>${orphan.map(s=>`<li><span style="font-family:'DM Mono',monospace">${ctx.mode==="single"?cesc(s.capaId):cesc(s.id)+" → CAPA "+cesc(s.capaId)}</span></li>`).join("")}</ul></div>`;
+  }
+  if(missing.length){
+    html+=`<div class="rec-del-skip"><b>Not found (already deleted?):</b> <span style="font-family:'DM Mono',monospace">${missing.map(s=>cesc(s.id)).join(", ")}</span></div>`;
+  }
+  skipEl.innerHTML=html;
+}
+
+function recDeleteValidate(){
+  const ctx=_recDelCtx;
+  const reason=(document.getElementById("rdel-reason").value||"").trim();
+  const cnt=document.getElementById("rdel-reason-count");
+  if(cnt){cnt.textContent=Math.min(reason.length,999)+" / 10";cnt.style.color=reason.length>=10?"#375623":"#4a5568";}
+  let ok=!!ctx&&!ctx.loading&&!ctx.busy&&!ctx.error&&reason.length>=10;
+  // A bulk delete where every record would be skipped has nothing to do.
+  if(ok&&ctx.mode==="bulk"){const d=ctx.dry||{};ok=Array.isArray(d.deleted)&&d.deleted.length>0;}
+  if(ok&&ctx.mode==="single"){const d=ctx.dry||{};ok=!(Array.isArray(d.skipped)&&d.skipped.some(s=>!s.capaId));}
+  const btn=document.getElementById("rdel-btn");if(btn)btn.disabled=!ok;
+}
+
+function closeRecordDeleteModal(){
+  document.getElementById("rec-delete-modal").classList.remove("open");
+  _recDelCtx=null;
+}
+
+async function confirmRecordDelete(){
+  const ctx=_recDelCtx;if(!ctx)return;
+  const reason=(document.getElementById("rdel-reason").value||"").trim();
+  if(reason.length<10){recDeleteValidate();return;}
+  const label=ctx.mode==="single"?"Delete record "+ctx.ids[0]:"Delete "+ctx.ids.length+" records";
+  if(!(await requireReauth({actionLabel:label,recordId:ctx.ids[0]})))return;
+  if(_recDelCtx!==ctx)return;
+  ctx.busy=true;recDeleteValidate();
+  const msg=document.getElementById("rdel-msg");msg.textContent="";
+  try{
+    let deleted=0,links=0,skipped=0;
+    if(ctx.mode==="single"){
+      const id=ctx.ids[0];
+      const res=await fetch(API+"?id="+encodeURIComponent(id)+"&reason="+encodeURIComponent(reason),{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({reason})});
+      let d={};try{d=await res.json();}catch(_){}
+      if(!res.ok)throw new Error(d.error||("HTTP "+res.status));
+      deleted=1;links=Number(d.linksRemoved)||0;
+    }else{
+      const res=await fetch(API+"/bulk-delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:ctx.ids,reason})});
+      let d={};try{d=await res.json();}catch(_){}
+      if(!res.ok)throw new Error(d.error||("HTTP "+res.status));
+      deleted=(d.deleted||[]).length;links=Number(d.linksRemoved)||0;skipped=(d.skipped||[]).length;
+    }
+    closeRecordDeleteModal();
+    _recSel.clear();
+    await refresh(); // re-renders with the current filters intact
+    toast("Deleted "+deleted+" record"+(deleted===1?"":"s")+" · removed "+links+" CAPA link"+(links===1?"":"s")+" · skipped "+skipped,"green");
+  }catch(e){
+    ctx.busy=false;recDeleteValidate();
+    msg.textContent="Delete failed: "+(e.message||e);
+  }
 }
 
 function handlePhotoSelect(e){processFiles(Array.from(e.target.files),"photo-preview-grid","f-photos",currentPhotos);e.target.value="";}
