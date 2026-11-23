@@ -189,22 +189,29 @@ export async function logAction(params: {
   detail?: Record<string, any>;
 }): Promise<void> {
   try {
-    const now = new Date();
-    const id = `AL-${now.getTime()}-${(logSeq = (logSeq + 1) % 100000)}`;
-    await db.insert(actionLog).values({
-      id,
-      timestamp: now,
-      userEmail: (params.email || "").toLowerCase(),
-      userRole: (params.role as string) || "",
-      action: params.action,
-      recordType: params.recordType || "",
-      recordId: params.recordId || "",
-      site: params.site || "",
-      detail: params.detail || {},
-    });
+    await actionLogInsert(params);
   } catch {
     // Intentionally ignored — logging is never allowed to fail a request.
   }
+}
+
+// Build (but do not run) the action_log insert for `params`, so a caller can
+// include it in a db.batch() alongside its own writes — the log row then
+// commits or rolls back with them. logAction() above runs it immediately.
+export function actionLogInsert(params: Parameters<typeof logAction>[0]) {
+  const now = new Date();
+  const id = `AL-${now.getTime()}-${(logSeq = (logSeq + 1) % 100000)}`;
+  return db.insert(actionLog).values({
+    id,
+    timestamp: now,
+    userEmail: (params.email || "").toLowerCase(),
+    userRole: (params.role as string) || "",
+    action: params.action,
+    recordType: params.recordType || "",
+    recordId: params.recordId || "",
+    site: params.site || "",
+    detail: params.detail || {},
+  });
 }
 
 // ── OPTIMISTIC CONCURRENCY ───────────────────────────────────────────────────
